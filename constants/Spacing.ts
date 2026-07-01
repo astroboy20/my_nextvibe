@@ -93,7 +93,7 @@ export const shadows = StyleSheet.create({
   },
   // Primary-coloured glow for CTAs
   primaryGlow: {
-    shadowColor: '#6C63FF',
+    shadowColor: '#5B1A57',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,
