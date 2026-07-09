@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "my_nextvibe",
-    "slug": "my_nextvibe",
+    "slug": "nextvibe",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -17,7 +17,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nextvibe2026.nextvibe"
     },
     "web": {
       "bundler": "metro",
@@ -25,6 +26,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       [
         "expo-splash-screen",
@@ -32,6 +34,13 @@
           "image": "./assets/images/logos/new/logo_black_text.png",
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
+        }
+      ],
+      "expo-web-browser",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID"
         }
       ]
     ],
@@ -43,6 +52,7 @@
       "eas": {
         "projectId": "e837865d-1e7b-495f-b8dd-db9783e2435b"
       }
-    }
+    },
+    "owner": "nextvibe2026s-organization"
   }
 }

@@ -2,6 +2,8 @@ import { useTheme } from '@/components/Themed';
 import AuthHeader from '@/components/auth/AuthHeader';
 import { layout, radius, shadows, space } from '@/constants/Spacing';
 import { fontWeight, textStyles } from '@/constants/Typography';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -18,6 +20,7 @@ import {
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail]             = useState('');
@@ -63,33 +66,25 @@ export default function RegisterScreen() {
         <AuthHeader title="Join NextVibe" subtitle="Create your account and start vibing" />
 
         {/* Google */}
-        <Pressable
-          style={({ pressed }) => [styles.googleBtn, shadows.sm, {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            opacity: pressed ? 0.88 : 1,
-          }]}
-          onPress={() => {/* TODO */}}
-          accessibilityRole="button"
-          accessibilityLabel="Sign up with Google"
-        >
-          <View style={styles.googleContent}>
-            <View style={styles.googleLeft}>
-              <Text style={styles.googleG}>
-                <Text style={{ color: '#4285F4' }}>G</Text>
-                <Text style={{ color: '#EA4335' }}>o</Text>
-                <Text style={{ color: '#FBBC05' }}>o</Text>
-                <Text style={{ color: '#4285F4' }}>g</Text>
-                <Text style={{ color: '#34A853' }}>l</Text>
-                <Text style={{ color: '#EA4335' }}>e</Text>
-              </Text>
-              <Text style={[textStyles.bodySm, { color: colors.text, fontWeight: fontWeight.semibold, marginLeft: space.xs }]}>
-                Sign up with Google
-              </Text>
-            </View>
-            <Text style={[textStyles.caption, { color: colors.textTertiary }]}>▾</Text>
-          </View>
-        </Pressable>
+        <View style={styles.googleBtnWrapper}>
+          <GoogleSigninButton
+            size={GoogleSigninButton.Size.Wide}
+            color={GoogleSigninButton.Color.Dark}
+            onPress={signInWithGoogle}
+            disabled={googleLoading}
+            style={styles.googleBtn}
+          />
+          {googleLoading && (
+            <ActivityIndicator
+              size="small"
+              style={styles.googleLoader}
+              color={colors.textTertiary}
+            />
+          )}
+        </View>
+        {googleError ? (
+          <Text style={[textStyles.caption, { color: colors.secondary, marginTop: space.sm }]}>{googleError}</Text>
+        ) : null}
 
         {/* OR divider */}
         <View style={styles.orRow}>
@@ -240,13 +235,20 @@ const styles = StyleSheet.create({
   eyeIcon: { fontSize: 20 },
   orRow: { flexDirection: 'row', alignItems: 'center', marginVertical: space.lg },
   orLine: { flex: 1, height: StyleSheet.hairlineWidth * 2 },
-  googleBtn: {
-    height: 56, borderRadius: radius.lg, borderWidth: 1.5,
-    paddingHorizontal: space.md, justifyContent: 'center',
+  googleBtnWrapper: {
+    alignItems: 'center',
+    marginBottom: space.xs,
   },
-  googleContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  googleLeft: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  googleG: { fontSize: 18, fontWeight: '700', letterSpacing: -0.5 },
+  googleBtn: {
+    width: '100%',
+    height: 56,
+  },
+  googleLoader: {
+    position: 'absolute',
+    right: space.md,
+    top: 0,
+    bottom: 0,
+  },
   checkRow: { flexDirection: 'row', alignItems: 'flex-start', marginTop: space.lg },
   checkbox: {
     width: 20, height: 20, borderRadius: radius.xs, borderWidth: 1.5,
