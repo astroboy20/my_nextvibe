@@ -27,9 +27,9 @@ import Animated, {
 const { width, height } = Dimensions.get('window');
 const LOGO_WIDTH = Math.min(width * 0.58, 240);
 
-const MIN_HOLD_MS  = 800;   // time logo is fully visible before exit starts
-const FADE_OUT_MS  = 450;   // screen exit fade duration
-const MAX_WAIT_MS  = 5000;  // absolute fallback — never stay stuck longer than this
+const MIN_HOLD_MS  = 2500;  // time logo is fully visible before exit starts
+const FADE_OUT_MS  = 600;   // screen exit fade duration
+const MAX_WAIT_MS  = 8000;  // absolute fallback — never stay stuck longer than this
 
 interface Props {
   fontsLoaded: boolean;

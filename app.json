@@ -20,13 +20,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.nextvibe2026.nextvibe"
     },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
     "plugins": [
-      "expo-dev-client",
       "expo-router",
       [
         "expo-splash-screen",

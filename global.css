@@ -1,15 +1,2 @@
-/* NextVibe — NativeWind v4 global stylesheet */
-
-/* Nunito Sans — web only (native uses @expo-google-fonts/nunito-sans) */
+/* NextVibe — web font (native uses local assets/fonts/*.ttf) */
 @import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&display=swap");
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  /* Make Nunito Sans the default font on web */
-  html, body {
-    font-family: 'Nunito Sans', sans-serif;
-  }
-}
