@@ -13,13 +13,7 @@
       },
       "ios": {
         "simulator": false
-      },
-      "githubTriggers": [
-        {
-          "type": "push",
-          "branches": ["develop", "feature/**", "master", "main"]
-        }
-      ]
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -28,13 +22,7 @@
       },
       "ios": {
         "simulator": false
-      },
-      "githubTriggers": [
-        {
-          "type": "push",
-          "branches": ["preview", "staging"]
-        }
-      ]
+      }
     },
     "production": {
       "autoIncrement": true,
@@ -43,13 +31,7 @@
       },
       "ios": {
         "simulator": false
-      },
-      "githubTriggers": [
-        {
-          "type": "push",
-          "branches": ["main"]
-        }
-      ]
+      }
     }
   },
   "submit": {

@@ -19,22 +19,40 @@
  * Requirement 1 §3: OAuth handshake completes and returns JWT.
  */
 
-import {
-    GoogleSignin,
-    isErrorWithCode,
-    statusCodes,
-} from '@react-native-google-signin/google-signin';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+
+// @react-native-google-signin/google-signin is native-only and requires a
+// dev/production build — it is NOT available in Expo Go.
+// We guard with try/catch so missing native modules don't crash the app.
+const isNative = Platform.OS !== 'web';
+
+let GoogleSignin: any = null;
+let isErrorWithCode: any = () => false;
+let statusCodes: any = {};
+
+if (isNative) {
+  try {
+    const pkg = require('@react-native-google-signin/google-signin');
+    GoogleSignin      = pkg.GoogleSignin;
+    isErrorWithCode   = pkg.isErrorWithCode;
+    statusCodes       = pkg.statusCodes;
+  } catch {
+    // Running in Expo Go — native module not available, Google Sign-In disabled
+  }
+}
 
 // ── Replace with your Google Cloud Console Web Client ID ─────────────────────
 const GOOGLE_WEB_CLIENT_ID = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
 
-// Configure once when the module loads
-GoogleSignin.configure({
-  webClientId: GOOGLE_WEB_CLIENT_ID,
-  offlineAccess: true,
-  scopes: ['profile', 'email'],
-});
+// Configure once when the module loads (native only)
+if (isNative && GoogleSignin) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    offlineAccess: true,
+    scopes: ['profile', 'email'],
+  });
+}
 
 export interface GoogleUser {
   id:         string;
@@ -64,6 +82,7 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
 
   // Check if a previous session exists on mount
   useEffect(() => {
+    if (!isNative || !GoogleSignin) return;
     (async () => {
       try {
         const isSignedIn = await GoogleSignin.hasPreviousSignIn();
@@ -80,6 +99,7 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
   }, []);
 
   async function signInWithGoogle() {
+    if (!isNative || !GoogleSignin) return;
     setError(null);
     setLoading(true);
     try {
@@ -117,6 +137,7 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
   }
 
   async function signOut() {
+    if (!isNative || !GoogleSignin) return;
     try {
       await GoogleSignin.signOut();
       setUser(null);

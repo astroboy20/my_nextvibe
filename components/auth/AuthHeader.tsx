@@ -23,12 +23,15 @@ export default function AuthHeader({ title, subtitle }: Props) {
         resizeMode="contain"
         accessibilityLabel="NextVibe"
       />
-      <Text style={[textStyles.h2, { color: colors.text, textAlign: 'center', marginBottom: space.xs }]}>
-        {title}
-      </Text>
-      <Text style={[textStyles.body, { color: colors.textTertiary, textAlign: 'center' }]}>
-        {subtitle}
-      </Text>
+      <View style={styles.textContainer}>
+        <Text style={[textStyles.h2, { color: colors.text, textAlign: 'center', marginBottom: space.xs }]}>
+          {title}
+        </Text>
+        <Text style={[textStyles.body, { color: colors.textSecondary, textAlign: 'center' }]}>
+          {subtitle}
+        </Text>
+      </View>
+
     </View>
   );
 }
@@ -36,12 +39,17 @@ export default function AuthHeader({ title, subtitle }: Props) {
 const styles = StyleSheet.create({
   wrapper: {
     alignItems: 'center',
+    width: '100%',
     paddingTop: space['3xl'],
     paddingBottom: space['2xl'],
   },
   logo: {
-    width: 210,
-    height: 58,
+    width: 200,
+    height: 60,
     marginBottom: space.xl,
+  },
+  textContainer: {
+    width: '100%',
+    alignItems: 'center',
   },
 });

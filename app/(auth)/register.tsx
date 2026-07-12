@@ -1,11 +1,11 @@
 import { useTheme } from '@/components/Themed';
+import { GoogleFallbackButton, PrimaryButton } from '@/components/auth/AuthButton';
 import AuthHeader from '@/components/auth/AuthHeader';
-import { layout, radius, shadows, space } from '@/constants/Spacing';
+import { layout, radius, space } from '@/constants/Spacing';
 import { fontWeight, textStyles } from '@/constants/Typography';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
-import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,6 +17,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+let GoogleSigninButton: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    GoogleSigninButton =
+      require('@react-native-google-signin/google-signin').GoogleSigninButton;
+  } catch {
+    // Expo Go — native module not available
+  }
+}
 
 export default function RegisterScreen() {
   const { colors } = useTheme();
@@ -66,22 +76,20 @@ export default function RegisterScreen() {
         <AuthHeader title="Join NextVibe" subtitle="Create your account and start vibing" />
 
         {/* Google */}
-        <View style={styles.googleBtnWrapper}>
-          <GoogleSigninButton
-            size={GoogleSigninButton.Size.Wide}
-            color={GoogleSigninButton.Color.Dark}
-            onPress={signInWithGoogle}
-            disabled={googleLoading}
-            style={styles.googleBtn}
-          />
-          {googleLoading && (
-            <ActivityIndicator
-              size="small"
-              style={styles.googleLoader}
-              color={colors.textTertiary}
+        {Platform.OS !== 'web' && GoogleSigninButton ? (
+          <View style={styles.googleBtnWrapper}>
+            <GoogleSigninButton
+              size={GoogleSigninButton.Size.Wide}
+              color={GoogleSigninButton.Color.Dark}
+              onPress={signInWithGoogle}
+              disabled={googleLoading}
+              style={styles.googleBtn}
             />
-          )}
-        </View>
+            {googleLoading && <ActivityIndicator size="small" style={styles.googleLoader} color={colors.textTertiary} />}
+          </View>
+        ) : (
+          <GoogleFallbackButton onPress={signInWithGoogle} loading={googleLoading} colors={colors} />
+        )}
         {googleError ? (
           <Text style={[textStyles.caption, { color: colors.secondary, marginTop: space.sm }]}>{googleError}</Text>
         ) : null}
@@ -172,22 +180,13 @@ export default function RegisterScreen() {
         </View>
         {errors.agreed ? <Text style={[textStyles.caption, { color: colors.secondary, marginTop: 4 }]}>{errors.agreed}</Text> : null}
 
-        {/* Submit */}
-        <Pressable
-          style={({ pressed }) => [styles.primaryBtn, shadows.primaryGlow, {
-            backgroundColor: agreed ? colors.primaryDark : colors.primaryLight,
-            opacity: pressed || loading ? 0.9 : 1,
-            marginTop: space.xl,
-          }]}
+        <PrimaryButton
+          label="Submit"
+          loading={loading}
           onPress={handleSubmit}
-          disabled={loading}
-          accessibilityRole="button"
-        >
-          {loading
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={[textStyles.button, { color: '#fff' }]}>Submit</Text>
-          }
-        </Pressable>
+          backgroundColor={agreed ? colors.primary : colors.primaryLight}
+          marginTop={space.xl}
+        />
 
         {/* Sign in */}
         <View style={styles.bottomRow}>
@@ -204,7 +203,7 @@ export default function RegisterScreen() {
 }
 
 function Field({ label, error, colors, top, children }: {
-  label: string; error: string; colors: any; top?: boolean; children: React.ReactNode;
+  label: string; error: string; colors: any; top?: boolean; children: ReactNode;
 }) {
   return (
     <View style={top ? { marginTop: space.lg } : undefined}>
@@ -225,7 +224,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1.5,
     paddingHorizontal: space.md,
-    ...textStyles.body,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 15,
+    includeFontPadding: false,
   },
   inputPadR: { paddingRight: 52 },
   eyeBtn: {
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
   },
   checkMark: { color: '#fff', fontSize: 12, lineHeight: 16, fontWeight: '700' },
   primaryBtn: {
-    height: layout.buttonHeight, borderRadius: radius.lg,
+    height: layout.buttonHeight, width: '100%', borderRadius: radius.lg,
     alignItems: 'center', justifyContent: 'center',
   },
   bottomRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: space.xl },

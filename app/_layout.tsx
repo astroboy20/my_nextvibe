@@ -1,13 +1,20 @@
 import '../global.css';
 
+import {
+  NunitoSans_400Regular,
+  NunitoSans_400Regular_Italic,
+  NunitoSans_500Medium,
+  NunitoSans_600SemiBold,
+  NunitoSans_700Bold,
+  NunitoSans_800ExtraBold,
+} from '@expo-google-fonts/nunito-sans';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import SplashScreenView from '@/components/SplashScreenView';
-import { useColorScheme } from '@/components/useColorScheme';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -19,9 +26,14 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    NunitoSans_400Regular,
+    NunitoSans_400Regular_Italic,
+    NunitoSans_500Medium,
+    NunitoSans_600SemiBold,
+    NunitoSans_700Bold,
+    NunitoSans_800ExtraBold,
   });
-  const [ready, setReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     if (fontError) throw fontError;
@@ -33,36 +45,20 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  // Called by SplashScreenView once its fade-out animation finishes
-  function onSplashDone() {
-    setReady(true);
-    // TODO: check for stored JWT here — navigate to (tabs) if valid
-    router.replace('/(auth)/login');
-  }
-
-  // Show only the splash until it's done
-  if (!ready) {
+  if (!splashDone) {
     return (
       <SplashScreenView
         fontsLoaded={fontsLoaded || !!fontError}
-        onFinished={onSplashDone}
+        onFinished={() => setSplashDone(true)}
       />
     );
   }
 
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    </Stack>
   );
 }

@@ -1,8 +1,8 @@
 /**
  * NextVibe Design System — Typography
  *
- * SpaceMono is loaded via expo-font for display/mono use.
- * Body and UI text use the system font (undefined = RN default).
+ * Primary typeface: Nunito Sans (Google Fonts)
+ * Loaded via @expo-google-fonts/nunito-sans in app/_layout.tsx
  *
  * Scale is 4pt-based for visual harmony with the spacing grid.
  */
@@ -11,16 +11,20 @@ import { StyleSheet, type TextStyle } from 'react-native';
 
 // ─── Font Families ────────────────────────────────────────────────────────────
 export const fontFamily = {
-  /** Decorative / code — loaded via expo-font */
-  mono:    'SpaceMono' as string | undefined,
-  /** Body / UI — falls back to system font */
-  regular: undefined as string | undefined,
+  regular:   'NunitoSans_400Regular',
+  italic:    'NunitoSans_400Regular_Italic',
+  medium:    'NunitoSans_500Medium',
+  semibold:  'NunitoSans_600SemiBold',
+  bold:      'NunitoSans_700Bold',
+  extrabold: 'NunitoSans_800ExtraBold',
+  /** Keep SpaceMono available for code/mono contexts if needed */
+  mono:      'SpaceMono',
 } as const;
 
 // ─── Size scale (dp) ──────────────────────────────────────────────────────────
 export const fontSize = {
   xs:   11,
-  sm:   13,
+  sm:   14,
   base: 15,
   md:   17,
   lg:   20,
@@ -32,12 +36,15 @@ export const fontSize = {
 } as const;
 
 // ─── Weights ──────────────────────────────────────────────────────────────────
+// With custom fonts loaded per-weight, fontWeight alone doesn't select the
+// right file — fontFamily must be set explicitly. These constants are kept
+// for convenience in places that still need the numeric weight value.
 export const fontWeight = {
-  regular:  '400' as TextStyle['fontWeight'],
-  medium:   '500' as TextStyle['fontWeight'],
-  semibold: '600' as TextStyle['fontWeight'],
-  bold:     '700' as TextStyle['fontWeight'],
-  extrabold:'800' as TextStyle['fontWeight'],
+  regular:   '400' as TextStyle['fontWeight'],
+  medium:    '500' as TextStyle['fontWeight'],
+  semibold:  '600' as TextStyle['fontWeight'],
+  bold:      '700' as TextStyle['fontWeight'],
+  extrabold: '800' as TextStyle['fontWeight'],
 } as const;
 
 // ─── Line heights (dp) ────────────────────────────────────────────────────────
@@ -65,84 +72,80 @@ export const letterSpacing = {
 } as const;
 
 // ─── Semantic text styles (StyleSheet-ready) ──────────────────────────────────
+// fontFamily is set explicitly on every style so the correct Nunito Sans
+// weight file is used on both iOS and Android.
 export const textStyles = StyleSheet.create({
   h1: {
+    fontFamily: fontFamily.bold,
     fontSize: fontSize['3xl'],
-    lineHeight: lineHeight['3xl'],
-    fontWeight: fontWeight.bold,
     letterSpacing: letterSpacing.tight,
   },
   h2: {
+    fontFamily: fontFamily.bold,
     fontSize: fontSize['2xl'],
-    lineHeight: lineHeight['2xl'],
-    fontWeight: fontWeight.bold,
     letterSpacing: letterSpacing.tight,
   },
   h3: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.xl,
-    lineHeight: lineHeight.xl,
-    fontWeight: fontWeight.semibold,
   },
   h4: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.lg,
-    lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.semibold,
   },
   h5: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.md,
-    lineHeight: lineHeight.md,
-    fontWeight: fontWeight.semibold,
   },
   bodyLg: {
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.md,
     lineHeight: lineHeight.md,
-    fontWeight: fontWeight.regular,
   },
   body: {
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.base,
     lineHeight: lineHeight.base,
-    fontWeight: fontWeight.regular,
   },
   bodySm: {
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    fontWeight: fontWeight.regular,
   },
   label: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    fontWeight: fontWeight.medium,
     letterSpacing: letterSpacing.wide,
   },
   caption: {
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
-    fontWeight: fontWeight.regular,
   },
   overline: {
+    fontFamily: fontFamily.bold,
     fontSize: fontSize.xs,
     lineHeight: lineHeight.xs,
-    fontWeight: fontWeight.bold,
     letterSpacing: letterSpacing.widest,
     textTransform: 'uppercase',
   },
   button: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.base,
     lineHeight: lineHeight.base,
-    fontWeight: fontWeight.semibold,
     letterSpacing: letterSpacing.wide,
   },
   buttonSm: {
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
     lineHeight: lineHeight.sm,
-    fontWeight: fontWeight.semibold,
     letterSpacing: letterSpacing.wide,
   },
-  // Used in leaderboard ranks, game scores
   numeric: {
+    fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
     lineHeight: lineHeight.lg,
-    fontWeight: fontWeight.bold,
     fontVariant: ['tabular-nums'],
   },
 });

@@ -1,11 +1,11 @@
 import { useTheme } from '@/components/Themed';
+import { PrimaryButton } from '@/components/auth/AuthButton';
 import AuthHeader from '@/components/auth/AuthHeader';
-import { layout, radius, shadows, space } from '@/constants/Spacing';
+import { layout, radius, space } from '@/constants/Spacing';
 import { fontWeight, textStyles } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -13,7 +13,7 @@ import {
     StyleSheet,
     Text,
     TextInput,
-    View,
+    View
 } from 'react-native';
 
 type State = 'idle' | 'loading' | 'sent';
@@ -55,16 +55,12 @@ export default function ForgotPasswordScreen() {
           <Text style={{ color: colors.primary, fontWeight: fontWeight.semibold }}>{email}</Text>
         </Text>
         <View style={{ width: '100%', paddingHorizontal: space.xl }}>
-          <Pressable
-            style={({ pressed }) => [styles.primaryBtn, shadows.primaryGlow, {
-              backgroundColor: colors.primaryDark,
-              opacity: pressed ? 0.9 : 1,
-            }]}
+          <PrimaryButton
+            label="Back to Login"
+            loading={false}
             onPress={() => router.replace('/(auth)/login')}
-            accessibilityRole="button"
-          >
-            <Text style={[textStyles.button, { color: '#fff' }]}>Back to Login</Text>
-          </Pressable>
+            backgroundColor={colors.primary}
+          />
         </View>
       </View>
     );
@@ -109,22 +105,13 @@ export default function ForgotPasswordScreen() {
         </View>
         {emailErr ? <Text style={[textStyles.caption, { color: colors.secondary, marginTop: 4 }]}>{emailErr}</Text> : null}
 
-        {/* Send button */}
-        <Pressable
-          style={({ pressed }) => [styles.primaryBtn, shadows.primaryGlow, {
-            backgroundColor: colors.primaryDark,
-            opacity: pressed || state === 'loading' ? 0.9 : 1,
-            marginTop: space.xl,
-          }]}
+        <PrimaryButton
+          label="Send Reset Link"
+          loading={state === 'loading'}
           onPress={handleSend}
-          disabled={state === 'loading'}
-          accessibilityRole="button"
-        >
-          {state === 'loading'
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={[textStyles.button, { color: '#fff' }]}>Send Reset Link</Text>
-          }
-        </Pressable>
+          backgroundColor={colors.primary}
+          marginTop={space.xl}
+        />
 
         {/* Back to login */}
         <Pressable style={styles.backRow} onPress={() => router.back()} accessibilityRole="button">
@@ -164,18 +151,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1.5,
     paddingHorizontal: space.md,
-    gap: space.sm,
   },
   inputIcon: {
     fontSize: 18,
+    marginRight: space.sm,
   },
   iconInput: {
     flex: 1,
     height: '100%',
-    ...textStyles.body,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 15,
+    includeFontPadding: false,
   },
   primaryBtn: {
     height: layout.buttonHeight,
+    width: '100%',
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',

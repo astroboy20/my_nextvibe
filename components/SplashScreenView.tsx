@@ -13,20 +13,23 @@
 
 import { brand } from '@/constants/Colors';
 import { textStyles } from '@/constants/Typography';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Dimensions, Image, StyleSheet, Text } from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withTiming,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
 const { width, height } = Dimensions.get('window');
 const LOGO_WIDTH = Math.min(width * 0.58, 240);
 
 const MIN_HOLD_MS  = 800;   // time logo is fully visible before exit starts
 const FADE_OUT_MS  = 450;   // screen exit fade duration
+const MAX_WAIT_MS  = 5000;  // absolute fallback — never stay stuck longer than this
 
 interface Props {
   fontsLoaded: boolean;
@@ -34,6 +37,10 @@ interface Props {
 }
 
 export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
+  // Stable ref so callbacks never close over a stale onFinished
+  const onFinishedRef = useRef(onFinished);
+  useEffect(() => { onFinishedRef.current = onFinished; }, [onFinished]);
+
   // ── Screen exit opacity ──────────────────────────────────────────────────
   const screenOpacity = useSharedValue(1);
 
@@ -62,30 +69,37 @@ export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
     tagOpacity.value    = withDelay(350, withTiming(1, { duration: 500, easing: ease }));
     tagTranslateY.value = withDelay(350, withTiming(0, { duration: 500, easing: ease }));
 
-    // Dot pulse loop — staggered
-    function pulseDot(sv: ReturnType<typeof useSharedValue<number>>, delay: number) {
-      sv.value = withDelay(
-        delay + 700,
-        withTiming(1, { duration: 400 }, () => {
-          sv.value = withTiming(0.3, { duration: 400 });
-        }),
-      );
-    }
-    pulseDot(dot1, 0);
-    pulseDot(dot2, 200);
-    pulseDot(dot3, 400);
+    // Dot pulse loop — staggered repeating
+    const pulseAnim = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 400 }),
+        withTiming(0.3, { duration: 400 }),
+      ),
+      -1, // infinite
+      false,
+    );
+    dot1.value = withDelay(700,       pulseAnim);
+    dot2.value = withDelay(700 + 200, pulseAnim);
+    dot3.value = withDelay(700 + 400, pulseAnim);
   }, []);
 
-  // Exit: wait for fonts, hold, then fade the whole screen out
+  // Exit: wait for fonts (or fallback), hold, then fade out
   useEffect(() => {
-    if (!fontsLoaded) return;
-
-    const hold = setTimeout(() => {
+    function startExit() {
       screenOpacity.value = withTiming(0, { duration: FADE_OUT_MS });
-      setTimeout(onFinished, FADE_OUT_MS + 50);
-    }, MIN_HOLD_MS);
+      setTimeout(() => onFinishedRef.current(), FADE_OUT_MS + 50);
+    }
 
-    return () => clearTimeout(hold);
+    // Absolute fallback — never stay stuck
+    const fallback = setTimeout(startExit, MAX_WAIT_MS);
+
+    if (fontsLoaded) {
+      clearTimeout(fallback);
+      const hold = setTimeout(startExit, MIN_HOLD_MS);
+      return () => { clearTimeout(hold); clearTimeout(fallback); };
+    }
+
+    return () => clearTimeout(fallback);
   }, [fontsLoaded]);
 
   // ── Animated styles ───────────────────────────────────────────────────────

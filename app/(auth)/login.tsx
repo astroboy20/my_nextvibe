@@ -1,22 +1,35 @@
 import { useTheme } from "@/components/Themed";
+import { GoogleFallbackButton, PrimaryButton } from "@/components/auth/AuthButton";
 import AuthHeader from "@/components/auth/AuthHeader";
-import { layout, radius, shadows, space } from "@/constants/Spacing";
+import { layout, radius, space } from "@/constants/Spacing";
 import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
-import { GoogleSigninButton } from "@react-native-google-signin/google-signin";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from "react-native";
+
+const SCREEN_HEIGHT = Dimensions.get('screen').height;
+
+let GoogleSigninButton: any = null;
+if (Platform.OS !== "web") {
+  try {
+    GoogleSigninButton =
+      require("@react-native-google-signin/google-signin").GoogleSigninButton;
+  } catch {
+    // Expo Go — native module not available
+  }
+}
 
 export default function LoginScreen() {
   const { colors } = useTheme();
@@ -29,33 +42,24 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [emailErr, setEmailErr] = useState("");
   const [passErr, setPassErr] = useState("");
+  const [focused, setFocused] = useState<"email" | "password" | null>(null);
+
+  const emailBorder = emailErr ? colors.secondary : focused === "email" ? colors.primary : colors.border;
+  const passBorder  = passErr  ? colors.secondary : focused === "password" ? colors.primary : colors.border;
 
   function validate() {
     let ok = true;
-    setEmailErr("");
-    setPassErr("");
-    if (!email.trim()) {
-      setEmailErr("Email is required");
-      ok = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setEmailErr("Enter a valid email");
-      ok = false;
-    }
-    if (!password) {
-      setPassErr("Password is required");
-      ok = false;
-    }
+    setEmailErr(""); setPassErr("");
+    if (!email.trim()) { setEmailErr("Email is required"); ok = false; }
+    else if (!/\S+@\S+\.\S+/.test(email)) { setEmailErr("Enter a valid email"); ok = false; }
+    if (!password) { setPassErr("Password is required"); ok = false; }
     return ok;
   }
 
   async function handleLogin() {
     if (!validate()) return;
     setLoading(true);
-    // TODO: Auth_Service
-    setTimeout(() => {
-      setLoading(false);
-      router.replace("/(tabs)");
-    }, 1500);
+    setTimeout(() => { setLoading(false); router.replace("/(tabs)"); }, 1500);
   }
 
   return (
@@ -64,187 +68,91 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { minHeight: SCREEN_HEIGHT }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <AuthHeader
-          title="Welcome back"
-          subtitle="Sign in to continue your vibe"
-        />
+        <AuthHeader title="Welcome Back" subtitle="Sign in to continue your vibe" />
 
         {/* Email */}
-        <Text
-          style={[
-            textStyles.label,
-            styles.label,
-            { color: colors.textSecondary },
-          ]}
-        >
-          Email
-        </Text>
+        <Text style={[textStyles.label, styles.label, { color: colors.textSecondary }]}>Email</Text>
         <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.surface,
-              borderColor: emailErr ? colors.secondary : colors.border,
-              color: colors.text,
-            },
-          ]}
+          style={[styles.input, { backgroundColor: colors.surface, borderColor: emailBorder, color: colors.text }]}
           placeholder="Enter your email"
           placeholderTextColor={colors.textTertiary}
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
           value={email}
-          onChangeText={(t) => {
-            setEmail(t);
-            setEmailErr("");
-          }}
+          onFocus={() => setFocused("email")}
+          onBlur={() => setFocused(null)}
+          onChangeText={(t) => { setEmail(t); setEmailErr(""); }}
         />
-        {emailErr ? (
-          <Text
-            style={[
-              textStyles.caption,
-              styles.err,
-              { color: colors.secondary },
-            ]}
-          >
-            {emailErr}
-          </Text>
-        ) : null}
+        {emailErr ? <Text style={[textStyles.caption, styles.err, { color: colors.secondary }]}>{emailErr}</Text> : null}
 
         {/* Password */}
-        <Text
-          style={[
-            textStyles.label,
-            styles.label,
-            styles.labelTop,
-            { color: colors.textSecondary },
-          ]}
-        >
-          Password
-        </Text>
+        <Text style={[textStyles.label, styles.label, styles.labelTop, { color: colors.textSecondary }]}>Password</Text>
         <View>
           <TextInput
-            style={[
-              styles.input,
-              styles.inputPadR,
-              {
-                backgroundColor: colors.surface,
-                borderColor: passErr ? colors.secondary : colors.border,
-                color: colors.text,
-              },
-            ]}
+            style={[styles.input, styles.inputPadR, { backgroundColor: colors.surface, borderColor: passBorder, color: colors.text }]}
             placeholder="Enter your password"
             placeholderTextColor={colors.textTertiary}
             secureTextEntry={!showPass}
             autoComplete="current-password"
             value={password}
-            onChangeText={(t) => {
-              setPassword(t);
-              setPassErr("");
-            }}
+            onFocus={() => setFocused("password")}
+            onBlur={() => setFocused(null)}
+            onChangeText={(t) => { setPassword(t); setPassErr(""); }}
           />
-          <Pressable
-            style={styles.eyeBtn}
-            onPress={() => setShowPass((v) => !v)}
-            accessibilityLabel={showPass ? "Hide password" : "Show password"}
-          >
-            <Text style={[styles.eyeIcon, { color: colors.textTertiary }]}>
-              {showPass ? "○" : "◉"}
-            </Text>
+          <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
+            <Text style={[styles.eyeIcon, { color: colors.textTertiary }]}>{showPass ? "○" : "◉"}</Text>
           </Pressable>
         </View>
-        {passErr ? (
-          <Text
-            style={[
-              textStyles.caption,
-              styles.err,
-              { color: colors.secondary },
-            ]}
-          >
-            {passErr}
-          </Text>
-        ) : null}
+        {passErr ? <Text style={[textStyles.caption, styles.err, { color: colors.secondary }]}>{passErr}</Text> : null}
 
         {/* Forgot password */}
         <Link href="/(auth)/forgot-password" asChild>
           <Pressable style={styles.forgotRow}>
-            <Text
-              style={[
-                textStyles.bodySm,
-                { color: colors.text, fontWeight: fontWeight.medium },
-              ]}
-            >
-              Forgot Password?
-            </Text>
+            <Text style={[textStyles.bodySm, { color: colors.text, fontWeight: fontWeight.medium }]}>Forgot Password?</Text>
           </Pressable>
         </Link>
 
         {/* Login button */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            shadows.primaryGlow,
-            {
-              backgroundColor: colors.primaryDark,
-              opacity: pressed || loading ? 0.9 : 1,
-            },
-          ]}
+        <PrimaryButton
+          label="Login"
+          loading={loading}
           onPress={handleLogin}
-          disabled={loading}
-          accessibilityRole="button"
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={[textStyles.button, { color: "#fff" }]}>Login</Text>
-          )}
-        </Pressable>
+          backgroundColor={colors.primary}
+        />
 
-        {/* OR */}
+        {/* OR divider */}
         <OrDivider color={colors.border} textColor={colors.textTertiary} />
 
-        {/* Google */}
-        <View style={styles.googleBtnWrapper}>
-          <GoogleSigninButton
-            size={GoogleSigninButton.Size.Wide}
-            color={GoogleSigninButton.Color.Dark}
-            onPress={signInWithGoogle}
-            disabled={googleLoading}
-            style={styles.googleBtn}
-          />
-          {googleLoading && (
-            <ActivityIndicator
-              size="small"
-              style={styles.googleLoader}
-              color={colors.textTertiary}
+        {/* Google button */}
+        {Platform.OS !== "web" && GoogleSigninButton ? (
+          <View style={styles.googleBtnWrapper}>
+            <GoogleSigninButton
+              size={GoogleSigninButton.Size.Wide}
+              color={GoogleSigninButton.Color.Dark}
+              onPress={signInWithGoogle}
+              disabled={googleLoading}
+              style={styles.googleBtn}
             />
-          )}
-        </View>
+            {googleLoading && <ActivityIndicator size="small" style={styles.googleLoader} color={colors.textTertiary} />}
+          </View>
+        ) : (
+          <GoogleFallbackButton onPress={signInWithGoogle} loading={googleLoading} colors={colors} />
+        )}
         {googleError ? (
-          <Text style={[textStyles.caption, { color: colors.secondary, textAlign: 'center', marginTop: -space.lg, marginBottom: space.md }]}>
-            {googleError}
-          </Text>
+          <Text style={[textStyles.caption, { color: colors.secondary, textAlign: 'center', marginBottom: space.md }]}>{googleError}</Text>
         ) : null}
 
         {/* Sign up */}
         <View style={styles.bottomRow}>
-          <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>
-            Don't have an account?{" "}
-          </Text>
+          <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>Don't have an account? </Text>
           <Link href="/(auth)/register" asChild>
             <Pressable>
-              <Text
-                style={[
-                  textStyles.bodySm,
-                  { color: colors.primary, fontWeight: fontWeight.semibold },
-                ]}
-              >
-                Sign up
-              </Text>
+              <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.semibold }]}>Sign up</Text>
             </Pressable>
           </Link>
         </View>
@@ -253,20 +161,11 @@ export default function LoginScreen() {
   );
 }
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
-
 function OrDivider({ color, textColor }: { color: string; textColor: string }) {
   return (
     <View style={styles.orRow}>
       <View style={[styles.orLine, { backgroundColor: color }]} />
-      <Text
-        style={[
-          textStyles.caption,
-          { color: textColor, marginHorizontal: space.sm, letterSpacing: 1 },
-        ]}
-      >
-        OR
-      </Text>
+      <Text style={[textStyles.caption, { color: textColor, marginHorizontal: space.sm, letterSpacing: 1 }]}>OR</Text>
       <View style={[styles.orLine, { backgroundColor: color }]} />
     </View>
   );
@@ -281,75 +180,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     paddingVertical: space.xl,
   },
-  label: {
-    marginBottom: space.xs,
-  },
-  labelTop: {
-    marginTop: space.lg,
-  },
+  label: { marginBottom: space.xs },
+  labelTop: { marginTop: space.lg },
   input: {
     height: layout.inputHeight,
     borderRadius: radius.lg,
     borderWidth: 1.5,
     paddingHorizontal: space.md,
-    ...textStyles.body,
+    fontFamily: 'NunitoSans_400Regular',
+    fontSize: 15,
   },
-  inputPadR: {
-    paddingRight: 52,
-  },
-  err: {
-    marginTop: 4,
-  },
+  inputPadR: { paddingRight: 52 },
+  err: { marginTop: 4 },
   eyeBtn: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 52,
-    alignItems: "center",
-    justifyContent: "center",
+    position: "absolute", right: 0, top: 0, bottom: 0,
+    width: 52, alignItems: "center", justifyContent: "center",
   },
-  eyeIcon: {
-    fontSize: 20,
-  },
+  eyeIcon: { fontSize: 20 },
   forgotRow: {
     alignSelf: "flex-end",
     paddingVertical: space.sm,
     marginTop: space.xs,
     marginBottom: space.md,
   },
-  primaryBtn: {
-    height: layout.buttonHeight,
-    borderRadius: radius.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   orRow: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: space.xl,
   },
-  orLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth * 2,
-  },
-  googleBtnWrapper: {
-    alignItems: "center",
-    marginBottom: space["2xl"],
-  },
-  googleBtn: {
-    width: "100%",
-    height: 56,
-  },
-  googleLoader: {
-    position: "absolute",
-    right: space.md,
-    top: 0,
-    bottom: 0,
-  },
+  orLine: { flex: 1, height: StyleSheet.hairlineWidth * 2 },
+  googleBtnWrapper: { alignItems: "center", marginBottom: space["2xl"] },
+  googleBtn: { width: "100%", height: 56 },
+  googleLoader: { position: "absolute", right: space.md, top: 0, bottom: 0 },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: space.lg,
   },
 });

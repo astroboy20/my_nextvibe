@@ -27,10 +27,11 @@ export const neutral = {
   400: '#9E849D',
   500: '#745572',
   600: '#4F3A4E',
-  700: '#352135',   // card surface in dark mode
+  700: '#374151',   // card surface in dark mode
   800: '#1E1E2E',   // dark background — Req 25 §1
   900: '#13101F',
   950: '#0A0810',
+  960: "#e5e7eb" //border
 } as const;
 
 // ─── Semantic colours ─────────────────────────────────────────────────────────
@@ -77,32 +78,32 @@ const light = {
 
 // ─── Dark theme tokens ────────────────────────────────────────────────────────
 const dark = {
-  background:      neutral[800],
-  surface:         neutral[700],
-  surfaceElevated: neutral[600],
-  card:            neutral[700],
-  border:          neutral[600],
-  divider:         neutral[700],
+  background:      neutral[800],    // #1E1E2E
+  surface:         '#2A2A3E',       // slightly lighter than bg
+  surfaceElevated: '#32324A',       // elevated cards
+  card:            '#2A2A3E',
+  border:          '#3D3D56',       // visible but subtle in dark
+  divider:         '#2A2A3E',
 
-  text:            neutral[50],
-  textSecondary:   neutral[300],
-  textTertiary:    neutral[500],
+  text:            neutral[50],     // #FAF7FA — almost white
+  textSecondary:   neutral[300],    // #C8B4C7 — readable on dark bg
+  textTertiary:    neutral[400],    // #9E849D — placeholder, hints
   textOnPrimary:   neutral[0],
   textOnSecondary: neutral[0],
 
   // Brand stays consistent across modes — Req 25 §4
-  primary:         brand.primary,
+  primary:         brand.primaryLight,  // #8B3A86 — brighter on dark bg for contrast
   primaryLight:    brand.primaryLight,
-  primaryDark:     brand.primaryDark,
+  primaryDark:     brand.primary,
   secondary:       brand.secondary,
   secondaryLight:  brand.secondaryLight,
   secondaryDark:   brand.secondaryDark,
 
-  tint:            brand.primaryLight,   // slightly lighter for dark bg legibility
-  tabIconDefault:  neutral[500],
+  tint:            brand.primaryLight,
+  tabIconDefault:  neutral[400],
   tabIconSelected: brand.primaryLight,
   tabBar:          neutral[800],
-  tabBarBorder:    neutral[700],
+  tabBarBorder:    '#2A2A3E',
   overlay:         'rgba(0,0,0,0.7)',
 } as const;
 
