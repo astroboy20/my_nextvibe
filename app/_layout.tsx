@@ -47,6 +47,13 @@ export default function RootLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }} initialRouteName="(auth)">
       <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="create" />
+      <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="dashboard" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="events/[id]" />
     </Stack>
   );
 }
