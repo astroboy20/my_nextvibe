@@ -4,17 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -324,17 +324,7 @@ export default function CreateEventScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={neutral[800]} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Create Event</Text>
-          <Text style={styles.headerSub}>Share your next experience</Text>
-        </View>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader onBack={() => router.back()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -543,26 +533,6 @@ export default function CreateEventScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: neutral[100],
-  },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.md, color: neutral[900] },
-  headerSub:   { fontFamily: fontFamily.regular, fontSize: 12, color: neutral[500], marginTop: 1 },
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 48 },
   group:   { marginBottom: 20 },

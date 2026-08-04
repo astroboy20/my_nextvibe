@@ -1,3 +1,4 @@
+import AppHeader from '@/components/navigation/AppHeader';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,7 +125,7 @@ function EventListItem({ item }: { item: DashboardEvent }) {
     <TouchableOpacity
       style={ev.row}
       activeOpacity={0.8}
-      onPress={() => router.push(`/events/${item.id}` as any)}
+      onPress={() => router.push({ pathname: '/edit-event', params: { id: item.id } })}
     >
       {/* Thumbnail */}
       <View style={ev.thumb}>
@@ -171,6 +172,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <AppHeader onBack={() => router.back()} notificationCount={2} />
       <FlatList
         data={MOCK_EVENTS}
         keyExtractor={(item) => item.id}
@@ -246,15 +248,6 @@ export default function DashboardScreen() {
         // Header with back button inside the safe area
         ListHeaderComponentStyle={{ paddingTop: 0 }}
       />
-
-      {/* Sticky back button in top-left */}
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => router.back()}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="arrow-back" size={20} color={neutral[800]} />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -265,18 +258,6 @@ const styles = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: '#fff' },
   listContent: { paddingBottom: 48 },
 
-  backBtn: {
-    position: 'absolute',
-    top: 56,
-    left: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: neutral[100],
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
   headerSection: { paddingTop: 16 },
 
   greeting: {
@@ -284,7 +265,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     color: neutral[900],
     paddingHorizontal: 16,
-    paddingTop: 36, // space below back btn
+    paddingTop: 12,
     marginBottom: 16,
   },
 

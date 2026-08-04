@@ -1,8 +1,8 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily } from '@/constants/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -19,16 +19,16 @@ interface Props {
 
 export default function FilterChips({ chips, active, onToggle }: Props) {
   return (
-    <ScrollView
+    <FlatList
       horizontal
+      data={chips}
+      keyExtractor={(item) => item.label}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
-    >
-      {chips.map(({ label, icon }) => {
+      renderItem={({ item: { label, icon } }) => {
         const isActive = active.includes(label);
         return (
           <TouchableOpacity
-            key={label}
             style={[styles.chip, isActive && styles.chipActive]}
             onPress={() => onToggle(label)}
             activeOpacity={0.75}
@@ -37,8 +37,8 @@ export default function FilterChips({ chips, active, onToggle }: Props) {
             <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
           </TouchableOpacity>
         );
-      })}
-    </ScrollView>
+      }}
+    />
   );
 }
 

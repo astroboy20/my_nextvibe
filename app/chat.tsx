@@ -4,15 +4,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -138,11 +138,9 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
 
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={22} color={neutral[800]} />
-        </TouchableOpacity>
+      {/* ── Header: logo + back + chat participant ── */}
+      <AppHeader onBack={() => router.back()} />
+      <View style={styles.chatBar}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarInitial}>{(username ?? '?').charAt(0).toUpperCase()}</Text>
         </View>
@@ -211,7 +209,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#fff' },
 
-  header: {
+  chatBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -219,6 +217,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
     gap: 10,
+    backgroundColor: '#fff',
   },
   backBtn:      { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: neutral[100] },
   avatarCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },

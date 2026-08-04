@@ -1,7 +1,9 @@
+import AppHeader from '@/components/navigation/AppHeader';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,9 +32,10 @@ const MOCK_PROFILE = {
 };
 
 const MOCK_EVENTS = [
-  { id: '1', name: 'Argentina vs. Spain', startsAt: '2026-07-19', status: 'PUBLISHED', locationName: 'Online Event', flierUrl: null },
+  { id: '1', name: 'Argentina vs. Spain',  startsAt: '2026-07-19', status: 'PUBLISHED', locationName: 'Online Event', flierUrl: null },
   { id: '2', name: 'Argentina vs England', startsAt: '2026-07-15', status: 'DRAFT',     locationName: 'Online Event', flierUrl: null },
   { id: '3', name: 'GOAT Exhibition',      startsAt: '2026-07-18', status: 'PUBLISHED', locationName: null,           flierUrl: null },
+  { id: '4', name: 'A Brand New World',    startsAt: '2026-07-20', status: 'DRAFT',     locationName: 'Lagos, Nigeria', flierUrl: null },
 ];
 
 const MOCK_POSTCARDS = [
@@ -105,7 +108,7 @@ function EventRow({ item }: { item: typeof MOCK_EVENTS[0] }) {
     <TouchableOpacity
       style={ev.row}
       activeOpacity={0.8}
-      onPress={() => router.push(`/events/${item.id}` as any)}
+      onPress={() => router.push({ pathname: '/edit-event', params: { id: item.id } })}
     >
       {/* Flier thumbnail */}
       <View style={ev.thumb}>
@@ -205,7 +208,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar style="dark" backgroundColor="#fff" />
+      <AppHeader notificationCount={2} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -218,15 +222,6 @@ export default function ProfileScreen() {
           <>
             {/* ── Header ── */}
             <View style={styles.header}>
-              {/* Settings icon top-right */}
-              <TouchableOpacity
-                style={styles.settingsBtn}
-                onPress={() => router.push('/settings')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="settings-outline" size={22} color={neutral[700]} />
-              </TouchableOpacity>
-
               {/* Avatar */}
               <View style={styles.avatarWrap}>
                 <Avatar uri={MOCK_PROFILE.avatarUrl} name={MOCK_PROFILE.displayName} size={88} />
@@ -348,28 +343,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
-  settingsBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 16,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: neutral[100],
-  },
   avatarWrap: { position: 'relative', marginBottom: 12 },
   avatarRing: {
     position: 'absolute',
-    inset: -4,
     top: -4, left: -4, right: -4, bottom: -4,
-    borderRadius: 50,
+    borderRadius: 48,
     borderWidth: 3,
     borderColor: `${brand.primary}30`,
     width: 96,
     height: 96,
-    borderRadius: 48,
   },
   displayName: { fontFamily: fontFamily.bold,    fontSize: fontSize.xl,  color: neutral[900] },
   username:    { fontFamily: fontFamily.regular, fontSize: fontSize.sm,  color: neutral[500], marginTop: 2 },

@@ -1,9 +1,10 @@
-import { useTheme } from "@/components/Themed";
 import { GoogleFallbackButton, PrimaryButton } from "@/components/auth/AuthButton";
 import AuthHeader from "@/components/auth/AuthHeader";
+import Colors from "@/constants/Colors";
 import { layout, radius, space } from "@/constants/Spacing";
 import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -32,7 +33,7 @@ if (Platform.OS !== "web") {
 }
 
 export default function LoginScreen() {
-  const { colors } = useTheme();
+  const colors = Colors.light;
   const router = useRouter();
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
@@ -45,7 +46,7 @@ export default function LoginScreen() {
   const [focused, setFocused] = useState<"email" | "password" | null>(null);
 
   const emailBorder = emailErr ? colors.secondary : focused === "email" ? colors.primary : colors.border;
-  const passBorder  = passErr  ? colors.secondary : focused === "password" ? colors.primary : colors.border;
+  const passBorder = passErr ? colors.secondary : focused === "password" ? colors.primary : colors.border;
 
   function validate() {
     let ok = true;
@@ -64,7 +65,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: "white" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -105,7 +106,7 @@ export default function LoginScreen() {
             onChangeText={(t) => { setPassword(t); setPassErr(""); }}
           />
           <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
-            <Text style={[styles.eyeIcon, { color: colors.textTertiary }]}>{showPass ? "○" : "◉"}</Text>
+            <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
           </Pressable>
         </View>
         {passErr ? <Text style={[textStyles.caption, styles.err, { color: colors.secondary }]}>{passErr}</Text> : null}
@@ -152,7 +153,7 @@ export default function LoginScreen() {
           <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>Don't have an account? </Text>
           <Link href="/(auth)/register" asChild>
             <Pressable>
-              <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.semibold }]}>Sign up</Text>
+              <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: 'underline' }]}>Sign up</Text>
             </Pressable>
           </Link>
         </View>
@@ -176,7 +177,7 @@ function OrDivider({ color, textColor }: { color: string; textColor: string }) {
 const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
+    // justifyContent: 'center',
     paddingHorizontal: space.xl,
     paddingVertical: space.xl,
   },
@@ -196,7 +197,6 @@ const styles = StyleSheet.create({
     position: "absolute", right: 0, top: 0, bottom: 0,
     width: 52, alignItems: "center", justifyContent: "center",
   },
-  eyeIcon: { fontSize: 20 },
   forgotRow: {
     alignSelf: "flex-end",
     paddingVertical: space.sm,

@@ -54,6 +54,7 @@ export default function RootLayout() {
       <Stack.Screen name="chat" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="events/[id]" />
+      <Stack.Screen name="edit-event" />
     </Stack>
   );
 }

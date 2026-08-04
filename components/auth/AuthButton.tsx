@@ -1,5 +1,5 @@
 import { layout, radius, space } from '@/constants/Spacing';
-import { ActivityIndicator, Platform, Text, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Image, Platform, Text, TouchableOpacity } from 'react-native';
 
 // ─── PrimaryButton ────────────────────────────────────────────────────────────
 // Uses TouchableOpacity — the most reliable cross-platform pressable component.
@@ -101,17 +101,11 @@ export function GoogleFallbackButton({
         <ActivityIndicator color={colors.textSecondary} />
       ) : (
         <>
-          <Text
-            style={{
-              fontSize: 18,
-              fontFamily: 'NunitoSans_700Bold',
-              color: '#4285F4',
-              marginRight: 8,
-              includeFontPadding: false,
-            }}
-          >
-            G
-          </Text>
+          <Image
+            source={require('@/assets/images/google-logo.png')}
+            style={{ width: 20, height: 20, marginRight: 10 }}
+            resizeMode="contain"
+          />
           <Text
             style={{
               fontFamily: 'NunitoSans_500Medium',

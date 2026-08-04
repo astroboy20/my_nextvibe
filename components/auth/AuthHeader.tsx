@@ -1,4 +1,4 @@
-import { useTheme } from '@/components/Themed';
+import Colors from '@/constants/Colors';
 import { space } from '@/constants/Spacing';
 import { textStyles } from '@/constants/Typography';
 import { Image, StyleSheet, Text, View } from 'react-native';
@@ -9,11 +9,9 @@ interface Props {
 }
 
 export default function AuthHeader({ title, subtitle }: Props) {
-  const { colors, isDark } = useTheme();
+  const colors = Colors.light;
 
-  const logoSource = isDark
-    ? require('@/assets/images/logos/new/logo_white_text.png')
-    : require('@/assets/images/logos/new/logo_black_text.png');
+  const logoSource = require('@/assets/images/logos/new/logo_black_text.png');
 
   return (
     <View style={styles.wrapper}>

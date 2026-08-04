@@ -1,25 +1,26 @@
-import { useTheme } from "@/components/Themed";
 import {
-  GoogleFallbackButton,
-  PrimaryButton,
+    GoogleFallbackButton,
+    PrimaryButton,
 } from "@/components/auth/AuthButton";
 import AuthHeader from "@/components/auth/AuthHeader";
+import Colors from "@/constants/Colors";
 import { layout, radius, space } from "@/constants/Spacing";
 import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Link } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { type ReactNode, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 let GoogleSigninButton: any = null;
@@ -33,7 +34,7 @@ if (Platform.OS !== "web") {
 }
 
 export default function RegisterScreen() {
-  const { colors } = useTheme();
+  const colors = Colors.light;
   const {
     signInWithGoogle,
     loading: googleLoading,
@@ -102,7 +103,7 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: "white" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
@@ -265,9 +266,7 @@ export default function RegisterScreen() {
               onPress={() => setShowPass((v) => !v)}
               accessibilityLabel={showPass ? "Hide" : "Show"}
             >
-              <Text style={[styles.eyeIcon, { color: colors.textTertiary }]}>
-                {showPass ? "○" : "◉"}
-              </Text>
+              <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
             </Pressable>
           </View>
         </Field>
@@ -343,7 +342,7 @@ export default function RegisterScreen() {
               <Text
                 style={[
                   textStyles.bodySm,
-                  { color: colors.primary, fontWeight: fontWeight.semibold },
+                  { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: 'underline' },
                 ]}
               >
                 Sign in
@@ -418,7 +417,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  eyeIcon: { fontSize: 20 },
   orRow: {
     flexDirection: "row",
     alignItems: "center",

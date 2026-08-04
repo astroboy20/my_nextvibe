@@ -1,8 +1,8 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -19,16 +19,16 @@ interface Props {
 
 export default function FeedTabs({ tabs, active, onSelect }: Props) {
   return (
-    <ScrollView
+    <FlatList
       horizontal
+      data={tabs}
+      keyExtractor={(item) => item.label}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
-    >
-      {tabs.map(({ label, icon }) => {
+      renderItem={({ item: { label, icon } }) => {
         const isActive = active === label;
         return (
           <TouchableOpacity
-            key={label}
             style={[styles.tab, isActive && styles.tabActive]}
             onPress={() => onSelect(label)}
             activeOpacity={0.75}
@@ -37,8 +37,8 @@ export default function FeedTabs({ tabs, active, onSelect }: Props) {
             <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
           </TouchableOpacity>
         );
-      })}
-    </ScrollView>
+      }}
+    />
   );
 }
 

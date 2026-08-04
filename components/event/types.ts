@@ -42,4 +42,5 @@ export interface EventDetail {
   rsvpStatus?: string | null;
   organizer?: EventOrganizer;
   tags?: string[];
+  qrCode?: string;
 }

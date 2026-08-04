@@ -1,34 +1,34 @@
-import { useTheme } from '@/components/Themed';
 import { PrimaryButton } from '@/components/auth/AuthButton';
 import AuthHeader from '@/components/auth/AuthHeader';
+import Colors from '@/constants/Colors';
 import { layout, radius, space } from '@/constants/Spacing';
 import { fontWeight, textStyles } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 
 type State = 'idle' | 'loading' | 'sent';
 
 export default function ForgotPasswordScreen() {
-  const { colors } = useTheme();
+  const colors = Colors.light;
   const router = useRouter();
 
-  const [email, setEmail]     = useState('');
-  const [emailErr, setErr]    = useState('');
-  const [state, setState]     = useState<State>('idle');
+  const [email, setEmail] = useState('');
+  const [emailErr, setErr] = useState('');
+  const [state, setState] = useState<State>('idle');
 
   function validate() {
-    if (!email.trim())                     { setErr('Email is required'); return false; }
-    if (!/\S+@\S+\.\S+/.test(email))       { setErr('Enter a valid email address'); return false; }
+    if (!email.trim()) { setErr('Email is required'); return false; }
+    if (!/\S+@\S+\.\S+/.test(email)) { setErr('Enter a valid email address'); return false; }
     setErr('');
     return true;
   }
@@ -43,7 +43,7 @@ export default function ForgotPasswordScreen() {
   // ── Success state ────────────────────────────────────────────────────────
   if (state === 'sent') {
     return (
-      <View style={[styles.centred, { backgroundColor: colors.background }]}>
+      <View style={[styles.centred, { backgroundColor: "white" }]}>
         <View style={[styles.iconCircle, { backgroundColor: colors.surface }]}>
           <Text style={styles.iconText}>✉</Text>
         </View>
@@ -69,7 +69,7 @@ export default function ForgotPasswordScreen() {
   // ── Main form ────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: "white" }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
@@ -79,13 +79,7 @@ export default function ForgotPasswordScreen() {
       >
         <AuthHeader title="Reset password" subtitle="We'll send a reset link to your inbox" />
 
-        {/* Section copy */}
-        <Text style={[textStyles.h3, { color: colors.text, textAlign: 'center', marginBottom: space.sm }]}>
-          Forgot your password?
-        </Text>
-        <Text style={[textStyles.body, { color: colors.textTertiary, textAlign: 'center', marginBottom: space['2xl'] }]}>
-          Enter your email and we'll send you a reset link
-        </Text>
+
 
         {/* Email with icon prefix */}
         <View style={styles.inputWrapper}>
