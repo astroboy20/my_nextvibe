@@ -1,4 +1,4 @@
-import AppHeader from '@/components/navigation/AppHeader';
+import { AppHeader } from '@/components/navigation/TopNavBar';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import Ionicons from '@expo/vector-icons/Ionicons';

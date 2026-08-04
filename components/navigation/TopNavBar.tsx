@@ -34,6 +34,129 @@ function LogoMark({ size = 38 }: { size?: number }) {
   );
 }
 
+// ─── AppHeader ─────────────────────────────────────────────────────────────────
+// Used on all non-tab screens: [back]  [logo + wordmark]  [bell]
+
+export interface AppHeaderProps {
+  onBack?: () => void;
+  notificationCount?: number;
+  onNotificationPress?: () => void;
+  right?: React.ReactNode;
+}
+
+export function AppHeader({
+  onBack,
+  notificationCount = 0,
+  onNotificationPress,
+  right,
+}: AppHeaderProps) {
+  const Bell = right ? (
+    <View style={ah.side}>{right}</View>
+  ) : (
+    <TouchableOpacity
+      style={ah.side}
+      onPress={onNotificationPress}
+      activeOpacity={0.7}
+      accessibilityLabel="Notifications"
+    >
+      <Ionicons name="notifications-outline" size={22} color={neutral[700]} />
+      {notificationCount > 0 && (
+        <View style={ah.badge}>
+          <Text style={ah.badgeText}>
+            {notificationCount > 9 ? '9+' : notificationCount}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  // No back button → logo flush left, bell flush right
+  if (!onBack) {
+    return (
+      <View style={ah.bar}>
+        <View style={ah.brandLeft}>
+          <LogoMark size={34} />
+          <Text style={ah.wordmark}>nextvibe</Text>
+        </View>
+        {Bell}
+      </View>
+    );
+  }
+
+  // Has back button → [back]  [logo centred]  [bell]
+  return (
+    <View style={ah.bar}>
+      <TouchableOpacity style={ah.side} onPress={onBack} activeOpacity={0.7} hitSlop={8}>
+        <Ionicons name="chevron-back" size={22} color={neutral[800]} />
+      </TouchableOpacity>
+
+      <View style={ah.brand}>
+        <LogoMark size={34} />
+        <Text style={ah.wordmark}>nextvibe</Text>
+      </View>
+
+      {Bell}
+    </View>
+  );
+}
+
+const ah = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: neutral[0],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral[200],
+  },
+  side: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // centred logo (used when back button is present)
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // left-aligned logo (used when there is no back button)
+  brandLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  wordmark: {
+    fontFamily: fontFamily.extrabold,
+    fontSize: fontSize.xl,
+    color: neutral[900],
+    letterSpacing: -0.5,
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: brand.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontFamily: fontFamily.bold,
+    fontSize: 9,
+    color: '#fff',
+  },
+});
+
+// ─── TopNavBar (tab screens) ──────────────────────────────────────────────────
+
 interface TopNavBarProps {
   onNotificationPress?: () => void;
   notificationCount?: number;

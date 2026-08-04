@@ -1,10 +1,13 @@
+import SplashScreenView from '@/components/SplashScreenView';
+import { bootstrapAuth } from '@/store/slices/authSlice';
+import type { RootState } from '@/store/store';
+import { store } from '@/store/store';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
-
-import SplashScreenView from '@/components/SplashScreenView';
+import { Provider, useSelector } from 'react-redux';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -13,6 +16,33 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+// ── Auth gate — redirects between (auth) and (tabs) based on token state ──────
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const router         = useRouter();
+  const segments       = useSegments();
+  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
+  const isBootstrapped  = useSelector((s: RootState) => s.auth.isBootstrapped);
+
+  useEffect(() => {
+    if (!isBootstrapped) return; // wait for bootstrap to finish
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (isAuthenticated && inAuthGroup) {
+      // Logged in but still on an auth screen → push to app
+      router.replace('/(tabs)');
+    } else if (!isAuthenticated && !inAuthGroup) {
+      // Not logged in but trying to access a protected screen → push to login
+      router.replace('/(auth)/login');
+    }
+  }, [isAuthenticated, isBootstrapped, segments]);
+
+  return <>{children}</>;
+}
+
+// ── Root layout ───────────────────────────────────────────────────────────────
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -32,29 +62,37 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
+      // Run token bootstrap as soon as fonts are ready
+      store.dispatch(bootstrapAuth());
     }
   }, [fontsLoaded]);
 
   if (!splashDone) {
     return (
-      <SplashScreenView
-        fontsLoaded={fontsLoaded || !!fontError}
-        onFinished={() => setSplashDone(true)}
-      />
+      <Provider store={store}>
+        <SplashScreenView
+          fontsLoaded={fontsLoaded || !!fontError}
+          onFinished={() => setSplashDone(true)}
+        />
+      </Provider>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }} initialRouteName="(auth)">
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="create" />
-      <Stack.Screen name="edit-profile" />
-      <Stack.Screen name="dashboard" />
-      <Stack.Screen name="chat" />
-      <Stack.Screen name="settings" />
-      <Stack.Screen name="events/[id]" />
-      <Stack.Screen name="edit-event" />
-    </Stack>
+    <Provider store={store}>
+      <AuthGate>
+        <Stack screenOptions={{ headerShown: false }} initialRouteName="(auth)">
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="create" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="dashboard" />
+          <Stack.Screen name="chat" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="events/[id]" />
+          <Stack.Screen name="edit-event" />
+        </Stack>
+      </AuthGate>
+    </Provider>
   );
 }

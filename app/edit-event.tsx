@@ -22,7 +22,7 @@ import QRModal from '@/components/edit-event/QRModal';
 import RsvpTracker from '@/components/edit-event/RsvpTracker';
 import StatusUpdater from '@/components/edit-event/StatusUpdater';
 import { isEventStarted } from '@/components/edit-event/types';
-import AppHeader from '@/components/navigation/AppHeader';
+import { AppHeader } from '@/components/navigation/TopNavBar';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';

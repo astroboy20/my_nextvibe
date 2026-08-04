@@ -108,8 +108,18 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
 
       if (response.type === 'success') {
         setUser(mapUser(response.data));
-        // TODO: send response.data.idToken to your Auth_Service
-        // to create/verify a NextVibe JWT — Requirement 1 §3
+        const idToken = response.data?.idToken;
+        if (idToken) {
+          // Exchange Google idToken for a NextVibe JWT
+          try {
+            await store.dispatch(
+              authApi.endpoints.googleLogin.initiate({ idToken }),
+            ).unwrap();
+          } catch {
+            // token exchange failed — user stays logged in to Google only
+            // the calling screen should check for this state
+          }
+        }
       } else if (response.type === 'cancelled') {
         // User dismissed the sign-in dialog — not an error
       }

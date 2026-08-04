@@ -1,0 +1,44 @@
+/**
+ * useAuth
+ *
+ * Convenience hook for consuming auth state from any component.
+ *
+ * Usage:
+ *   const { user, isAuthenticated, isBootstrapped, logout } = useAuth();
+ */
+
+import { useLogoutMutation } from '@/store/api/authApi';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { clearAuth } from '@/store/slices/authSlice';
+import { useRouter } from 'expo-router';
+
+export function useAuth() {
+  const dispatch = useAppDispatch();
+  const router   = useRouter();
+
+  const user            = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const isBootstrapped  = useAppSelector((s) => s.auth.isBootstrapped);
+
+  const [logoutMutation, { isLoading: isLoggingOut }] = useLogoutMutation();
+
+  async function logout() {
+    try {
+      await logoutMutation().unwrap();
+    } catch {
+      // Even if the server call fails, clear local state
+      dispatch(clearAuth());
+    }
+    router.replace('/(auth)/login');
+  }
+
+  return {
+    /** Current authenticated user — null when logged out */
+    user,
+    isAuthenticated,
+    /** True once bootstrap has finished — use to gate the splash screen */
+    isBootstrapped,
+    isLoggingOut,
+    logout,
+  };
+}

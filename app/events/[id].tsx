@@ -4,7 +4,7 @@ import PostcardsTab from '@/components/event/PostcardsTab';
 import QrTab from '@/components/event/QrTab';
 import RsvpTab from '@/components/event/RsvpTab';
 import type { EventDetail } from '@/components/event/types';
-import AppHeader from '@/components/navigation/AppHeader';
+import { AppHeader } from '@/components/navigation/TopNavBar';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import Ionicons from '@expo/vector-icons/Ionicons';
