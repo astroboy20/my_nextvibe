@@ -1,17 +1,18 @@
 import { AppHeader } from '@/components/navigation/TopNavBar';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useAuth } from '@/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -61,7 +62,7 @@ function SettingsRow({ row }: { row: SettingRow }) {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const [signingOut, setSigningOut] = useState(false);
+  const { logout, isLoggingOut } = useAuth();
 
   const handleSignOut = () => {
     Alert.alert(
@@ -72,14 +73,7 @@ export default function SettingsScreen() {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: async () => {
-            setSigningOut(true);
-            // TODO: call logout mutation + clear tokens
-            setTimeout(() => {
-              setSigningOut(false);
-              router.replace('/(auth)/login');
-            }, 800);
-          },
+          onPress: () => logout(),
         },
       ]
     );
@@ -143,12 +137,12 @@ export default function SettingsScreen() {
 
         {/* Sign Out */}
         <TouchableOpacity
-          style={[styles.signOutBtn, signingOut && { opacity: 0.65 }]}
+          style={[styles.signOutBtn, isLoggingOut && { opacity: 0.65 }]}
           onPress={handleSignOut}
-          disabled={signingOut}
+          disabled={isLoggingOut}
           activeOpacity={0.85}
         >
-          {signingOut ? (
+          {isLoggingOut ? (
             <>
               <ActivityIndicator color="#fff" size="small" />
               <Text style={styles.signOutText}>Signing out…</Text>

@@ -250,6 +250,13 @@ export default function ProfileScreen() {
                 >
                   <Text style={styles.editBtnText}>Edit Profile</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.settingsBtn}
+                  onPress={() => router.push('/settings')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="settings-outline" size={18} color={brand.primary} />
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -367,7 +374,7 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 32, backgroundColor: neutral[200], marginHorizontal: 24 },
 
   // Actions
-  actionsRow: { flexDirection: 'row', gap: 10 },
+  actionsRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   editBtn: {
     paddingHorizontal: 28,
     paddingVertical: 10,
@@ -375,6 +382,16 @@ const styles = StyleSheet.create({
     backgroundColor: brand.primary,
   },
   editBtnText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: `${brand.primary}40`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: `${brand.primary}08`,
+  },
 
   // Dashboard card
   dashCard: {

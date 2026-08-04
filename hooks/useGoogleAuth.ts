@@ -19,6 +19,8 @@
  * Requirement 1 §3: OAuth handshake completes and returns JWT.
  */
 
+import { authApi } from '@/store/api/authApi';
+import { store } from '@/store/store';
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
@@ -125,9 +127,9 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
       }
     } catch (err: unknown) {
       if (isErrorWithCode(err)) {
-        switch (err.code) {
+        const code = (err as any).code;
+        switch (code) {
           case statusCodes.SIGN_IN_CANCELLED:
-            // User cancelled — no error message needed
             break;
           case statusCodes.IN_PROGRESS:
             setError('Sign-in already in progress');
