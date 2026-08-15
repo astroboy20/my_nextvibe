@@ -1,5 +1,6 @@
 import type { EventCardData } from '@/components/discover/EventCard';
 import type { EventDetail } from '@/components/event/types';
+import { tagColor } from '@/constants/TagColors';
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { baseQueryWithReauth } from '../baseQuery';
 
@@ -44,22 +45,6 @@ export interface PostcardItem {
     avatarUrl?: string | null;
   };
   media?: PostcardMedia[];
-}
-
-// ── Tag colour map — used to colourise tags on cards ─────────────────────────
-
-const TAG_COLORS: Record<string, string> = {
-  Virtual:  '#3B82F6',
-  Games:    '#EF4444',
-  VibeTag:  '#8B5CF6',
-  Free:     '#22C55E',
-  Online:   '#3B82F6',
-  Hybrid:   '#F59E0B',
-  Onsite:   '#22C55E',
-};
-
-function tagColor(name: string): string {
-  return TAG_COLORS[name] ?? '#9E849D';
 }
 
 // ── Helper: map a DiscoverEvent → EventCardData ───────────────────────────────
@@ -205,6 +190,25 @@ export const eventsApi = createApi({
       invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
     }),
 
+    // GET /v1/events/:eventId/attendees
+    getEventAttendees: build.query<
+      { success: boolean; data: Array<{ userId: string; displayName?: string; username?: string; avatarUrl?: string | null; checkedIn?: boolean; rsvpStatus?: string }> ; meta?: PaginatedMeta },
+      { eventId: string; page?: number; limit?: number }
+    >({
+      query: ({ eventId, page = 1, limit = 20 }) =>
+        `/v1/events/${eventId}/attendees?page=${page}&limit=${limit}`,
+      providesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
+    }),
+
+    // GET /v1/events/:eventId/tickets
+    getEventTickets: build.query<
+      { success: boolean; data: Array<{ id: string; name: string; price: number; currency: string; capacity: number; available: number; description?: string }> },
+      string
+    >({
+      query: (eventId) => `/v1/events/${eventId}/tickets`,
+      providesTags: (_, __, id) => [{ type: 'Event', id }],
+    }),
+
   }),
 });
 
@@ -215,4 +219,6 @@ export const {
   useGetEventPostcardsQuery,
   useGetPostcardsQuery,
   useRsvpEventMutation,
+  useGetEventAttendeesQuery,
+  useGetEventTicketsQuery,
 } = eventsApi;

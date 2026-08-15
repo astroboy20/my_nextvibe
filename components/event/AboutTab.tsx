@@ -1,22 +1,27 @@
-import { brand, neutral } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import { brand, neutral } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
 import {
   Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
-import type { EventDetail } from './types';
+  View,
+} from "react-native";
+import type { EventDetail } from "./types";
 
-interface Props { event: EventDetail }
+interface Props {
+  event: EventDetail;
+}
 
 function InfoRow({
-  icon, label, value, onPress,
+  icon,
+  label,
+  value,
+  onPress,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: React.ComponentProps<typeof Ionicons>["name"];
   label: string;
   value: string;
   onPress?: () => void;
@@ -37,23 +42,28 @@ function InfoRow({
           {value}
         </Text>
       </View>
-      {onPress && <Ionicons name="open-outline" size={14} color={brand.primary} />}
+      {onPress && (
+        <Ionicons name="open-outline" size={14} color={brand.primary} />
+      )}
     </TouchableOpacity>
   );
 }
 
 export default function AboutTab({ event }: Props) {
-  const showLocation = event.mode === 'ONSITE' || event.mode === 'HYBRID';
-  const showVirtual  = event.mode === 'VIRTUAL' || event.mode === 'HYBRID';
-
+  const showLocation = event.mode === "ONSITE" || event.mode === "HYBRID";
+  const showVirtual = event.mode === "VIRTUAL" || event.mode === "HYBRID";
+console.log(event,"event")
   return (
     <View style={s.wrap}>
       {/* Date / time */}
       <InfoRow
         icon="calendar-outline"
         label="Date & Time"
-        value={new Date(event.startsAt).toLocaleDateString('en-US', {
-          weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+        value={new Date(event.startsAt).toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
         })}
       />
 
@@ -72,7 +82,9 @@ export default function AboutTab({ event }: Props) {
           value={event.locationName}
           onPress={() =>
             Linking.openURL(
-              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.locationName!)}`
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                event.locationName!
+              )}`
             )
           }
         />
@@ -103,7 +115,13 @@ export default function AboutTab({ event }: Props) {
           <View style={s.orgRow}>
             <View style={s.orgAvatar}>
               <Text style={s.orgAvatarText}>
-                {(event.organizer.displayName ?? event.organizer.username ?? 'O').charAt(0).toUpperCase()}
+                {(
+                  event.organizer.displayName ??
+                  event.organizer.username ??
+                  "O"
+                )
+                  .charAt(0)
+                  .toUpperCase()}
               </Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -125,44 +143,101 @@ export default function AboutTab({ event }: Props) {
 }
 
 const s = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 12 },
+  wrap: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 4 },
 
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
+    // borderRadius: 14,
+    // backgroundColor: neutral[50],
+    // borderWidth: 1,
+    // borderColor: neutral[100],
+  },
+  infoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: `${brand.primary}10`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 11,
+    color: neutral[500],
+  },
+  infoValue: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+    marginTop: 1,
+  },
+
+  descCard: {
+    padding: 14,
+  },
+  descTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: "#5A4C76",
+    marginBottom: 8,
+  },
+  desc: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[600],
+    lineHeight: 22,
+  },
+
+  orgCard: {
+    padding: 14,
     borderRadius: 14,
-    backgroundColor: neutral[50],
     borderWidth: 1,
     borderColor: neutral[100],
   },
-  infoIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: `${brand.primary}12`,
-    alignItems: 'center', justifyContent: 'center',
+  orgTitle: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+    marginBottom: 12,
   },
-  infoLabel: { fontFamily: fontFamily.semibold, fontSize: 11, color: neutral[500] },
-  infoValue: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800], marginTop: 1 },
-
-  descCard: {
-    padding: 14, borderRadius: 14,
-    backgroundColor: neutral[50], borderWidth: 1, borderColor: neutral[100],
+  orgRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  orgAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: brand.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  descTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: neutral[800], marginBottom: 8 },
-  desc:      { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[600], lineHeight: 22 },
-
-  orgCard: {
-    padding: 14, borderRadius: 14,
-    backgroundColor: neutral[50], borderWidth: 1, borderColor: neutral[100],
+  orgAvatarText: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.base,
+    color: "#fff",
   },
-  orgTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: neutral[800], marginBottom: 12 },
-  orgRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  orgAvatar:{ width: 44, height: 44, borderRadius: 22, backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },
-  orgAvatarText: { fontFamily: fontFamily.bold, fontSize: fontSize.base, color: '#fff' },
-  orgName:  { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  orgHandle:{ fontFamily: fontFamily.regular, fontSize: 11, color: neutral[500], marginTop: 1 },
-  followBtn:{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: brand.primary },
-  followBtnText: { fontFamily: fontFamily.semibold, fontSize: 12, color: '#fff' },
+  orgName: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+  },
+  orgHandle: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: neutral[500],
+    marginTop: 1,
+  },
+  followBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: brand.primary,
+  },
+  followBtnText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: "#fff",
+  },
 });

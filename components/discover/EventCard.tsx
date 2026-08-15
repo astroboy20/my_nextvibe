@@ -1,4 +1,5 @@
 import { brand, neutral } from "@/constants/Colors";
+import { getTagStyle } from "@/constants/TagColors";
 import { fontFamily } from "@/constants/Typography";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -21,12 +22,13 @@ const TAG_ICONS: Record<string, IoniconName> = {
 // ─── Tag badge ────────────────────────────────────────────────────────────────
 function Tag({ label, color }: { label: string; color: string }) {
   const iconName = TAG_ICONS[label];
+  const { text: textColor } = getTagStyle(label);
   return (
     <View style={[tag.pill, { backgroundColor: color }]}>
       {iconName && (
-        <Ionicons name={iconName} size={9} color="#fff" style={tag.icon} />
+        <Ionicons name={iconName} size={9} color={textColor} style={tag.icon} />
       )}
-      <Text style={tag.text}>{label}</Text>
+      <Text style={[tag.text, { color: textColor }]}>{label}</Text>
     </View>
   );
 }
