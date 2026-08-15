@@ -88,6 +88,7 @@ export function toCardData(e: DiscoverEvent): EventCardData {
     date:      new Date(e.startsAt).toLocaleDateString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric',
     }),
+    startsAt:  e.startsAt,
     memories:  e._count?.postcards ?? 0,
     location:  e.locationName ?? (e.mode === 'VIRTUAL' ? 'Online Event' : 'TBD'),
     flierUrl:  e.flierUrl,
@@ -132,7 +133,7 @@ export const eventsApi = createApi({
 
     // GET /v1/events  (public list)
     getEvents: build.query<
-      { success: boolean; data: DiscoverEvent[]; meta: PaginatedMeta },
+      { success: boolean; data: { data: DiscoverEvent[]; meta: PaginatedMeta } },
       { page?: number; limit?: number; isPublic?: boolean } | void
     >({
       query: (params) => {

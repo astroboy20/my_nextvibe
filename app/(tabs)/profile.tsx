@@ -280,7 +280,7 @@ export default function ProfileScreen() {
 
             {/* Stats */}
             <View style={styles.statsRow}>
-              <StatItem value={eventsData?.meta?.total ?? events.length} label="Events" />
+              <StatItem value={eventsData?.meta?.total ?? events.length ?? 0} label="Events" />
               <View style={styles.statDivider} />
               <StatItem value={activity?.postcardsCount ?? 0} label="Postcards" />
               <View style={styles.statDivider} />

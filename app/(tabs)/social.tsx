@@ -1,62 +1,101 @@
-import PersonCard, { SocialUser } from '@/components/social/PersonCard';
-import PostcardCard, { PostcardItem } from '@/components/social/PostcardCard';
+import PersonCard, { type SocialUser } from '@/components/social/PersonCard';
+import PostcardCard, { type PostcardItem } from '@/components/social/PostcardCard';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    useGetFollowingFeedQuery,
+    useGetMutualsQuery,
+    useGetMyFollowersQuery,
+    useGetMyFollowingQuery,
+} from '@/store/api/socialApi';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useMemo, useState } from 'react';
+import {
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ─── Mock data (replace with API hooks) ───────────────────────────────────────
+// ─── Skeleton shapes ──────────────────────────────────────────────────────────
 
-const MOCK_FEED: PostcardItem[] = [
-  {
-    id: 'p1',
-    caption: 'What a match!! Argentina forever 🔥',
-    likeCount: 42,
-    isLiked: false,
-    commentsCount: 8,
-    createdAt: new Date(Date.now() - 20 * 60000).toISOString(),
-    event: { id: 'e1', name: 'Argentina vs. Spain' },
-    author: { id: 'u1', username: 'alex_vibe',  displayName: 'Alex Vibe',  avatarUrl: null },
-    media: [{ mediaUrl: null, mediaType: 'PHOTO' }],
+function PostcardSkeleton() {
+  return (
+    <View style={sk.card}>
+      {/* author row */}
+      <View style={sk.authorRow}>
+        <Skeleton width={38} height={38} borderRadius={19} />
+        <View style={{ flex: 1 }}>
+          <Skeleton width="40%" height={12} borderRadius={6} />
+          <Skeleton width="25%" height={10} borderRadius={5} style={{ marginTop: 5 }} />
+        </View>
+        <Skeleton width={30} height={10} borderRadius={5} />
+      </View>
+      {/* image */}
+      <Skeleton width="100%" height={260} borderRadius={0} />
+      {/* actions */}
+      <View style={sk.actionsRow}>
+        <Skeleton width={50} height={12} borderRadius={6} />
+        <Skeleton width={50} height={12} borderRadius={6} />
+      </View>
+      {/* caption */}
+      <View style={{ paddingHorizontal: 12, paddingBottom: 12 }}>
+        <Skeleton width="80%" height={11} borderRadius={5} />
+        <Skeleton width="55%" height={11} borderRadius={5} style={{ marginTop: 5 }} />
+      </View>
+    </View>
+  );
+}
+
+function PersonSkeleton() {
+  return (
+    <View style={sk.personCard}>
+      <Skeleton width={48} height={48} borderRadius={24} />
+      <View style={{ flex: 1 }}>
+        <Skeleton width="50%" height={13} borderRadius={6} />
+        <Skeleton width="35%" height={10} borderRadius={5} style={{ marginTop: 6 }} />
+      </View>
+      <Skeleton width={88} height={32} borderRadius={20} />
+    </View>
+  );
+}
+
+const sk = StyleSheet.create({
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: neutral[100],
+    overflow: 'hidden',
   },
-  {
-    id: 'p2',
-    caption: 'Best night ever 🏆',
-    likeCount: 18,
-    isLiked: true,
-    commentsCount: 3,
-    createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-    event: { id: 'e2', name: 'GOAT Exhibition' },
-    author: { id: 'u2', username: 'sarah_games', displayName: 'Sarah Games', avatarUrl: null },
-    media: [{ mediaUrl: null, mediaType: 'PHOTO' }],
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
   },
-];
-
-const MOCK_FOLLOWING: SocialUser[] = [
-  { id: 'u1', username: 'alex_vibe',    displayName: 'Alex Vibe',    avatarUrl: null, bio: 'Sports & vibes 🏆',           isFollowing: true  },
-  { id: 'u2', username: 'sarah_games',  displayName: 'Sarah Games',  avatarUrl: null, bio: 'Gamer & event lover',         isFollowing: true  },
-  { id: 'u5', username: 'nextviber99',  displayName: 'Nextviber 99', avatarUrl: null, bio: null,                          isFollowing: true  },
-];
-
-const MOCK_FOLLOWERS: SocialUser[] = [
-  { id: 'u3', username: 'nextvibe_fan', displayName: 'Nextvibe Fan', avatarUrl: null, bio: 'Living for the vibes ✨',      isFollowing: false },
-  { id: 'u4', username: 'match_day',    displayName: 'Match Day',    avatarUrl: null, bio: null,                          isFollowing: true  },
-];
-
-const MOCK_MUTUALS: SocialUser[] = [
-  { id: 'u2', username: 'sarah_games',  displayName: 'Sarah Games',  avatarUrl: null, bio: 'Gamer & event lover',         isFollowing: true  },
-  { id: 'u4', username: 'match_day',    displayName: 'Match Day',    avatarUrl: null, bio: null,                          isFollowing: true  },
-];
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  personCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: neutral[100],
+    padding: 14,
+  },
+});
 
 // ─── Tab bar ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +115,7 @@ function TabBar({
         return (
           <TouchableOpacity
             key={t.id}
-            style={[tb.tab, isActive && tb.tabActive]}
+            style={tb.tab}
             onPress={() => onSelect(t.id)}
             activeOpacity={0.75}
           >
@@ -91,12 +130,11 @@ function TabBar({
 }
 
 const tb = StyleSheet.create({
-  bar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200] },
-  tab:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, position: 'relative' },
-  tabActive:{},
-  label:    { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[400] },
+  bar: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200] },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, position: 'relative' },
+  label:       { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[400] },
   labelActive: { color: brand.primary },
-  underline:{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: brand.primary, borderRadius: 2 },
+  underline:   { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: brand.primary, borderRadius: 2 },
 });
 
 // ─── People sub-tabs ──────────────────────────────────────────────────────────
@@ -127,40 +165,88 @@ function PeopleSubTabs({ active, onSelect }: { active: PeopleTab; onSelect: (t: 
 }
 
 const ptb = StyleSheet.create({
-  row:        { flexDirection: 'row', marginBottom: 12, gap: 8, paddingHorizontal: 16 },
-  tab:        { flex: 1, paddingVertical: 8, borderRadius: 20, alignItems: 'center', backgroundColor: neutral[100] },
-  tabActive:  { backgroundColor: brand.primary },
-  label:      { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[500] },
-  labelActive:{ color: '#fff' },
+  row:         { flexDirection: 'row', marginBottom: 12, gap: 8, paddingHorizontal: 16 },
+  tab:         { flex: 1, paddingVertical: 8, borderRadius: 20, alignItems: 'center', backgroundColor: neutral[100] },
+  tabActive:   { backgroundColor: brand.primary },
+  label:       { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[500] },
+  labelActive: { color: '#fff' },
 });
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Main tabs config ─────────────────────────────────────────────────────────
 
 const MAIN_TABS = [
   { id: 'feed',   label: 'Feed',   icon: 'images-outline'  as const },
   { id: 'people', label: 'People', icon: 'people-outline'  as const },
 ];
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function SocialScreen() {
-  const [mainTab,    setMainTab]    = useState<'feed' | 'people'>('feed');
-  const [peopleTab,  setPeopleTab]  = useState<PeopleTab>('following');
-  const [search,     setSearch]     = useState('');
-  const isLoading = false;
+  const [mainTab,   setMainTab]   = useState<'feed' | 'people'>('feed');
+  const [peopleTab, setPeopleTab] = useState<PeopleTab>('following');
+  const [search,    setSearch]    = useState('');
+
+  // ── Feed API ───────────────────────────────────────────────────────────────
+  const {
+    data: feedData,
+    isLoading: feedLoading,
+    isFetching: feedFetching,
+    refetch: refetchFeed,
+  } = useGetFollowingFeedQuery({ page: 1, limit: 20 }, { skip: mainTab !== 'feed' });
+
+  // ── People API ─────────────────────────────────────────────────────────────
+  const {
+    data: followingData,
+    isLoading: followingLoading,
+    refetch: refetchFollowing,
+  } = useGetMyFollowingQuery(undefined, { skip: mainTab !== 'people' || peopleTab !== 'following' });
+
+  const {
+    data: followersData,
+    isLoading: followersLoading,
+    refetch: refetchFollowers,
+  } = useGetMyFollowersQuery(undefined, { skip: mainTab !== 'people' || peopleTab !== 'followers' });
+
+  const {
+    data: mutualsData,
+    isLoading: mutualsLoading,
+    refetch: refetchMutuals,
+  } = useGetMutualsQuery(undefined, { skip: mainTab !== 'people' || peopleTab !== 'mutuals' });
+
+  // ── Derived ────────────────────────────────────────────────────────────────
+  const feedItems: PostcardItem[] = feedData?.data?.data ?? [];
 
   const peopleMap: Record<PeopleTab, SocialUser[]> = {
-    following: MOCK_FOLLOWING,
-    followers: MOCK_FOLLOWERS,
-    mutuals:   MOCK_MUTUALS,
+    following: followingData?.data ?? [],
+    followers: followersData?.data ?? [],
+    mutuals:   mutualsData?.data   ?? [],
   };
 
-  const filtered = (peopleMap[peopleTab] ?? []).filter((u) => {
-    if (!search) return true;
+  const currentPeopleLoading =
+    (peopleTab === 'following' && followingLoading && !followingData) ||
+    (peopleTab === 'followers' && followersLoading && !followersData) ||
+    (peopleTab === 'mutuals'   && mutualsLoading   && !mutualsData);
+
+  const isFeedFirstLoad = feedLoading && !feedData;
+  const isRefreshing    = feedFetching && !!feedData;
+
+  const filteredPeople = useMemo(() => {
+    const list = peopleMap[peopleTab] ?? [];
+    if (!search) return list;
     const q = search.toLowerCase();
-    return (
-      (u.displayName ?? '').toLowerCase().includes(q) ||
-      (u.username    ?? '').toLowerCase().includes(q)
+    return list.filter(
+      (u) =>
+        (u.displayName ?? '').toLowerCase().includes(q) ||
+        (u.username    ?? '').toLowerCase().includes(q),
     );
-  });
+  }, [peopleMap, peopleTab, search]);
+
+  const handleRefresh = () => {
+    if (mainTab === 'feed') refetchFeed();
+    else if (peopleTab === 'following') refetchFollowing();
+    else if (peopleTab === 'followers') refetchFollowers();
+    else refetchMutuals();
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -170,35 +256,54 @@ export default function SocialScreen() {
       </View>
 
       {/* Main tabs */}
-      <TabBar tabs={MAIN_TABS} active={mainTab} onSelect={(id) => setMainTab(id as 'feed' | 'people')} />
+      <TabBar
+        tabs={MAIN_TABS}
+        active={mainTab}
+        onSelect={(id) => setMainTab(id as 'feed' | 'people')}
+      />
 
-      {/* ── Feed ── */}
+      {/* ── Feed tab ── */}
       {mainTab === 'feed' && (
-        isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={brand.primary} />
-          </View>
-        ) : MOCK_FEED.length === 0 ? (
-          <View style={styles.center}>
-            <Ionicons name="images-outline" size={52} color={neutral[200]} />
-            <Text style={styles.emptyTitle}>Nothing in your feed yet</Text>
-            <Text style={styles.emptySub}>Follow people to see their postcards here.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={MOCK_FEED}
-            keyExtractor={(p) => p.id}
-            renderItem={({ item }) => (
-              <PostcardCard item={item} onPress={() => {}} />
-            )}
-            contentContainerStyle={styles.feedList}
-            showsVerticalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          />
-        )
+        <FlatList
+          data={isFeedFirstLoad ? [] : feedItems}
+          keyExtractor={(p) => p.id}
+          renderItem={({ item }) => (
+            <PostcardCard item={item} onPress={() => {}} />
+          )}
+          contentContainerStyle={styles.feedList}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={brand.primary}
+            />
+          }
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ListHeaderComponent={
+            isFeedFirstLoad ? (
+              <>
+                {[0, 1, 2].map((i) => (
+                  <View key={i} style={{ marginBottom: 12 }}>
+                    <PostcardSkeleton />
+                  </View>
+                ))}
+              </>
+            ) : null
+          }
+          ListEmptyComponent={
+            !isFeedFirstLoad ? (
+              <View style={styles.center}>
+                <Ionicons name="images-outline" size={52} color={neutral[200]} />
+                <Text style={styles.emptyTitle}>Nothing in your feed yet</Text>
+                <Text style={styles.emptySub}>Follow people to see their postcards here.</Text>
+              </View>
+            ) : null
+          }
+        />
       )}
 
-      {/* ── People ── */}
+      {/* ── People tab ── */}
       {mainTab === 'people' && (
         <View style={{ flex: 1 }}>
           {/* Search */}
@@ -221,30 +326,45 @@ export default function SocialScreen() {
           {/* Sub-tabs */}
           <PeopleSubTabs active={peopleTab} onSelect={setPeopleTab} />
 
-          {/* List */}
-          {isLoading ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={brand.primary} />
-            </View>
-          ) : filtered.length === 0 ? (
-            <View style={styles.center}>
-              <Ionicons name="people-outline" size={52} color={neutral[200]} />
-              <Text style={styles.emptyTitle}>
-                {search ? 'No results found' : `No ${peopleTab} yet`}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filtered}
-              keyExtractor={(u) => u.id}
-              renderItem={({ item }) => (
-                <PersonCard user={item} defaultFollowing={peopleTab !== 'followers'} />
-              )}
-              contentContainerStyle={styles.peopleList}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-            />
-          )}
+          {/* People list */}
+          <FlatList
+            data={currentPeopleLoading ? [] : filteredPeople}
+            keyExtractor={(u) => u.id}
+            renderItem={({ item }) => (
+              <PersonCard user={item} defaultFollowing={peopleTab !== 'followers'} />
+            )}
+            contentContainerStyle={styles.peopleList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={false}
+                onRefresh={handleRefresh}
+                tintColor={brand.primary}
+              />
+            }
+            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+            ListHeaderComponent={
+              currentPeopleLoading ? (
+                <>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View key={i} style={{ marginBottom: 10 }}>
+                      <PersonSkeleton />
+                    </View>
+                  ))}
+                </>
+              ) : null
+            }
+            ListEmptyComponent={
+              !currentPeopleLoading ? (
+                <View style={styles.center}>
+                  <Ionicons name="people-outline" size={52} color={neutral[200]} />
+                  <Text style={styles.emptyTitle}>
+                    {search ? 'No results found' : `No ${peopleTab} yet`}
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
         </View>
       )}
     </SafeAreaView>
@@ -254,7 +374,7 @@ export default function SocialScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: '#fff' },
 
   header: {
     paddingHorizontal: 16,
@@ -267,7 +387,7 @@ const styles = StyleSheet.create({
     color: neutral[900],
   },
 
-  center:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32 },
+  center:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32, paddingTop: 60 },
   emptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[700], textAlign: 'center' },
   emptySub:   { fontFamily: fontFamily.regular,  fontSize: fontSize.sm,   color: neutral[400], textAlign: 'center' },
 

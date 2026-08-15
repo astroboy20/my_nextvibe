@@ -1,68 +1,51 @@
+import { Skeleton } from '@/components/ui/Skeleton';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import {
+    useGetConversationsQuery,
+    type Conversation,
+} from '@/store/api/socialApi';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-export interface Conversation {
-  id: string;
-  participant: {
-    id: string;
-    username: string;
-    avatarUrl?: string | null;
-  };
-  lastMessage?: {
-    body: string;
-    createdAt: string;
-  } | null;
-  unreadCount: number;
+function ConvSkeleton() {
+  return (
+    <View style={sk.row}>
+      <Skeleton width={48} height={48} borderRadius={24} />
+      <View style={sk.lines}>
+        <View style={sk.topLine}>
+          <Skeleton width="40%" height={13} borderRadius={6} />
+          <Skeleton width={28}  height={10} borderRadius={5} />
+        </View>
+        <Skeleton width="65%" height={11} borderRadius={5} style={{ marginTop: 6 }} />
+      </View>
+    </View>
+  );
 }
 
-// ─── Mock data (replace with API) ────────────────────────────────────────────
-
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: '1',
-    participant: { id: 'u1', username: 'alex_vibe',    avatarUrl: null },
-    lastMessage:  { body: 'See you at the match! 🔥', createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
-    unreadCount: 3,
-  },
-  {
-    id: '2',
-    participant: { id: 'u2', username: 'sarah_games',  avatarUrl: null },
-    lastMessage:  { body: 'Did you see the goal?',     createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-    unreadCount: 0,
-  },
-  {
-    id: '3',
-    participant: { id: 'u3', username: 'nextvibe_fan', avatarUrl: null },
-    lastMessage:  { body: 'Great event last night!',   createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
-    unreadCount: 1,
-  },
-  {
-    id: '4',
-    participant: { id: 'u4', username: 'match_day',    avatarUrl: null },
-    lastMessage:  null,
-    unreadCount: 0,
-  },
-];
+const sk = StyleSheet.create({
+  row:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  lines:   { flex: 1, gap: 0 },
+  topLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff  = Date.now() - new Date(dateStr).getTime();
   const mins  = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days  = Math.floor(diff / 86400000);
@@ -85,28 +68,30 @@ function AvatarCircle({ name, size = 48 }: { name: string; size?: number }) {
 // ─── Conversation row ─────────────────────────────────────────────────────────
 
 function ConvRow({ item }: { item: Conversation }) {
-  const router = useRouter();
-  const hasUnread = item.unreadCount > 0;
+  const router     = useRouter();
+  const hasUnread  = item.unreadCount > 0;
+  const name       = item.participant.displayName ?? item.participant.username;
 
   return (
     <TouchableOpacity
       style={[row.container, hasUnread && row.containerUnread]}
       activeOpacity={0.75}
       onPress={() =>
-        router.push({ pathname: '/chat', params: { id: item.id, username: item.participant.username } } as any)
+        router.push({
+          pathname: '/chat',
+          params: { id: item.id, username: item.participant.username },
+        } as any)
       }
     >
-      {/* Avatar */}
       <View style={row.avatarWrap}>
-        <AvatarCircle name={item.participant.username} />
+        <AvatarCircle name={name} />
         {hasUnread && <View style={row.onlineDot} />}
       </View>
 
-      {/* Text */}
       <View style={row.body}>
         <View style={row.topLine}>
           <Text style={[row.username, hasUnread && row.usernameBold]} numberOfLines={1}>
-            {item.participant.username}
+            {name}
           </Text>
           {item.lastMessage && (
             <Text style={[row.time, hasUnread && row.timePrimary]}>
@@ -138,14 +123,26 @@ function ConvRow({ item }: { item: Conversation }) {
 
 export default function MessagesScreen() {
   const [search, setSearch] = useState('');
-  const isLoading = false;
-  const isError   = false;
 
-  const filtered = MOCK_CONVERSATIONS.filter((c) =>
-    c.participant.username.toLowerCase().includes(search.toLowerCase())
+  const {
+    data: convsData,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useGetConversationsQuery();
+
+  const conversations: Conversation[] = convsData?.data ?? [];
+  const isFirstLoad  = isLoading && !convsData;
+  const isRefreshing = isFetching && !!convsData;
+
+  const filtered = conversations.filter((c) =>
+    (c.participant.displayName ?? c.participant.username)
+      .toLowerCase()
+      .includes(search.toLowerCase()),
   );
 
-  const totalUnread = MOCK_CONVERSATIONS.reduce((s, c) => s + c.unreadCount, 0);
+  const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -180,43 +177,58 @@ export default function MessagesScreen() {
         )}
       </View>
 
-      {/* States */}
-      {isLoading && (
-        <View style={styles.center}>
-          <ActivityIndicator color={brand.primary} />
-        </View>
-      )}
-
-      {isError && (
+      {/* Error state */}
+      {isError && !isFirstLoad && (
         <View style={styles.center}>
           <Ionicons name="alert-circle-outline" size={40} color={neutral[300]} />
           <Text style={styles.emptyTitle}>Failed to load conversations</Text>
-          <TouchableOpacity style={styles.retryBtn} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.retryBtn} onPress={refetch} activeOpacity={0.8}>
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {!isLoading && !isError && filtered.length === 0 && (
-        <View style={styles.center}>
-          <Ionicons name="chatbubbles-outline" size={52} color={neutral[200]} />
-          <Text style={styles.emptyTitle}>
-            {search ? 'No results found' : 'No conversations yet'}
-          </Text>
-          <Text style={styles.emptySub}>
-            {search ? 'Try a different name' : 'Connect with attendees at events!'}
-          </Text>
-        </View>
-      )}
-
-      {!isLoading && !isError && filtered.length > 0 && (
+      {/* List */}
+      {!isError && (
         <FlatList
-          data={filtered}
+          data={isFirstLoad ? [] : filtered}
           keyExtractor={(c) => c.id}
           renderItem={({ item }) => <ConvRow item={item} />}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 32 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refetch}
+              tintColor={brand.primary}
+            />
+          }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
+          ListHeaderComponent={
+            isFirstLoad ? (
+              <>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <React.Fragment key={i}>
+                    <ConvSkeleton />
+                    {i < 4 && <View style={styles.sep} />}
+                  </React.Fragment>
+                ))}
+              </>
+            ) : null
+          }
+          ListEmptyComponent={
+            !isFirstLoad ? (
+              <View style={styles.center}>
+                <Ionicons name="chatbubbles-outline" size={52} color={neutral[200]} />
+                <Text style={styles.emptyTitle}>
+                  {search ? 'No results found' : 'No conversations yet'}
+                </Text>
+                <Text style={styles.emptySub}>
+                  {search ? 'Try a different name' : 'Connect with attendees at events!'}
+                </Text>
+              </View>
+            ) : null
+          }
         />
       )}
     </SafeAreaView>
@@ -269,9 +281,8 @@ const styles = StyleSheet.create({
     color: neutral[800],
   },
 
-  sep:    { height: StyleSheet.hairlineWidth, backgroundColor: neutral[100], marginLeft: 76 },
-
-  center:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32 },
+  sep:        { height: StyleSheet.hairlineWidth, backgroundColor: neutral[100], marginLeft: 76 },
+  center:     { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32, paddingTop: 60 },
   emptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[700], textAlign: 'center' },
   emptySub:   { fontFamily: fontFamily.regular,  fontSize: fontSize.sm,   color: neutral[400], textAlign: 'center' },
   retryBtn:   { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: brand.primary },
@@ -284,25 +295,14 @@ const av = StyleSheet.create({
 });
 
 const row = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  containerUnread: { backgroundColor: `${brand.primary}06` },
-  avatarWrap: { position: 'relative' },
+  container:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  containerUnread:  { backgroundColor: `${brand.primary}06` },
+  avatarWrap:       { position: 'relative' },
   onlineDot: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    position: 'absolute', bottom: 1, right: 1,
+    width: 12, height: 12, borderRadius: 6,
     backgroundColor: brand.primary,
-    borderWidth: 2,
-    borderColor: '#fff',
+    borderWidth: 2, borderColor: '#fff',
   },
   body:          { flex: 1, gap: 3 },
   topLine:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -314,12 +314,9 @@ const row = StyleSheet.create({
   preview:       { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500], flex: 1 },
   previewBold:   { fontFamily: fontFamily.semibold, color: neutral[700] },
   badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 20, height: 20, borderRadius: 10,
     backgroundColor: brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 5,
   },
   badgeText: { fontFamily: fontFamily.bold, fontSize: 10, color: '#fff' },
