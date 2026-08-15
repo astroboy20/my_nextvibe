@@ -5,53 +5,33 @@ import QrTab from '@/components/event/QrTab';
 import RsvpTab from '@/components/event/RsvpTab';
 import type { EventDetail } from '@/components/event/types';
 import { AppHeader } from '@/components/navigation/TopNavBar';
-import { brand, neutral } from '@/constants/Colors';
+import {
+    EventDetailContentSkeleton,
+    EventDetailHeroSkeleton,
+    EventDetailTabSkeleton,
+} from '@/components/ui/Skeleton';
+import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useGetEventByIdQuery } from '@/store/api/eventsApi';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Image,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const HERO_H = width * 0.65;
 
-const MOCK_EVENT: EventDetail = {
-  id: '1',
-  name: 'Argentina vs. Spain',
-  description: 'Join us for the most electric match of the year! Watch Argentina take on Spain in an unforgettable showdown. Postcards, games, and live chat included.',
-  flierUrl: null,
-  promoVideoUrl: null,
-  startsAt: '2026-07-19T20:00:00Z',
-  status: 'PUBLISHED',
-  mode: 'VIRTUAL',
-  locationName: null,
-  virtualLink: 'https://meet.google.com/abc-defg-hij',
-  isPublic: true,
-  hasGame: true,
-  hasVibeTag: true,
-  attendeeCount: 247,
-  isRsvped: false,
-  rsvpStatus: null,
-  organizer: {
-    id: 'org1',
-    username: 'nextvibe_events',
-    displayName: 'NextVibe Events',
-    avatarUrl: null,
-    isFollowing: false,
-  },
-  tags: ['Virtual', 'Games', 'VibeTag'],
-};
+// ─── Tab config ───────────────────────────────────────────────────────────────
 
 type TabId = 'about' | 'rsvp' | 'postcards' | 'chat' | 'qr';
 
@@ -70,37 +50,69 @@ const TABS: TabDef[] = [
   { id: 'qr',        label: 'QR Code',   icon: 'qr-code-outline',            show: () => true },
 ];
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function EventDetailScreen() {
   const router = useRouter();
-  useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
 
-  const isLoading = false;
-  const event = MOCK_EVENT;
+  const {
+    data: eventRes,
+    isLoading,
+    isError,
+    refetch,
+  } = useGetEventByIdQuery(id ?? '', { skip: !id });
+
+  const event = eventRes?.data;
 
   const [activeTab, setActiveTab] = useState<TabId>('about');
   const [liked,     setLiked]     = useState(false);
 
-  const visibleTabs = TABS.filter((t) => t.show(event));
-
   const handleShare = async () => {
+    if (!event) return;
     try {
-      await Share.share({ title: event.name, message: `Check out this event on NextVibe: ${event.name}` });
+      await Share.share({
+        title: event.name,
+        message: `Check out this event on NextVibe: ${event.name}`,
+      });
     } catch {}
   };
 
+  // ── Skeleton / error states ────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator color={brand.primary} size="large" />
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <EventDetailHeroSkeleton />
+          <EventDetailTabSkeleton />
+          <EventDetailContentSkeleton />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (isError || !event) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <View style={styles.errorWrap}>
+          <Ionicons name="alert-circle-outline" size={48} color={semantic.error} />
+          <Text style={styles.errorTitle}>Couldn't load event</Text>
+          <Text style={styles.errorSub}>Check your connection and try again.</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={refetch} activeOpacity={0.85}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
-  // ── Hero block (shared between both layouts) ──────────────────────────────
+  const visibleTabs = TABS.filter((t) => t.show(event));
+
+  // ── Hero ──────────────────────────────────────────────────────────────────
   const HeroBlock = (
-    <View style={styles.hero}>
+    <View style={[styles.hero, { height: HERO_H }]}>
       {event.flierUrl ? (
         <Image source={{ uri: event.flierUrl }} style={styles.heroImg} resizeMode="cover" />
       ) : (
@@ -109,16 +121,28 @@ export default function EventDetailScreen() {
         </View>
       )}
       <View style={styles.heroOverlay} />
+
+      {/* Top action row */}
       <View style={styles.heroTopRow}>
         <View style={{ flexDirection: 'row', gap: 8, marginLeft: 'auto' }}>
-          <TouchableOpacity style={styles.heroBtn} onPress={() => setLiked((v) => !v)} activeOpacity={0.8}>
-            <Ionicons name={liked ? 'heart' : 'heart-outline'} size={20} color={liked ? '#FF6584' : '#fff'} />
+          <TouchableOpacity
+            style={styles.heroBtn}
+            onPress={() => setLiked((v) => !v)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={liked ? 'heart' : 'heart-outline'}
+              size={20}
+              color={liked ? '#FF6584' : '#fff'}
+            />
           </TouchableOpacity>
           <TouchableOpacity style={styles.heroBtn} onPress={handleShare} activeOpacity={0.8}>
             <Ionicons name="share-outline" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Bottom info */}
       <View style={styles.heroBottom}>
         {event.tags && event.tags.length > 0 && (
           <View style={styles.tagsRow}>
@@ -134,9 +158,13 @@ export default function EventDetailScreen() {
           <Ionicons name="people-outline" size={13} color="rgba(255,255,255,0.8)" />
           <Text style={styles.heroMetaText}>{event.attendeeCount ?? 0} attending</Text>
           <View style={styles.heroDot} />
-          <View style={[styles.modePill, { backgroundColor: event.mode === 'VIRTUAL' ? '#3B82F6CC' : '#22C55ECC' }]}>
+          <View style={[
+            styles.modePill,
+            { backgroundColor: event.mode === 'VIRTUAL' ? '#3B82F6CC' : '#22C55ECC' },
+          ]}>
             <Text style={styles.modeText}>
-              {event.mode === 'VIRTUAL' ? '🌐 Virtual' : event.mode === 'HYBRID' ? '🔀 Hybrid' : '📍 Onsite'}
+              {event.mode === 'VIRTUAL' ? '🌐 Virtual' :
+               event.mode === 'HYBRID'  ? '🔀 Hybrid'  : '📍 Onsite'}
             </Text>
           </View>
         </View>
@@ -144,7 +172,7 @@ export default function EventDetailScreen() {
     </View>
   );
 
-  // ── Tab bar (shared) ──────────────────────────────────────────────────────
+  // ── Tab bar ────────────────────────────────────────────────────────────────
   const TabBar = (
     <View style={styles.tabBar}>
       <ScrollView
@@ -161,8 +189,14 @@ export default function EventDetailScreen() {
               onPress={() => setActiveTab(tab.id)}
               activeOpacity={0.75}
             >
-              <Ionicons name={tab.icon} size={15} color={active ? brand.primary : neutral[400]} />
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{tab.label}</Text>
+              <Ionicons
+                name={tab.icon}
+                size={15}
+                color={active ? brand.primary : neutral[400]}
+              />
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                {tab.label}
+              </Text>
               {active && <View style={styles.tabUnderline} />}
             </TouchableOpacity>
           );
@@ -193,12 +227,31 @@ export default function EventDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: '#fff' },
-  scroll:      { flex: 1 },
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-  hero:         { width: '100%', height: HERO_H, backgroundColor: neutral[200] },
+const styles = StyleSheet.create({
+  safe:   { flex: 1, backgroundColor: '#fff' },
+  scroll: { flex: 1 },
+
+  // Error state
+  errorWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 10,
+  },
+  errorTitle: { fontFamily: fontFamily.bold,    fontSize: fontSize.lg, color: neutral[800] },
+  errorSub:   { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500], textAlign: 'center' },
+  retryBtn: {
+    marginTop: 8,
+    paddingHorizontal: 28, paddingVertical: 10,
+    borderRadius: 24, backgroundColor: brand.primary,
+  },
+  retryText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
+
+  // Hero
+  hero:         { width: '100%', backgroundColor: neutral[200] },
   heroImg:      { width: '100%', height: '100%' },
   heroFallback: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: neutral[100] },
   heroOverlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.38)' },
@@ -226,13 +279,13 @@ const styles = StyleSheet.create({
   modePill:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   modeText:     { fontFamily: fontFamily.semibold, fontSize: 10, color: '#fff' },
 
+  // Tab bar
   tabBar:      { backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200] },
   tabBarInner: { flexDirection: 'row', paddingHorizontal: 8 },
   tab: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 12, position: 'relative',
   },
-  tabActive:      {},
   tabLabel:       { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[400] },
   tabLabelActive: { color: brand.primary },
   tabUnderline: {
@@ -240,5 +293,5 @@ const styles = StyleSheet.create({
     height: 2, backgroundColor: brand.primary, borderRadius: 2,
   },
 
-  tabContent:    { flex: 1 },
+  tabContent: { flex: 1 },
 });

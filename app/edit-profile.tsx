@@ -1,23 +1,31 @@
 import { AppHeader } from '@/components/navigation/TopNavBar';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  useGetMeQuery,
+  useUpdateMeMutation,
+  useUploadFileMutation,
+} from '@/store/api/usersApi';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Lazy-load image picker
+// Lazy-load image picker to avoid crash if expo-image-picker isn't linked yet
 let ImagePicker: typeof import('expo-image-picker') | null = null;
 try { ImagePicker = require('expo-image-picker'); } catch {}
 
@@ -54,38 +62,37 @@ interface FormState {
   username: string;
   email: string;
   bio: string;
-  avatarUri: string | null;
+  avatarUri: string | null;   // local file URI (picked but not yet uploaded)
+  avatarUrl: string | null;   // remote URL (already on server)
 }
 
 // ─── Avatar component ─────────────────────────────────────────────────────────
 
 function AvatarPicker({
-  uri,
+  localUri,
+  remoteUrl,
   name,
   uploading,
   onPick,
 }: {
-  uri: string | null;
+  localUri: string | null;
+  remoteUrl: string | null;
   name: string;
   uploading: boolean;
   onPick: () => void;
 }) {
-  const initials = name?.charAt(0)?.toUpperCase() || 'U';
+  const initials   = name?.charAt(0)?.toUpperCase() || 'U';
+  const displayUri = localUri ?? remoteUrl;
+
   return (
     <View style={av.wrap}>
       <TouchableOpacity onPress={onPick} activeOpacity={0.85} disabled={uploading}>
         <View style={av.circle}>
-          {uri ? (
-            // Using View as placeholder since Image needs a URI to show
-            <View style={[av.circle, { backgroundColor: brand.primaryLight }]}>
-              <Text style={av.initials}>{initials}</Text>
-            </View>
+          {displayUri ? (
+            <Image source={{ uri: displayUri }} style={StyleSheet.absoluteFillObject} borderRadius={48} />
           ) : (
-            <View style={[av.circle, { backgroundColor: brand.primary }]}>
-              <Text style={av.initials}>{initials}</Text>
-            </View>
+            <Text style={av.initials}>{initials}</Text>
           )}
-          {/* Camera badge */}
           <View style={av.badge}>
             {uploading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -181,30 +188,56 @@ function Field({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function EditProfileScreen() {
-  const router = useRouter();
+  const router    = useRouter();
+  const { user }  = useAuth();
 
-  // Mock initial state — replace with API data
-  const [form, setForm] = useState<FormState>({
-    displayName: 'Nextvibe User',
-    username:    'nextvibeuser',
-    email:       'user@nextvibe.com',
+  // ── API ────────────────────────────────────────────────────────────────────
+  const { data: meData, isLoading: meLoading } = useGetMeQuery();
+  const [updateMe,    { isLoading: saving }]   = useUpdateMeMutation();
+  const [uploadFile,  { isLoading: uploading }] = useUploadFileMutation();
+
+  // ── Form state ─────────────────────────────────────────────────────────────
+  const [form, setForm]     = useState<FormState>({
+    displayName: '',
+    username:    '',
+    email:       '',
     bio:         '',
     avatarUri:   null,
+    avatarUrl:   null,
   });
-  const [errors, setErrors]     = useState<Partial<Record<keyof FormState, string>>>({});
-  const [saving, setSaving]     = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+
+  // Seed form when profile loads
+  useEffect(() => {
+    const profile = meData?.data ?? user;
+    if (!profile) return;
+    setForm({
+      displayName: profile.displayName ?? '',
+      username:    profile.username    ?? '',
+      email:       profile.email       ?? '',
+      bio:         (profile as any).bio ?? '',
+      avatarUri:   null,
+      avatarUrl:   profile.avatarUrl   ?? null,
+    });
+  }, [meData?.data]);
 
   const set = (key: keyof FormState, value: string | null) => {
     setForm((p) => ({ ...p, [key]: value }));
     setErrors((p) => ({ ...p, [key]: undefined }));
   };
 
+  // ── Avatar pick ────────────────────────────────────────────────────────────
   const handlePickAvatar = async () => {
-    if (!ImagePicker) return;
+    if (!ImagePicker) {
+      Alert.alert('Not available', 'Image picker is not available on this device.');
+      return;
+    }
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return;
+      if (!perm.granted) {
+        Alert.alert('Permission required', 'Please allow access to your photo library.');
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -212,26 +245,61 @@ export default function EditProfileScreen() {
         quality: 0.8,
       });
       if (!result.canceled && result.assets?.[0]) {
-        setUploading(true);
-        // TODO: upload to presigned URL here, then store returned URL
-        setTimeout(() => {
-          set('avatarUri', result.assets[0].uri);
-          setUploading(false);
-        }, 800);
+        set('avatarUri', result.assets[0].uri);
       }
-    } catch (e) { console.warn(e); }
+    } catch (e) {
+      console.warn('Avatar pick error:', e);
+    }
   };
 
+  // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const e = validateForm(form);
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    setSaving(true);
-    // TODO: call updateUser API here
-    setTimeout(() => {
-      setSaving(false);
+
+    try {
+      let finalAvatarUrl = form.avatarUrl;
+
+      // Upload new avatar first if one was picked
+      if (form.avatarUri) {
+        const fd = new FormData();
+        fd.append('file', {
+          uri:  form.avatarUri,
+          name: 'avatar.jpg',
+          type: 'image/jpeg',
+        } as any);
+        const uploaded = await uploadFile(fd).unwrap();
+        finalAvatarUrl = uploaded.data.url;
+      }
+
+      await updateMe({
+        displayName: form.displayName.trim(),
+        username:    form.username.trim(),
+        bio:         form.bio.trim() || undefined,
+        avatarUrl:   finalAvatarUrl,
+      }).unwrap();
+
       router.back();
-    }, 1000);
+    } catch (err: any) {
+      const msg =
+        err?.data?.message ??
+        err?.message ??
+        'Failed to save changes. Please try again.';
+      Alert.alert('Error', msg);
+    }
   };
+
+  // ── Loading skeleton ───────────────────────────────────────────────────────
+  if (meLoading && !form.displayName) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        <AppHeader onBack={() => router.back()} />
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={brand.primary} size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -248,13 +316,14 @@ export default function EditProfileScreen() {
         >
           {/* Avatar */}
           <AvatarPicker
-            uri={form.avatarUri}
+            localUri={form.avatarUri}
+            remoteUrl={form.avatarUrl}
             name={form.displayName}
             uploading={uploading}
             onPick={handlePickAvatar}
           />
 
-          {/* Profile Information card */}
+          {/* Profile Information */}
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Profile Information</Text>
 
@@ -300,12 +369,12 @@ export default function EditProfileScreen() {
 
           {/* Save button */}
           <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.65 }]}
+            style={[styles.saveBtn, (saving || uploading) && { opacity: 0.65 }]}
             onPress={handleSave}
             disabled={saving || uploading}
             activeOpacity={0.85}
           >
-            {saving ? (
+            {saving || uploading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.saveBtnText}>Save Changes</Text>
@@ -320,8 +389,8 @@ export default function EditProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
-
+  safe:        { flex: 1, backgroundColor: '#fff' },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 48 },
 
   card: {
@@ -355,28 +424,22 @@ const styles = StyleSheet.create({
 });
 
 const av = StyleSheet.create({
-  wrap:     { alignItems: 'center', marginBottom: 24 },
+  wrap:  { alignItems: 'center', marginBottom: 24 },
   circle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 96, height: 96, borderRadius: 48,
     backgroundColor: brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   initials: { fontFamily: fontFamily.extrabold, fontSize: 36, color: '#fff' },
   badge: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    bottom: 0, right: 0,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: brand.primary,
-    borderWidth: 2,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
   },
   hint: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[500], marginTop: 8 },
 });
@@ -394,11 +457,11 @@ const f = StyleSheet.create({
     backgroundColor: '#fff',
     minHeight: 48,
   },
-  inputFocused:  { borderColor: brand.primary },
-  inputError:    { borderColor: semantic.error },
-  inputDisabled: { backgroundColor: neutral[50] },
-  icon:    { marginTop: 14, marginRight: 8 },
-  prefix:  { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500], marginTop: 14, marginRight: 2 },
+  inputFocused:      { borderColor: brand.primary },
+  inputError:        { borderColor: semantic.error },
+  inputDisabled:     { backgroundColor: neutral[50] },
+  icon:              { marginTop: 14, marginRight: 8 },
+  prefix:            { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500], marginTop: 14, marginRight: 2 },
   input: {
     flex: 1,
     fontFamily: fontFamily.regular,
@@ -406,12 +469,11 @@ const f = StyleSheet.create({
     color: neutral[800],
     paddingVertical: 12,
   },
-  multiline:       { paddingTop: 12, textAlignVertical: 'top', minHeight: 100 },
+  multiline:         { paddingTop: 12, textAlignVertical: 'top', minHeight: 100 },
   inputTextDisabled: { color: neutral[400] },
   charCount: {
     position: 'absolute',
-    bottom: 8,
-    right: 10,
+    bottom: 8, right: 10,
     fontFamily: fontFamily.regular,
     fontSize: 10,
     color: neutral[400],

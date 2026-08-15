@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage"; 
 import {
     BaseQueryFn,
     FetchArgs,
@@ -7,7 +7,7 @@ import {
 } from '@reduxjs/toolkit/query/react';
 
 export const API_URL =
-  (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.nextvibe.co');
+  (process.env.EXPO_PUBLIC_API_URL ?? 'https://nextvibe-nest-backend-1b4o.onrender.com');
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_URL,
