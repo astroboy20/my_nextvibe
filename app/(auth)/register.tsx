@@ -6,7 +6,7 @@ import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { useRegisterMutation } from "@/store/api/authApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { type ReactNode, useState } from "react";
 import {
@@ -20,6 +20,7 @@ import {
     TextInput,
     View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 let GoogleSigninButton: any = null;
 if (Platform.OS !== "web") {
@@ -31,7 +32,6 @@ if (Platform.OS !== "web") {
 
 export default function RegisterScreen() {
   const colors = Colors.light;
-  const router = useRouter();
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
   const [register, { isLoading }] = useRegisterMutation();
@@ -42,7 +42,6 @@ export default function RegisterScreen() {
   const [password, setPassword]       = useState("");
   const [showPass, setShowPass]       = useState(false);
   const [agreed, setAgreed]           = useState(false);
-  const [apiErr, setApiErr]           = useState("");
   const [errors, setErrors] = useState({
     displayName: "", email: "", username: "", password: "", agreed: "",
   });
@@ -62,7 +61,6 @@ export default function RegisterScreen() {
 
   async function handleSubmit() {
     if (!validate()) return;
-    setApiErr("");
     try {
       await register({
         email: email.trim(),
@@ -70,9 +68,21 @@ export default function RegisterScreen() {
         displayName: displayName.trim(),
         username: username.trim(),
       }).unwrap();
-      router.replace("/(tabs)");
+      Toast.show({
+        type: "success",
+        text1: "Account created! 🎉",
+        text2: "Welcome to NextVibe",
+        visibilityTime: 2500,
+      });
+      // AuthGate redirects automatically
     } catch (err: any) {
-      setApiErr(err?.data?.message ?? err?.error ?? "Registration failed. Please try again.");
+      const msg = err?.data?.message ?? err?.error ?? "Registration failed. Please try again.";
+      Toast.show({
+        type: "error",
+        text1: "Registration failed",
+        text2: msg,
+        visibilityTime: 3500,
+      });
     }
   }
 
@@ -89,13 +99,6 @@ export default function RegisterScreen() {
         showsVerticalScrollIndicator={false}
       >
         <AuthHeader title="Join NextVibe" subtitle="Create your account and start vibing" />
-
-        {/* API error */}
-        {apiErr ? (
-          <View style={styles.apiErrBox}>
-            <Text style={[textStyles.caption, { color: colors.secondary }]}>{apiErr}</Text>
-          </View>
-        ) : null}
 
         {/* Google */}
         {Platform.OS !== "web" && GoogleSigninButton ? (
@@ -129,7 +132,7 @@ export default function RegisterScreen() {
             placeholderTextColor={colors.textTertiary}
             autoCapitalize="words"
             value={displayName}
-            onChangeText={(t) => { setDisplayName(t); setErrors((e) => ({ ...e, displayName: "" })); setApiErr(""); }}
+            onChangeText={(t) => { setDisplayName(t); setErrors((e) => ({ ...e, displayName: "" })); }}
           />
         </Field>
 
@@ -142,7 +145,7 @@ export default function RegisterScreen() {
             autoCapitalize="none"
             autoComplete="email"
             value={email}
-            onChangeText={(t) => { setEmail(t); setErrors((e) => ({ ...e, email: "" })); setApiErr(""); }}
+            onChangeText={(t) => { setEmail(t); setErrors((e) => ({ ...e, email: "" })); }}
           />
         </Field>
 
@@ -153,7 +156,7 @@ export default function RegisterScreen() {
             placeholderTextColor={colors.textTertiary}
             autoCapitalize="none"
             value={username}
-            onChangeText={(t) => { setUsername(t); setErrors((e) => ({ ...e, username: "" })); setApiErr(""); }}
+            onChangeText={(t) => { setUsername(t); setErrors((e) => ({ ...e, username: "" })); }}
           />
         </Field>
 
@@ -166,7 +169,7 @@ export default function RegisterScreen() {
               secureTextEntry={!showPass}
               autoComplete="new-password"
               value={password}
-              onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: "" })); setApiErr(""); }}
+              onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: "" })); }}
             />
             <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)} accessibilityLabel={showPass ? "Hide" : "Show"}>
               <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
@@ -241,6 +244,5 @@ const styles = StyleSheet.create({
   checkRow:        { flexDirection: "row", alignItems: "flex-start", marginTop: space.lg },
   checkbox:        { width: 20, height: 20, borderRadius: radius.xs, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
   checkMark:       { color: "#fff", fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  apiErrBox:       { backgroundColor: "#FEE2E2", borderRadius: 10, padding: 12, marginBottom: space.md },
   bottomRow:       { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: space.xl },
 });

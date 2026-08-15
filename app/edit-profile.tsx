@@ -3,27 +3,28 @@ import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  useGetMeQuery,
-  useUpdateMeMutation,
-  useUploadFileMutation,
+    useGetMeQuery,
+    useUpdateMeMutation,
+    useUploadFileMutation,
 } from '@/store/api/usersApi';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 // Lazy-load image picker to avoid crash if expo-image-picker isn't linked yet
 let ImagePicker: typeof import('expo-image-picker') | null = null;
@@ -279,13 +280,24 @@ export default function EditProfileScreen() {
         avatarUrl:   finalAvatarUrl,
       }).unwrap();
 
+      Toast.show({
+        type: "success",
+        text1: "Profile updated ✓",
+        text2: "Your changes have been saved",
+        visibilityTime: 2500,
+      });
       router.back();
     } catch (err: any) {
       const msg =
         err?.data?.message ??
         err?.message ??
         'Failed to save changes. Please try again.';
-      Alert.alert('Error', msg);
+      Toast.show({
+        type: "error",
+        text1: "Update failed",
+        text2: msg,
+        visibilityTime: 3500,
+      });
     }
   };
 

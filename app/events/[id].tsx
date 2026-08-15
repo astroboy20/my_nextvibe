@@ -15,9 +15,11 @@ import { getTagStyle, tagColor } from "@/constants/TagColors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useGetEventByIdQuery } from "@/store/api/eventsApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { ResizeMode, Video } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Image,
   ScrollView,
@@ -25,7 +27,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -67,6 +69,152 @@ const TABS: TabDef[] = [
 
 ];
 
+// ─── Alternating hero media ───────────────────────────────────────────────────
+
+/**
+ * Shows the flier for 5 s, then cross-fades to the promo video, then back,
+ * repeating indefinitely. If either asset is missing it just shows what's there.
+ *
+ * useNativeDriver:false is intentional — opacity on a View containing a Video
+ * is not supported by the native driver on Android.
+ */
+function HeroMedia({
+  flierUrl,
+  promoVideoUrl,
+}: {
+  flierUrl?: string | null;
+  promoVideoUrl?: string | null;
+}) {
+  const hasFlier = !!flierUrl;
+  const hasVideo = !!promoVideoUrl;
+  const shouldAlternate = hasFlier && hasVideo;
+
+  const flierOpacity = useRef(new Animated.Value(1)).current;
+  const videoOpacity = useRef(new Animated.Value(0)).current;
+  const videoRef     = useRef<Video>(null);
+  // Tracks which media is currently visible so the timer knows what to switch to
+  const showingVideoRef = useRef(false);
+  const timerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clears any pending timer — safe to call multiple times
+  const clearTimer = () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  // Animates from current media to the other, then queues the next switch
+  const doSwitchRef = useRef<() => void>(null as any);
+  doSwitchRef.current = () => {
+    const toVideo = !showingVideoRef.current;
+    showingVideoRef.current = toVideo;
+
+    const inAnim  = toVideo ? videoOpacity : flierOpacity;
+    const outAnim = toVideo ? flierOpacity : videoOpacity;
+
+    Animated.parallel([
+      Animated.timing(outAnim, { toValue: 0, duration: 800, useNativeDriver: false }),
+      Animated.timing(inAnim,  { toValue: 1, duration: 800, useNativeDriver: false }),
+    ]).start(({ finished }) => {
+      if (!finished) return; // was interrupted (unmount) — stop
+      if (toVideo) {
+        videoRef.current?.playAsync().catch(() => {});
+      } else {
+        videoRef.current?.pauseAsync().catch(() => {});
+      }
+      // Queue next switch after 5 s display time
+      timerRef.current = setTimeout(() => doSwitchRef.current?.(), 5000);
+    });
+  };
+
+  useEffect(() => {
+    if (!shouldAlternate) return;
+
+    // Reset to flier-visible state in case of re-mount
+    flierOpacity.setValue(1);
+    videoOpacity.setValue(0);
+    showingVideoRef.current = false;
+
+    // First switch fires after 5 s
+    timerRef.current = setTimeout(() => doSwitchRef.current?.(), 5000);
+
+    return () => {
+      clearTimer();
+      // Stop any in-progress animation
+      flierOpacity.stopAnimation();
+      videoOpacity.stopAnimation();
+      videoRef.current?.pauseAsync().catch(() => {});
+    };
+  // doSwitchRef is a stable ref — intentionally excluded from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAlternate]);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  if (!hasFlier && !hasVideo) {
+    return (
+      <View style={styles.heroFallback}>
+        <Ionicons name="calendar" size={56} color={`${brand.primary}40`} />
+      </View>
+    );
+  }
+
+  // Only flier — plain image, no animation overhead
+  if (hasFlier && !hasVideo) {
+    return (
+      <Image
+        source={{ uri: flierUrl! }}
+        style={styles.heroImg}
+        resizeMode="cover"
+      />
+    );
+  }
+
+  // Only video — play directly
+  if (!hasFlier && hasVideo) {
+    return (
+      <Video
+        source={{ uri: promoVideoUrl! }}
+        style={styles.heroImg}
+        resizeMode={ResizeMode.COVER}
+        isLooping
+        isMuted
+        shouldPlay
+      />
+    );
+  }
+
+  // Both assets — cross-fade
+  return (
+    <View style={styles.heroMediaContainer}>
+      <Animated.View
+        style={[StyleSheet.absoluteFillObject, { opacity: flierOpacity }]}
+      >
+        <Image
+          source={{ uri: flierUrl! }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={[StyleSheet.absoluteFillObject, { opacity: videoOpacity }]}
+      >
+        <Video
+          ref={videoRef}
+          source={{ uri: promoVideoUrl! }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode={ResizeMode.COVER}
+          isLooping
+          isMuted
+          shouldPlay={false}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function EventDetailScreen() {
@@ -81,8 +229,6 @@ export default function EventDetailScreen() {
   } = useGetEventByIdQuery(id ?? "", { skip: !id });
 
   const event = eventRes?.data;
-
-  console.log(event, "event");
 
   const [activeTab, setActiveTab] = useState<TabId>("about");
   const [liked, setLiked] = useState(false);
@@ -142,17 +288,7 @@ export default function EventDetailScreen() {
   // ── Hero ──────────────────────────────────────────────────────────────────
   const HeroBlock = (
     <View style={styles.hero}>
-      {event.flierUrl ? (
-        <Image
-          source={{ uri: event.flierUrl }}
-          style={styles.heroImg}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.heroFallback}>
-          <Ionicons name="calendar" size={56} color={`${brand.primary}40`} />
-        </View>
-      )}
+      <HeroMedia flierUrl={event.flierUrl} promoVideoUrl={event.promoVideoUrl} />
       <View style={styles.heroOverlay} />
 
       {/* Top action row */}
@@ -306,6 +442,7 @@ const styles = StyleSheet.create({
 
   // Hero
   hero: { width: "100%", backgroundColor: "#000" },
+  heroMediaContainer: { width: "100%", aspectRatio: 3 / 4, overflow: "hidden" },
   heroImg: { width: "100%", aspectRatio: 3 / 4 },
   heroFallback: {
     width: "100%",

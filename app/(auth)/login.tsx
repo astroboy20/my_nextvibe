@@ -6,20 +6,21 @@ import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { useLoginMutation } from "@/store/api/authApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Link, useRouter } from "expo-router";
+import { Link } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 const SCREEN_HEIGHT = Dimensions.get("screen").height;
 
@@ -33,7 +34,6 @@ if (Platform.OS !== "web") {
 
 export default function LoginScreen() {
   const colors = Colors.light;
-  const router = useRouter();
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
   const [login, { isLoading }] = useLoginMutation();
@@ -43,7 +43,6 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
   const [emailErr, setEmailErr] = useState("");
   const [passErr, setPassErr]   = useState("");
-  const [apiErr, setApiErr]     = useState("");
   const [focused, setFocused]   = useState<"email" | "password" | null>(null);
 
   const emailBorder = emailErr ? colors.secondary : focused === "email"    ? colors.primary : colors.border;
@@ -51,7 +50,7 @@ export default function LoginScreen() {
 
   function validate() {
     let ok = true;
-    setEmailErr(""); setPassErr(""); setApiErr("");
+    setEmailErr(""); setPassErr("");
     if (!email.trim())                       { setEmailErr("Email is required"); ok = false; }
     else if (!/\S+@\S+\.\S+/.test(email))   { setEmailErr("Enter a valid email"); ok = false; }
     if (!password)                           { setPassErr("Password is required"); ok = false; }
@@ -62,13 +61,25 @@ export default function LoginScreen() {
     if (!validate()) return;
     try {
       await login({ email: email.trim(), password }).unwrap();
-      router.replace("/(tabs)");
+      // AuthGate in _layout.tsx will redirect to /(tabs) automatically
+      // once setUser is dispatched inside onQueryStarted → persistSession
+      Toast.show({
+        type: "success",
+        text1: "Welcome back! 🎉",
+        text2: "You're logged in",
+        visibilityTime: 2500,
+      });
     } catch (err: any) {
       const msg =
         err?.data?.message ??
         err?.error ??
         "Login failed. Please check your credentials.";
-      setApiErr(msg);
+      Toast.show({
+        type: "error",
+        text1: "Login failed",
+        text2: msg,
+        visibilityTime: 3500,
+      });
     }
   }
 
@@ -84,13 +95,6 @@ export default function LoginScreen() {
       >
         <AuthHeader title="Welcome Back" subtitle="Sign in to continue your vibe" />
 
-        {/* API-level error */}
-        {apiErr ? (
-          <View style={styles.apiErrBox}>
-            <Text style={[textStyles.caption, { color: colors.secondary }]}>{apiErr}</Text>
-          </View>
-        ) : null}
-
         {/* Email */}
         <Text style={[textStyles.label, styles.label, { color: colors.textSecondary }]}>Email</Text>
         <TextInput
@@ -103,7 +107,7 @@ export default function LoginScreen() {
           value={email}
           onFocus={() => setFocused("email")}
           onBlur={() => setFocused(null)}
-          onChangeText={(t) => { setEmail(t); setEmailErr(""); setApiErr(""); }}
+          onChangeText={(t) => { setEmail(t); setEmailErr(""); }}
         />
         {emailErr ? <Text style={[textStyles.caption, styles.err, { color: colors.secondary }]}>{emailErr}</Text> : null}
 
@@ -119,7 +123,7 @@ export default function LoginScreen() {
             value={password}
             onFocus={() => setFocused("password")}
             onBlur={() => setFocused(null)}
-            onChangeText={(t) => { setPassword(t); setPassErr(""); setApiErr(""); }}
+            onChangeText={(t) => { setPassword(t); setPassErr(""); }}
           />
           <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
             <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
@@ -193,12 +197,6 @@ const styles = StyleSheet.create({
   },
   inputPadR:      { paddingRight: 52 },
   err:            { marginTop: 4 },
-  apiErrBox: {
-    backgroundColor: "#FEE2E2",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: space.md,
-  },
   eyeBtn: {
     position: "absolute", right: 0, top: 0, bottom: 0,
     width: 52, alignItems: "center", justifyContent: "center",

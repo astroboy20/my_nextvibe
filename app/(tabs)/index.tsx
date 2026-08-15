@@ -133,24 +133,22 @@ export default function HomeScreen() {
   } = useGetEventsQuery({ page: eventsPage, limit: PAGE_SIZE });
 
   useEffect(() => {
-    const incoming: DiscoverEvent[] = eventsData?.data?.data ?? [];
     if (!eventsData) return;
+    const incoming: DiscoverEvent[] = eventsData?.data?.data ?? [];
 
-    if (eventsPage === 1) {
-      setAllEvents(incoming);
-    } else {
-      setAllEvents((prev) => {
-        const seen = new Set(prev.map((e) => e.id));
-        return [...prev, ...incoming.filter((e) => !seen.has(e.id))];
-      });
-    }
+    setAllEvents((prev) => {
+      if (eventsPage === 1) return incoming;
+      const seen = new Set(prev.map((e) => e.id));
+      return [...prev, ...incoming.filter((e) => !seen.has(e.id))];
+    });
 
     const meta = eventsData?.data?.meta;
     setHasNextEvents(meta?.hasNext ?? incoming.length === PAGE_SIZE);
     eventsLoadingMore.current = false;
-  }, [eventsData]);
+  }, [eventsData, eventsPage]);
 
   const handleRefreshEvents = useCallback(() => {
+    eventsLoadingMore.current = false;
     setEventsPage(1);
     setAllEvents([]);
     refetchEventsBase();
@@ -179,24 +177,22 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    const incoming: PostcardItem[] = (postcardsData?.data as any)?.data ?? [];
     if (!postcardsData) return;
+    const incoming: PostcardItem[] = (postcardsData?.data as any)?.data ?? [];
 
-    if (postcardsPage === 1) {
-      setAllPostcards(incoming);
-    } else {
-      setAllPostcards((prev) => {
-        const seen = new Set(prev.map((p) => p.id));
-        return [...prev, ...incoming.filter((p) => !seen.has(p.id))];
-      });
-    }
+    setAllPostcards((prev) => {
+      if (postcardsPage === 1) return incoming;
+      const seen = new Set(prev.map((p) => p.id));
+      return [...prev, ...incoming.filter((p) => !seen.has(p.id))];
+    });
 
     const meta = (postcardsData?.data as any)?.meta;
     setHasNextPostcards(meta?.hasNext ?? incoming.length === PAGE_SIZE);
     postcardsLoadingMore.current = false;
-  }, [postcardsData]);
+  }, [postcardsData, postcardsPage]);
 
   const handleRefreshPostcards = useCallback(() => {
+    postcardsLoadingMore.current = false;
     setPostcardsPage(1);
     setAllPostcards([]);
     refetchPostcardsBase();
@@ -369,7 +365,7 @@ export default function HomeScreen() {
             </View>
           )}
           ListEmptyComponent={
-            !isEventsFirstLoad ? (
+            !isEventsFirstLoad && !eventsFetching && allEvents.length > 0 && visibleEvents.length === 0 ? (
               <View style={styles.emptyWrap}>
                 <Ionicons
                   name="calendar-outline"
@@ -418,7 +414,7 @@ export default function HomeScreen() {
           </View>
         )}
         ListEmptyComponent={
-          !isPostcardsFirstLoad ? (
+          !isPostcardsFirstLoad && !postcardsFetching ? (
             <View style={styles.emptyWrap}>
               <Ionicons name="images-outline" size={40} color={neutral[200]} />
               <Text style={styles.emptyText}>No postcards yet</Text>

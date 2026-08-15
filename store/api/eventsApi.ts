@@ -190,6 +190,23 @@ export const eventsApi = createApi({
       invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
     }),
 
+    // POST /v1/events  (create)
+    createEvent: build.mutation<
+      { success: boolean; data: { id: string; name: string } },
+      Record<string, any>
+    >({
+      query: (body) => ({ url: '/v1/events', method: 'POST', body }),
+      invalidatesTags: ['Events'],
+    }),
+
+    // POST /v1/events/upload-intent  (presigned URL for flier/video)
+    uploadIntent: build.mutation<
+      { success: boolean; data: { uploadUrl: string; fileUrl: string } },
+      { filename: string; contentType: string; folder: string }
+    >({
+      query: (body) => ({ url: '/v1/events/upload-intent', method: 'POST', body }),
+    }),
+
     // GET /v1/events/:eventId/attendees
     getEventAttendees: build.query<
       { success: boolean; data: Array<{ userId: string; displayName?: string; username?: string; avatarUrl?: string | null; checkedIn?: boolean; rsvpStatus?: string }> ; meta?: PaginatedMeta },
@@ -219,6 +236,8 @@ export const {
   useGetEventPostcardsQuery,
   useGetPostcardsQuery,
   useRsvpEventMutation,
+  useCreateEventMutation,
+  useUploadIntentMutation,
   useGetEventAttendeesQuery,
   useGetEventTicketsQuery,
 } = eventsApi;

@@ -29,6 +29,9 @@ export function useAuth() {
       // Even if the server call fails, clear local state
       dispatch(clearAuth());
     }
+    // clearAuth is also called inside the mutation's queryFn on success,
+    // but dispatch again here is safe (idempotent) and ensures router fires
+    dispatch(clearAuth());
     router.replace('/(auth)/login');
   }
 

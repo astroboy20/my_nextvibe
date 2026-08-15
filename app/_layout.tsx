@@ -7,6 +7,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 import { Provider, useSelector } from 'react-redux';
 
 export { ErrorBoundary } from 'expo-router';
@@ -93,6 +94,7 @@ export default function RootLayout() {
           <Stack.Screen name="edit-event" />
         </Stack>
       </AuthGate>
+      <Toast />
     </Provider>
   );
 }

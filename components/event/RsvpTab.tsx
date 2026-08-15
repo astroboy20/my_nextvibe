@@ -17,6 +17,7 @@ import {
     View,
 } from "react-native";
 import type { EventDetail } from "./types";
+import Toast from "react-native-toast-message";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,8 +118,16 @@ export default function RsvpTab({ event }: Props) {
         ...(selectedTicketId ? { ticketTierId: selectedTicketId } : {}),
       }).unwrap();
       setLocalStatus(nextStatus);
-    } catch {
-      // silently fail — status stays unchanged
+
+      const messages: Record<NonNullable<RsvpStatus>, { text1: string; text2: string }> = {
+        CONFIRMED: { text1: "You're going! 🎉",       text2: "RSVP confirmed successfully" },
+        WAITLIST:  { text1: "Added to waitlist ⏳",   text2: "We'll notify you if a spot opens" },
+        CANCELLED: { text1: "RSVP cancelled",          text2: "You've been removed from the list" },
+      };
+      Toast.show({ type: "success", ...messages[nextStatus], visibilityTime: 2500 });
+    } catch (err: any) {
+      const msg = err?.data?.message ?? "Could not update your RSVP. Please try again.";
+      Toast.show({ type: "error", text1: "RSVP failed", text2: msg, visibilityTime: 3000 });
     } finally {
       setLoadingStatus(null);
     }
