@@ -1,3 +1,12 @@
+/**
+ * PostcardCreator
+ *
+ * Full-screen overlay (not a Modal) with two stages:
+ *   1. Choose  — pick camera or gallery
+ *   2. Review  — preview media with VibeTag overlay, caption, post
+ *
+ * Design: clean Instagram-style with the VibeTag always visibly applied.
+ */
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import {
@@ -11,9 +20,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -29,10 +39,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { PostcardCamera, type CapturedMedia } from './PostcardCamera';
 
-const { width: W } = Dimensions.get('window');
-const PREVIEW_H = W * (4 / 3);   // 3:4 portrait preview
+const { width: W, height: H } = Dimensions.get('window');
+const TILE_W = (W - 28 - 8) / 2;   // two-column swap grid
 const MAX_ITEMS = 20;
-const TILE_W = (W - 28 - 8) / 2; // two columns with 8px gap inside 14px padding
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface VibeTagOverlay {
   imageUrl: string;
@@ -52,20 +63,17 @@ export interface PostcardCreatorProps {
   vibeTagId?: string;
   eventName?: string;
   eventId?: string;
-  /** Called when the user dismisses the creator */
   onClose: () => void;
-  /** Called after a successful post */
   onSubmit?: () => void;
-  /** Per-user count to enforce the 20-cap swap flow */
   userPostcardCount?: number;
   swapPostcardId?: string;
   swapLikeCount?: number;
   swapCommentCount?: number;
 }
 
-// ─── SwapConfirmDialog ────────────────────────────────────────────────────────
+// ─── SwapConfirm ──────────────────────────────────────────────────────────────
 
-function SwapConfirmDialog({
+function SwapConfirm({
   likeCount,
   commentCount,
   onConfirm,
@@ -77,40 +85,43 @@ function SwapConfirmDialog({
   onCancel: () => void;
 }) {
   return (
-    <View style={sc.backdrop}>
-      <View style={sc.sheet}>
-        <Text style={sc.title}>Replace this postcard?</Text>
-        <Text style={sc.sub}>
-          This will permanently delete the existing postcard and all its
-          activity:
+    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'flex-end', zIndex: 300, padding: 16 }]}>
+      <View style={{ width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 20, gap: 14 }}>
+        <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[800] }}>
+          Replace this postcard?
         </Text>
-        <View style={sc.statsRow}>
-          <View style={sc.statCol}>
+        <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500] }}>
+          This permanently deletes the existing postcard and all its activity:
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 16, backgroundColor: `${semantic.error}10`, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: `${semantic.error}25` }}>
+          <View style={{ alignItems: 'center', gap: 2 }}>
             <Ionicons name="heart" size={16} color={semantic.error} />
-            <Text style={sc.statNum}>{likeCount}</Text>
-            <Text style={sc.statLabel}>likes</Text>
+            <Text style={{ fontFamily: fontFamily.bold, fontSize: 13, color: semantic.error }}>{likeCount}</Text>
+            <Text style={{ fontFamily: fontFamily.regular, fontSize: 10, color: neutral[500] }}>likes</Text>
           </View>
-          <View style={sc.statCol}>
+          <View style={{ alignItems: 'center', gap: 2 }}>
             <Ionicons name="chatbubble" size={15} color={semantic.error} />
-            <Text style={sc.statNum}>{commentCount}</Text>
-            <Text style={sc.statLabel}>comments</Text>
+            <Text style={{ fontFamily: fontFamily.bold, fontSize: 13, color: semantic.error }}>{commentCount}</Text>
+            <Text style={{ fontFamily: fontFamily.regular, fontSize: 10, color: neutral[500] }}>comments</Text>
           </View>
-          <Text style={sc.warn}>This action cannot be undone.</Text>
+          <Text style={{ flex: 1, fontFamily: fontFamily.regular, fontSize: 11, color: `${semantic.error}BB`, alignSelf: 'center' }}>
+            This action cannot be undone.
+          </Text>
         </View>
-        <View style={sc.btnRow}>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
           <TouchableOpacity
-            style={sc.cancelBtn}
             onPress={onCancel}
             activeOpacity={0.8}
+            style={{ flex: 1, height: 46, borderRadius: 14, borderWidth: 1.5, borderColor: neutral[200], alignItems: 'center', justifyContent: 'center' }}
           >
-            <Text style={sc.cancelText}>Cancel</Text>
+            <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] }}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={sc.confirmBtn}
             onPress={onConfirm}
             activeOpacity={0.85}
+            style={{ flex: 1, height: 46, borderRadius: 14, backgroundColor: semantic.error, alignItems: 'center', justifyContent: 'center' }}
           >
-            <Text style={sc.confirmText}>Replace</Text>
+            <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' }}>Replace</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -118,54 +129,7 @@ function SwapConfirmDialog({
   );
 }
 
-const sc = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    zIndex: 200,
-    padding: 16,
-  },
-  sheet: {
-    width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    gap: 14,
-  },
-  title: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[800] },
-  sub: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500] },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: `${semantic.error}10`,
-    borderWidth: 1,
-    borderColor: `${semantic.error}30`,
-    borderRadius: 12,
-    padding: 12,
-  },
-  statCol: { alignItems: 'center', gap: 2 },
-  statNum: { fontFamily: fontFamily.bold, fontSize: 13, color: semantic.error },
-  statLabel: { fontFamily: fontFamily.regular, fontSize: 10, color: neutral[500] },
-  warn: { flex: 1, fontFamily: fontFamily.regular, fontSize: 11, color: `${semantic.error}CC` },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  cancelBtn: {
-    flex: 1, height: 46, borderRadius: 14,
-    borderWidth: 1.5, borderColor: neutral[200],
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cancelText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] },
-  confirmBtn: {
-    flex: 1, height: 46, borderRadius: 14,
-    backgroundColor: semantic.error,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  confirmText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
-});
-
-// ─── SwapPicker (screen inside the creator) ───────────────────────────────────
+// ─── SwapPicker ───────────────────────────────────────────────────────────────
 
 function SwapPicker({
   eventId,
@@ -185,131 +149,105 @@ function SwapPicker({
   ).filter((p: any) => (p?.media ?? []).some((m: any) => !!m.mediaUrl));
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {/* dimmed background */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff' }]} />
-
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        {/* Header */}
-        <View style={sp.header}>
-          <TouchableOpacity onPress={onCancel} hitSlop={8}>
-            <Text style={sp.cancel}>Cancel</Text>
-          </TouchableOpacity>
-          <View style={{ alignItems: 'center' }}>
-            <Text style={sp.title}>Replace a Postcard</Text>
-            <Text style={sp.sub}>You've hit the 20-postcard limit</Text>
-          </View>
-          <View style={{ width: 56 }} />
+    <SafeAreaView style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff', zIndex: 200 }]} edges={['top', 'bottom']}>
+      <View style={sp.header}>
+        <TouchableOpacity onPress={onCancel} hitSlop={10}>
+          <Ionicons name="close" size={22} color={neutral[700]} />
+        </TouchableOpacity>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={sp.headerTitle}>Replace a Postcard</Text>
+          <Text style={sp.headerSub}>You've hit the 20 postcard limit</Text>
         </View>
+        <View style={{ width: 30 }} />
+      </View>
 
-        {/* Warning */}
-        <View style={sp.warning}>
-          <Ionicons name="refresh" size={14} color="#92400E" />
-          <Text style={sp.warnText}>
-            Pick a postcard to replace. Its likes and comments will be removed.
-          </Text>
+      <View style={sp.warningRow}>
+        <Ionicons name="warning-outline" size={15} color="#92400E" />
+        <Text style={sp.warningText}>
+          Tap a postcard to replace it. Its likes and comments will be removed.
+        </Text>
+      </View>
+
+      {isLoading ? (
+        <View style={sp.center}>
+          <ActivityIndicator color={brand.primary} />
         </View>
-
-        {isLoading ? (
-          <View style={sp.center}>
-            <ActivityIndicator color={brand.primary} />
-          </View>
-        ) : list.length === 0 ? (
-          <View style={sp.center}>
-            <Ionicons name="images-outline" size={36} color={neutral[300]} />
-            <Text style={sp.emptyText}>No postcards to replace.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={list}
-            keyExtractor={(item, i) => item?.id ?? String(i)}
-            numColumns={2}
-            contentContainerStyle={{ padding: 14, gap: 0 }}
-            columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
-            renderItem={({ item }) => {
-              const src = item?.media?.[0]?.mediaUrl ?? '';
-              const isVideo = item?.media?.[0]?.mediaType === 'VIDEO';
-              if (!src) return null;
-              return (
-                <TouchableOpacity
-                  style={[sp.tile, { width: TILE_W, height: TILE_W * (4 / 3) }]}
-                  onPress={() => onPick(item)}
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    source={{ uri: src }}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                  />
-                  {isVideo && (
-                    <View style={sp.playBadge}>
-                      <Ionicons name="play" size={14} color="#fff" />
-                    </View>
-                  )}
-                  <View style={sp.tileBottom}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="heart" size={11} color="#fff" />
-                      <Text style={sp.statText}>{item.likeCount ?? 0}</Text>
-                      <Ionicons name="chatbubble" size={10} color="#fff" />
-                      <Text style={sp.statText}>{item.commentCount ?? 0}</Text>
-                    </View>
+      ) : list.length === 0 ? (
+        <View style={sp.center}>
+          <Ionicons name="images-outline" size={40} color={neutral[200]} />
+          <Text style={sp.emptyText}>No postcards to replace</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={list}
+          keyExtractor={(item, i) => item?.id ?? String(i)}
+          numColumns={2}
+          contentContainerStyle={{ padding: 14 }}
+          columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
+          renderItem={({ item }) => {
+            const src = item?.media?.[0]?.mediaUrl ?? '';
+            const isVid = item?.media?.[0]?.mediaType === 'VIDEO';
+            if (!src) return null;
+            return (
+              <TouchableOpacity
+                style={[sp.tile, { width: TILE_W, height: TILE_W * (4 / 3) }]}
+                onPress={() => onPick(item)}
+                activeOpacity={0.82}
+              >
+                <Image source={{ uri: src }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                {isVid && (
+                  <View style={sp.playBadge}>
+                    <Ionicons name="play" size={13} color="#fff" />
                   </View>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
-      </SafeAreaView>
-    </View>
+                )}
+                <View style={sp.tileGrad} />
+                <View style={sp.tileBottom}>
+                  <Ionicons name="heart" size={10} color="#fff" />
+                  <Text style={sp.tileStat}>{item.likeCount ?? 0}</Text>
+                  <Ionicons name="chatbubble" size={9} color="#fff" style={{ marginLeft: 6 }} />
+                  <Text style={sp.tileStat}>{item.commentCount ?? 0}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const sp = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200],
   },
-  cancel: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[600] },
-  title: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  sub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400] },
-  warning: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  headerTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
+  headerSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400] },
+  warningRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
     backgroundColor: '#FEF3C7',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#FDE68A',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#FDE68A',
   },
-  warnText: { flex: 1, fontFamily: fontFamily.regular, fontSize: 12, color: '#92400E' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  warningText: { flex: 1, fontFamily: fontFamily.regular, fontSize: 12, color: '#92400E' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
   emptyText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
-  tile: { borderRadius: 10, overflow: 'hidden', backgroundColor: neutral[100] },
+  tile: { borderRadius: 12, overflow: 'hidden', backgroundColor: neutral[100] },
   playBadge: {
-    position: 'absolute', bottom: 8, left: 8,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', top: 8, right: 8,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center',
   },
+  tileGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 44, backgroundColor: 'rgba(0,0,0,0.35)' },
   tileBottom: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: 7,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
+    flexDirection: 'row', alignItems: 'center', padding: 8,
   },
-  statText: { fontFamily: fontFamily.semibold, fontSize: 10, color: '#fff' },
+  tileStat: { fontFamily: fontFamily.semibold, fontSize: 10, color: '#fff', marginLeft: 3 },
 });
 
-// ─── PostcardCreator ──────────────────────────────────────────────────────────
-// Rendered as a full-screen View (not Modal) — the parent conditionally mounts
-// it over the tab content.
+// ─── PostcardCreator (main) ───────────────────────────────────────────────────
 
 export function PostcardCreator({
   vibeTagName = 'Event VibeTag',
@@ -326,26 +264,41 @@ export function PostcardCreator({
 }: PostcardCreatorProps) {
   const isSwapMode = !!swapPostcardId;
 
-  type Screen = 'choose' | 'review';
-  const [screen, setScreen] = useState<Screen>('choose');
-  const [showCamera, setShowCamera] = useState(false);
-  const [showSwapPicker, setShowSwapPicker] = useState(false);
-  const [showSwapConfirm, setShowSwapConfirm] = useState(false);
-  const [pendingSwapTarget, setPendingSwapTarget] = useState<any>(null);
-
+  type Stage = 'choose' | 'review';
+  const [stage, setStage] = useState<Stage>('choose');
   const [items, setItems] = useState<PickedItem[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [caption, setCaption] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<'uploading' | 'saving'>('uploading');
+  const [showCamera, setShowCamera] = useState(false);
+  const [showSwapPicker, setShowSwapPicker] = useState(false);
+  const [showSwapConfirm, setShowSwapConfirm] = useState(false);
+  const [pendingSwap, setPendingSwap] = useState<any>(null);
+
+  // Slide-up animation for review stage
+  const slideAnim = useRef(new Animated.Value(H)).current;
+
+  const showReview = (newItems: PickedItem[], startIdx: number) => {
+    setItems(newItems);
+    setActiveIdx(startIdx);
+    setStage('review');
+    slideAnim.setValue(H);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 65,
+      friction: 11,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const [createPostcards] = useCreatePostcardsMutation();
   const [swapPostcard] = useSwapPostcardMutation();
 
   // ── Pickers ───────────────────────────────────────────────────────────────
 
-  const pickFromGallery = async () => {
+  const openGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Toast.show({ type: 'error', text1: 'Media library permission denied' });
@@ -371,34 +324,29 @@ export function PostcardCreator({
       mimeType: a.mimeType,
       fileName: a.fileName ?? undefined,
     }));
-    const next = [...items, ...newItems].slice(0, MAX_ITEMS);
     const prevLen = items.length;
-    setItems(next);
-    setActiveIdx(prevLen);
-    setScreen('review');
+    const next = [...items, ...newItems].slice(0, MAX_ITEMS);
+    showReview(next, prevLen);
   };
 
-  const handleCameraCapture = (captured: CapturedMedia[]) => {
+  const onCameraCapture = (captured: CapturedMedia[]) => {
     setShowCamera(false);
     if (!captured.length) return;
     const newItems: PickedItem[] = captured.map((c) => ({
-      uri: c.uri,
-      type: c.type,
-      mimeType: c.mimeType,
+      uri: c.uri, type: c.type, mimeType: c.mimeType,
     }));
     const prevLen = items.length;
     const next = [...items, ...newItems].slice(0, MAX_ITEMS);
-    setItems(next);
-    setActiveIdx(prevLen);
-    setScreen('review');
+    showReview(next, prevLen);
   };
 
-  const removeItem = (index: number) => {
-    const next = items.filter((_, i) => i !== index);
-    setItems(next);
+  const removeItem = (idx: number) => {
+    const next = items.filter((_, i) => i !== idx);
     if (next.length === 0) {
-      setScreen('choose');
+      setStage('choose');
+      setItems([]);
     } else {
+      setItems(next);
       setActiveIdx(Math.min(activeIdx, next.length - 1));
     }
   };
@@ -414,9 +362,7 @@ export function PostcardCreator({
       const token = await AsyncStorage.getItem('accessToken');
       const formData = new FormData();
       for (const item of items) {
-        const uri = Platform.OS === 'ios'
-          ? item.uri.replace('file://', '')
-          : item.uri;
+        const uri = Platform.OS === 'ios' ? item.uri.replace('file://', '') : item.uri;
         const ext = item.uri.split('.').pop() ?? (item.type === 'video' ? 'mp4' : 'jpg');
         const mime = item.mimeType ?? (item.type === 'video' ? 'video/mp4' : 'image/jpeg');
         const name = item.fileName ?? `postcard-${Date.now()}.${ext}`;
@@ -443,12 +389,10 @@ export function PostcardCreator({
         xhr.send(formData);
       });
       const uploaded = (uploadResult?.data ?? []).map((f: any) => ({
-        fileKey: f.fileKey,
-        mediaType: f.mediaType,
-        mediaUrl: f.url,
+        fileKey: f.fileKey, mediaType: f.mediaType, mediaUrl: f.url,
       }));
       if (!uploaded.length) {
-        Toast.show({ type: 'error', text1: 'Upload failed — no files returned' });
+        Toast.show({ type: 'error', text1: 'Upload failed' });
         return;
       }
       setUploadStage('saving');
@@ -461,9 +405,7 @@ export function PostcardCreator({
       setUploadProgress(100);
       Toast.show({
         type: 'success',
-        text1: targetSwapId
-          ? 'Postcard replaced!'
-          : `${items.length} item${items.length > 1 ? 's' : ''} posted!`,
+        text1: targetSwapId ? 'Postcard replaced!' : `${items.length} item${items.length > 1 ? 's' : ''} posted!`,
       });
       onSubmit?.();
       onClose();
@@ -473,7 +415,7 @@ export function PostcardCreator({
       } else if (targetSwapId && err?.status === 404) {
         Toast.show({ type: 'error', text1: 'That postcard no longer exists.' });
       } else {
-        Toast.show({ type: 'error', text1: err?.data?.message ?? err?.message ?? 'Failed to post.' });
+        Toast.show({ type: 'error', text1: err?.data?.message ?? err?.message ?? 'Post failed.' });
       }
     } finally {
       setIsSubmitting(false);
@@ -491,345 +433,363 @@ export function PostcardCreator({
 
   const activeItem = items[activeIdx] ?? null;
 
-  // ── Choose screen ─────────────────────────────────────────────────────────
-
-  const ChooseScreen = (
-    <View style={{ flex: 1 }}>
-      {/* Vibetag preview or placeholder */}
-      <View style={[cs.previewWrap, { height: PREVIEW_H }]}>
-        {vibeTagOverlay?.imageUrl ? (
-          <>
-            <View style={cs.previewBg} />
-            <Image
-              source={{ uri: vibeTagOverlay.imageUrl }}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-            />
-            <View style={cs.previewOverlayLabel}>
-              <Ionicons name="sparkles" size={13} color="#fff" />
-              <Text style={cs.previewLabelText} numberOfLines={1}>
-                {vibeTagName}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <View style={[cs.previewBg, { alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
-            <Ionicons name="image-outline" size={44} color={neutral[300]} />
-            <Text style={cs.previewPlaceholder}>
-              Your photo will appear here
-            </Text>
-            <View style={cs.previewLabelBox}>
-              <Ionicons name="sparkles" size={13} color={brand.primaryLight} />
-              <Text style={cs.previewLabelText} numberOfLines={1}>
-                {vibeTagName}
-              </Text>
-            </View>
-            <Text style={cs.previewEventName} numberOfLines={1}>
-              {eventName}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Action buttons */}
-      <View style={cs.actions}>
-        <TouchableOpacity
-          style={cs.primaryBtn}
-          onPress={() => setShowCamera(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="camera" size={22} color="#fff" />
-          <View style={{ flex: 1 }}>
-            <Text style={cs.primaryBtnText}>Take Photo / Record Video</Text>
-            <Text style={cs.primaryBtnSub}>Live VibeTag overlay • max {MAX_ITEMS}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={cs.secondaryBtn}
-          onPress={pickFromGallery}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="images-outline" size={22} color={neutral[700]} />
-          <View style={{ flex: 1 }}>
-            <Text style={cs.secondaryBtnText}>Upload from Gallery</Text>
-            <Text style={cs.secondaryBtnSub}>
-              max {MAX_ITEMS} · photos & videos ≤ 125s
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={neutral[400]} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  // ── Review screen ─────────────────────────────────────────────────────────
-
-  const ReviewScreen = (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView showsVerticalScrollIndicator={false}>
-
-        {/* Thumbnail strip */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={rv.strip}
-        >
-          {items.map((item, idx) => (
-            <TouchableOpacity
-              key={idx}
-              onPress={() => setActiveIdx(idx)}
-              style={[rv.thumb, idx === activeIdx && rv.thumbActive]}
-              activeOpacity={0.85}
-            >
-              {item.type === 'video' ? (
-                <View style={rv.thumbVideo}>
-                  <Ionicons name="play-circle" size={22} color="#fff" />
-                </View>
-              ) : (
-                <Image
-                  source={{ uri: item.uri }}
-                  style={StyleSheet.absoluteFillObject}
-                  contentFit="cover"
-                  cachePolicy="memory"
-                />
-              )}
-              {/* VibeTag overlay preview on thumbnails */}
-              {vibeTagOverlay?.imageUrl && (
-                <Image
-                  source={{ uri: vibeTagOverlay.imageUrl }}
-                  style={[StyleSheet.absoluteFillObject, { opacity: 0.55 }]}
-                  contentFit="cover"
-                  cachePolicy="memory"
-                  pointerEvents="none"
-                />
-              )}
-              <TouchableOpacity
-                style={rv.thumbRemove}
-                onPress={() => removeItem(idx)}
-                hitSlop={4}
-              >
-                <Ionicons name="close-circle" size={18} color="#fff" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))}
-
-          {/* Add more button */}
-          {items.length < MAX_ITEMS && (
-            <View style={rv.thumbAddGroup}>
-              <TouchableOpacity
-                style={rv.thumbAddBtn}
-                onPress={() => setShowCamera(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="camera" size={18} color={neutral[500]} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={rv.thumbAddBtn}
-                onPress={pickFromGallery}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="images-outline" size={18} color={neutral[500]} />
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Active preview */}
-        {activeItem && (
-          <View style={[rv.previewBox, { height: PREVIEW_H }]}>
-            {activeItem.type === 'video' ? (
-              <Video
-                source={{ uri: activeItem.uri }}
-                style={StyleSheet.absoluteFillObject}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay={false}
-                useNativeControls
-                isLooping
-              />
-            ) : (
-              <Image
-                source={{ uri: activeItem.uri }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                cachePolicy="memory"
-              />
-            )}
-            {/* Live VibeTag overlay */}
-            {vibeTagOverlay?.imageUrl && (
-              <Image
-                source={{ uri: vibeTagOverlay.imageUrl }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                cachePolicy="memory"
-                pointerEvents="none"
-              />
-            )}
-            {/* Remove */}
-            <TouchableOpacity
-              style={rv.removeBtn}
-              onPress={() => removeItem(activeIdx)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="trash-outline" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Caption */}
-        <View style={rv.captionWrap}>
-          <Text style={rv.captionLabel}>
-            Caption{' '}
-            <Text style={rv.captionOptional}>(optional)</Text>
-          </Text>
-          <TextInput
-            value={caption}
-            onChangeText={setCaption}
-            placeholder="Write something about this moment..."
-            placeholderTextColor={neutral[400]}
-            style={rv.captionInput}
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-
-        {/* Submit */}
-        <View style={rv.submitWrap}>
-          {isSubmitting ? (
-            <View style={rv.progressBox}>
-              <View style={rv.progressRow}>
-                <Text style={rv.progressLabel}>
-                  {uploadStage === 'uploading' ? 'Uploading…' : 'Saving…'}
-                </Text>
-                <Text style={rv.progressPct}>{uploadProgress}%</Text>
-              </View>
-              <View style={rv.progressTrack}>
-                <View style={[rv.progressFill, { width: `${uploadProgress}%` as any }]} />
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={rv.submitBtn}
-              onPress={handlePost}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={rv.submitText}>
-                {isSwapMode
-                  ? 'Replace Postcard'
-                  : `Post ${items.length} Item${items.length > 1 ? 's' : ''} to Feed`}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={rv.startOver}
-            onPress={() => { setItems([]); setActiveIdx(0); setCaption(''); setScreen('choose'); }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh" size={14} color={neutral[500]} />
-            <Text style={rv.startOverText}>Start over</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Swap confirm overlay */}
-      {showSwapConfirm && (
-        <SwapConfirmDialog
-          likeCount={pendingSwapTarget?.likeCount ?? swapLikeCount}
-          commentCount={pendingSwapTarget?.commentCount ?? swapCommentCount}
-          onCancel={() => { setShowSwapConfirm(false); setPendingSwapTarget(null); }}
-          onConfirm={() => doSubmit(pendingSwapTarget?.id ?? swapPostcardId)}
-        />
-      )}
-    </KeyboardAvoidingView>
-  );
-
-  // ── Root render — positioned absolutely over the parent ───────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {/* White background — fills whole screen */}
-      <SafeAreaView style={root.container} edges={['top', 'bottom']}>
+    <View style={[StyleSheet.absoluteFillObject, { zIndex: 100 }]}>
+      <SafeAreaView style={s.root} edges={['top', 'bottom']}>
 
-        {/* Navbar */}
-        <View style={root.navbar}>
-          <TouchableOpacity
-            onPress={screen === 'review' ? () => setScreen('choose') : onClose}
-            style={root.navBtn}
-            hitSlop={8}
-          >
-            <Ionicons
-              name={screen === 'review' ? 'chevron-back' : 'close'}
-              size={22}
-              color={neutral[700]}
-            />
-          </TouchableOpacity>
-
-          <View style={{ alignItems: 'center' }}>
-            <Text style={root.navTitle}>
-              {isSwapMode
-                ? 'Replace Postcard'
-                : screen === 'review'
-                ? 'Review'
-                : 'Create Postcard'}
-            </Text>
-            {screen === 'review' && (
-              <Text style={root.navSub}>
-                {items.length}/{MAX_ITEMS} item{items.length > 1 ? 's' : ''}
+        {/* ── CHOOSE STAGE ─────────────────────────────────────────────── */}
+        {stage === 'choose' && (
+          <View style={{ flex: 1 }}>
+            {/* Header */}
+            <View style={s.header}>
+              <TouchableOpacity onPress={onClose} hitSlop={10} style={s.headerBtn}>
+                <Ionicons name="close" size={22} color={neutral[700]} />
+              </TouchableOpacity>
+              <Text style={s.headerTitle}>
+                {isSwapMode ? 'Replace Postcard' : 'New Postcard'}
               </Text>
-            )}
-          </View>
+              <View style={{ width: 36 }} />
+            </View>
 
-          {/* Right action: add more media when reviewing */}
-          {screen === 'review' && items.length < MAX_ITEMS ? (
-            <TouchableOpacity
-              onPress={() => setShowCamera(true)}
-              style={root.navBtn}
-              hitSlop={8}
-            >
-              <Ionicons name="camera-outline" size={22} color={brand.primary} />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 36 }} />
-          )}
-        </View>
+            {/* VibeTag preview — takes most of the screen */}
+            <View style={s.vibePreview}>
+              {vibeTagOverlay?.imageUrl ? (
+                <>
+                  <Image
+                    source={{ uri: vibeTagOverlay.imageUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                  />
+                  {/* Dark gradient at bottom */}
+                  <View style={s.vibePreviewGrad} pointerEvents="none" />
+                  {/* Tag info */}
+                  <View style={s.vibePreviewInfo} pointerEvents="none">
+                    <View style={s.vibeChip}>
+                      <Ionicons name="sparkles" size={12} color="#fff" />
+                      <Text style={s.vibeChipText} numberOfLines={1}>
+                        {vibeTagOverlay.name}
+                      </Text>
+                    </View>
+                    <Text style={s.vibePreviewHint}>
+                      This overlay will appear on your postcards
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                <View style={s.vibePreviewEmpty}>
+                  <View style={s.vibePreviewEmptyIcon}>
+                    <Ionicons name="sparkles" size={32} color={brand.primary} />
+                  </View>
+                  <Text style={s.vibePreviewEmptyTitle}>{vibeTagName}</Text>
+                  <Text style={s.vibePreviewEmptySub}>
+                    {eventName}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-        {/* VibeTag banner */}
-        {vibeTagOverlay && (
-          <View style={root.vibeBanner}>
-            <Ionicons name="sparkles" size={13} color={brand.primary} />
-            <Text style={root.vibeText} numberOfLines={1}>
-              {vibeTagOverlay.name}
-            </Text>
-            <Text style={root.vibeSub}>overlay applied live</Text>
+            {/* Action buttons */}
+            <View style={s.chooseActions}>
+              <TouchableOpacity
+                style={s.cameraBtn}
+                onPress={() => setShowCamera(true)}
+                activeOpacity={0.85}
+              >
+                <View style={s.cameraBtnIcon}>
+                  <Ionicons name="camera" size={26} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.cameraBtnTitle}>Camera</Text>
+                  <Text style={s.cameraBtnSub}>
+                    Photo & video with live VibeTag overlay
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={s.galleryBtn}
+                onPress={openGallery}
+                activeOpacity={0.85}
+              >
+                <View style={s.galleryBtnIcon}>
+                  <Ionicons name="images-outline" size={24} color={brand.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.galleryBtnTitle}>Upload from Gallery</Text>
+                  <Text style={s.galleryBtnSub}>
+                    Photos & videos · max {MAX_ITEMS} · videos ≤ 125s
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={neutral[400]} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
-        {/* Screen content */}
-        {screen === 'choose' ? ChooseScreen : ReviewScreen}
+        {/* ── REVIEW STAGE ─────────────────────────────────────────────── */}
+        {stage === 'review' && (
+          <Animated.View style={{ flex: 1, transform: [{ translateY: slideAnim }] }}>
+            <KeyboardAvoidingView
+              style={{ flex: 1 }}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              {/* Header */}
+              <View style={s.header}>
+                <TouchableOpacity
+                  onPress={() => { setStage('choose'); setItems([]); }}
+                  hitSlop={10}
+                  style={s.headerBtn}
+                >
+                  <Ionicons name="chevron-back" size={22} color={neutral[700]} />
+                </TouchableOpacity>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={s.headerTitle}>
+                    {isSwapMode ? 'Replace Postcard' : 'Review'}
+                  </Text>
+                  <Text style={s.headerSub}>
+                    {items.length}/{MAX_ITEMS} item{items.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+                {/* Add more — camera */}
+                {items.length < MAX_ITEMS ? (
+                  <TouchableOpacity
+                    onPress={() => setShowCamera(true)}
+                    hitSlop={10}
+                    style={s.headerBtn}
+                  >
+                    <Ionicons name="add" size={24} color={brand.primary} />
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 36 }} />
+                )}
+              </View>
+
+              {/* VibeTag banner */}
+              {vibeTagOverlay && (
+                <View style={s.vibeBanner}>
+                  <Ionicons name="sparkles" size={12} color={brand.primary} />
+                  <Text style={s.vibeBannerText} numberOfLines={1}>
+                    {vibeTagOverlay.name}
+                  </Text>
+                  <Text style={s.vibeBannerSub}>live overlay applied</Text>
+                </View>
+              )}
+
+              <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+
+                {/* Active media preview — full width, 1:1 ratio */}
+                {activeItem && (
+                  <View style={s.mediaPreview}>
+                    {activeItem.type === 'video' ? (
+                      <Video
+                        source={{ uri: activeItem.uri }}
+                        style={StyleSheet.absoluteFillObject}
+                        resizeMode={ResizeMode.COVER}
+                        shouldPlay={false}
+                        useNativeControls
+                        isLooping
+                      />
+                    ) : (
+                      <Image
+                        source={{ uri: activeItem.uri }}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                        cachePolicy="memory"
+                      />
+                    )}
+                    {/* VibeTag overlay */}
+                    {vibeTagOverlay?.imageUrl && (
+                      <Image
+                        source={{ uri: vibeTagOverlay.imageUrl }}
+                        style={StyleSheet.absoluteFillObject}
+                        contentFit="cover"
+                        cachePolicy="memory"
+                        pointerEvents="none"
+                      />
+                    )}
+                    {/* Remove current */}
+                    <TouchableOpacity
+                      style={s.removeBtn}
+                      onPress={() => removeItem(activeIdx)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="trash-outline" size={17} color="#fff" />
+                    </TouchableOpacity>
+                    {/* Item counter badge */}
+                    {items.length > 1 && (
+                      <View style={s.counterBadge} pointerEvents="none">
+                        <Ionicons name="layers" size={12} color="#fff" />
+                        <Text style={s.counterBadgeText}>
+                          {activeIdx + 1}/{items.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Thumbnail strip — only when >1 item */}
+                {items.length > 1 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={s.thumbStrip}
+                  >
+                    {items.map((item, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => setActiveIdx(idx)}
+                        style={[s.thumb, idx === activeIdx && s.thumbSelected]}
+                        activeOpacity={0.85}
+                      >
+                        {item.type === 'video' ? (
+                          <View style={s.thumbVideo}>
+                            <Ionicons name="play-circle" size={20} color="#fff" />
+                          </View>
+                        ) : (
+                          <Image
+                            source={{ uri: item.uri }}
+                            style={StyleSheet.absoluteFillObject}
+                            contentFit="cover"
+                            cachePolicy="memory"
+                          />
+                        )}
+                        {vibeTagOverlay?.imageUrl && (
+                          <Image
+                            source={{ uri: vibeTagOverlay.imageUrl }}
+                            style={[StyleSheet.absoluteFillObject, { opacity: 0.5 }]}
+                            contentFit="cover"
+                            cachePolicy="memory"
+                            pointerEvents="none"
+                          />
+                        )}
+                        {/* Remove badge */}
+                        <TouchableOpacity
+                          style={s.thumbRemove}
+                          onPress={() => removeItem(idx)}
+                          hitSlop={4}
+                        >
+                          <Ionicons name="close-circle" size={17} color="#fff" />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    ))}
+                    {/* Add more */}
+                    {items.length < MAX_ITEMS && (
+                      <View style={s.thumbAddWrap}>
+                        <TouchableOpacity
+                          style={s.thumbAdd}
+                          onPress={() => setShowCamera(true)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="camera-outline" size={17} color={neutral[500]} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.thumbAdd}
+                          onPress={openGallery}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="images-outline" size={17} color={neutral[500]} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </ScrollView>
+                )}
+
+                {/* Caption */}
+                <View style={s.captionSection}>
+                  <TextInput
+                    value={caption}
+                    onChangeText={setCaption}
+                    placeholder="Add a caption (optional)…"
+                    placeholderTextColor={neutral[400]}
+                    style={s.captionInput}
+                    multiline
+                    maxLength={300}
+                  />
+                  <Text style={s.captionCount}>{caption.length}/300</Text>
+                </View>
+
+                {/* Post button */}
+                <View style={s.postSection}>
+                  {isSubmitting ? (
+                    <View style={s.progressCard}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <Text style={s.progressLabel}>
+                          {uploadStage === 'uploading' ? 'Uploading media…' : 'Saving postcard…'}
+                        </Text>
+                        <Text style={s.progressPct}>{uploadProgress}%</Text>
+                      </View>
+                      <View style={s.progressTrack}>
+                        <Animated.View
+                          style={[s.progressFill, { width: `${uploadProgress}%` as any }]}
+                        />
+                      </View>
+                      <Text style={s.progressSub}>
+                        {uploadStage === 'uploading'
+                          ? 'Please keep the app open…'
+                          : 'Almost done…'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={s.postBtn}
+                      onPress={handlePost}
+                      activeOpacity={0.87}
+                    >
+                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                      <Text style={s.postBtnText}>
+                        {isSwapMode
+                          ? 'Replace Postcard'
+                          : `Share ${items.length} Item${items.length > 1 ? 's' : ''}`}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={s.startOverBtn}
+                    onPress={() => { setStage('choose'); setItems([]); setCaption(''); }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color={neutral[400]} />
+                    <Text style={s.startOverText}>Start over</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </KeyboardAvoidingView>
+
+            {/* Swap confirm sheet */}
+            {showSwapConfirm && (
+              <SwapConfirm
+                likeCount={pendingSwap?.likeCount ?? swapLikeCount}
+                commentCount={pendingSwap?.commentCount ?? swapCommentCount}
+                onCancel={() => { setShowSwapConfirm(false); setPendingSwap(null); }}
+                onConfirm={() => doSubmit(pendingSwap?.id ?? swapPostcardId)}
+              />
+            )}
+          </Animated.View>
+        )}
       </SafeAreaView>
 
-      {/* In-app camera with live VibeTag overlay */}
+      {/* Camera overlay */}
       {showCamera && (
         <PostcardCamera
           vibeTagOverlay={vibeTagOverlay}
           vibeTagName={vibeTagName}
-          onCapture={handleCameraCapture}
+          onCapture={onCameraCapture}
           onClose={() => setShowCamera(false)}
         />
       )}
 
-      {/* Swap picker */}
+      {/* Swap picker overlay */}
       {showSwapPicker && eventId && (
         <SwapPicker
           eventId={eventId}
-          onPick={(postcard) => {
-            setPendingSwapTarget(postcard);
+          onPick={(p) => {
+            setPendingSwap(p);
             setShowSwapPicker(false);
             setShowSwapConfirm(true);
           }}
@@ -840,201 +800,175 @@ export function PostcardCreator({
   );
 }
 
-// ─── Root styles ──────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-const root = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  navbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
-  },
-  navBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  navTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  navSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400] },
-  vibeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    backgroundColor: `${brand.primary}08`,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: `${brand.primary}20`,
-  },
-  vibeText: { fontFamily: fontFamily.semibold, fontSize: 12, color: brand.primary, flex: 1 },
-  vibeSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
-});
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#fff' },
 
-// ─── Choose screen styles ─────────────────────────────────────────────────────
+  // Header
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+  },
+  headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
+  headerSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400], marginTop: 1 },
 
-const cs = StyleSheet.create({
-  previewWrap: {
-    width: '100%',
+  // Choose — VibeTag preview
+  vibePreview: {
+    flex: 1,
+    backgroundColor: neutral[100],
     overflow: 'hidden',
     position: 'relative',
   },
-  previewBg: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: neutral[100],
+  vibePreviewGrad: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 120,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  previewPlaceholder: {
-    fontFamily: fontFamily.regular,
-    fontSize: 13,
-    color: neutral[400],
+  vibePreviewInfo: {
+    position: 'absolute', bottom: 16, left: 16, right: 16, gap: 6,
   },
-  previewLabelBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  vibeChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  previewOverlayLabel: {
-    position: 'absolute',
-    bottom: 14,
-    left: 14,
-    right: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  vibeChipText: { fontFamily: fontFamily.semibold, fontSize: 12, color: '#fff' },
+  vibePreviewHint: { fontFamily: fontFamily.regular, fontSize: 12, color: 'rgba(255,255,255,0.75)' },
+  vibePreviewEmpty: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24,
   },
-  previewLabelText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 12,
-    color: '#fff',
-    flex: 1,
-  },
-  previewEventName: {
-    fontFamily: fontFamily.regular,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  actions: { padding: 16, gap: 10 },
-  primaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: brand.primary,
-    paddingHorizontal: 16,
-  },
-  primaryBtnText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
-  primaryBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
-  secondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    height: 64,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: neutral[200],
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-  },
-  secondaryBtnText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] },
-  secondaryBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400], marginTop: 1 },
-});
-
-// ─── Review screen styles ─────────────────────────────────────────────────────
-
-const rv = StyleSheet.create({
-  strip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 8,
-    flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
-  },
-  thumb: {
-    width: 50, height: 88,
-    borderRadius: 10,
-    overflow: 'hidden',
-    backgroundColor: neutral[100],
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  thumbActive: { borderColor: brand.primary },
-  thumbVideo: {
-    flex: 1, backgroundColor: '#000',
+  vibePreviewEmptyIcon: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: `${brand.primary}12`,
     alignItems: 'center', justifyContent: 'center',
   },
-  thumbRemove: { position: 'absolute', top: 2, right: 2 },
-  thumbAddGroup: {
-    width: 50, height: 88,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: neutral[300],
-    overflow: 'hidden',
-  },
-  thumbAddBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
-  },
+  vibePreviewEmptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.lg, color: neutral[700] },
+  vibePreviewEmptySub: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400], textAlign: 'center' },
 
-  previewBox: {
-    width: '100%',
-    overflow: 'hidden',
-    backgroundColor: neutral[100],
+  // Choose — action buttons
+  chooseActions: {
+    padding: 16, gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: neutral[100],
+  },
+  cameraBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: brand.primary,
+    borderRadius: 16, padding: 16,
+  },
+  cameraBtnIcon: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cameraBtnTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
+  cameraBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  galleryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: `${brand.primary}08`,
+    borderRadius: 16, padding: 16,
+    borderWidth: 1.5, borderColor: `${brand.primary}18`,
+  },
+  galleryBtnIcon: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: `${brand.primary}12`,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  galleryBtnTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
+  galleryBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400], marginTop: 2 },
+
+  // VibeTag banner in review
+  vibeBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 7,
+    backgroundColor: `${brand.primary}06`,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: `${brand.primary}18`,
+  },
+  vibeBannerText: { fontFamily: fontFamily.semibold, fontSize: 12, color: brand.primary, flex: 1 },
+  vibeBannerSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
+
+  // Media preview
+  mediaPreview: {
+    width: W, height: W,         // 1:1 square preview
+    backgroundColor: '#000',
     position: 'relative',
   },
   removeBtn: {
-    position: 'absolute',
-    top: 12, right: 12,
-    width: 36, height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    position: 'absolute', top: 12, right: 12,
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center', justifyContent: 'center',
   },
+  counterBadge: {
+    position: 'absolute', top: 12, left: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  counterBadgeText: { fontFamily: fontFamily.semibold, fontSize: 11, color: '#fff' },
 
-  captionWrap: { padding: 16, gap: 6 },
-  captionLabel: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  captionOptional: { fontFamily: fontFamily.regular, color: neutral[400] },
+  // Thumbnail strip
+  thumbStrip: {
+    paddingHorizontal: 14, paddingVertical: 10, gap: 8, flexDirection: 'row',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+  },
+  thumb: {
+    width: 52, height: 52, borderRadius: 10,
+    overflow: 'hidden', backgroundColor: neutral[100],
+    borderWidth: 2.5, borderColor: 'transparent',
+  },
+  thumbSelected: { borderColor: brand.primary },
+  thumbVideo: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' },
+  thumbRemove: { position: 'absolute', top: 1, right: 1 },
+  thumbAddWrap: {
+    width: 52, height: 52, borderRadius: 10,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: neutral[300],
+    overflow: 'hidden',
+  },
+  thumbAdd: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200],
+  },
+
+  // Caption
+  captionSection: {
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+  },
   captionInput: {
-    borderWidth: 1, borderColor: neutral[200], borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10,
     fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800],
-    minHeight: 72, textAlignVertical: 'top',
+    minHeight: 62, textAlignVertical: 'top',
+    paddingVertical: 0,
+  },
+  captionCount: {
+    fontFamily: fontFamily.regular, fontSize: fontSize.xs,
+    color: neutral[300], textAlign: 'right', marginTop: 4,
   },
 
-  submitWrap: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
-  progressBox: {
-    height: 52, borderRadius: 16, backgroundColor: brand.primary,
-    paddingHorizontal: 16, justifyContent: 'center', gap: 4,
+  // Post section
+  postSection: { padding: 14, gap: 10 },
+  progressCard: {
+    backgroundColor: neutral[50], borderRadius: 16,
+    padding: 16, borderWidth: 1, borderColor: neutral[200],
   },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressLabel: { fontFamily: fontFamily.semibold, fontSize: 12, color: '#fff' },
-  progressPct: { fontFamily: fontFamily.bold, fontSize: 12, color: '#fff' },
-  progressTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 2 },
-
-  submitBtn: {
-    height: 52, borderRadius: 16, backgroundColor: brand.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  progressLabel: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] },
+  progressPct: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: brand.primary },
+  progressTrack: {
+    height: 6, borderRadius: 3,
+    backgroundColor: neutral[200], overflow: 'hidden',
   },
-  submitText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
-  startOver: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 5, paddingVertical: 4,
+  progressFill: { height: '100%', backgroundColor: brand.primary, borderRadius: 3 },
+  progressSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400], marginTop: 6 },
+  postBtn: {
+    height: 54, borderRadius: 16, backgroundColor: brand.primary,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
   },
-  startOverText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500] },
+  postBtnText: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: '#fff', letterSpacing: 0.2 },
+  startOverBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4,
+  },
+  startOverText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
 });

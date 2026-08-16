@@ -66,14 +66,22 @@ export interface EventCardData {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export default function EventCard({ item }: { item: EventCardData }) {
+export default function EventCard({ item, onPress }: { item: EventCardData; onPress?: () => void }) {
   const router = useRouter();
+
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    } else {
+      router.push(`/events/${item.id}` as any);
+    }
+  };
 
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.88}
-      onPress={() => router.push(`/events/${item.id}` as any)}
+      onPress={handlePress}
     >
       {/* ── Image ── */}
       <View style={styles.imageWrap}>

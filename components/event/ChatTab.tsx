@@ -1,382 +1,541 @@
+/**
+ * ChatTab — React Native
+ *
+ * Real-time event chat using socket.io-client.
+ * Mirrors the web implementation:
+ *   - Three sections: Pre-Event / During / Post-Event
+ *   - Optimistic message bubbles replaced by server echo
+ *   - Loads history from REST on section change
+ *   - Organizer badge, timestamps, my/other bubble styles
+ */
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useRef, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { API_URL } from '@/store/baseQuery';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { io, Socket } from 'socket.io-client';
 
-interface ChatMsg {
-  id: string;
-  body: string;
-  senderId: string;
-  senderName: string;
-  createdAt: string;
-  isOrganizer?: boolean;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-const ME = 'me';
-type Section = 'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT';
-const SECTION_LABELS: Record<Section, string> = {
-  PRE_EVENT:    'Pre-Event',
-  DURING_EVENT: 'During',
-  POST_EVENT:   'Post-Event',
+type Section = 'pre-event' | 'during' | 'post-event';
+
+const SECTION_KEY: Record<Section, string> = {
+  'pre-event': 'PRE_EVENT',
+  during: 'DURING_EVENT',
+  'post-event': 'POST_EVENT',
 };
 
-const MOCK_MESSAGES: ChatMsg[] = [
-  { id: '1', senderId: 'org1', senderName: 'Organizer', body: 'Welcome everyone! Excited to see you all here 🎉', createdAt: new Date(Date.now() - 3600000).toISOString(), isOrganizer: true },
-  { id: '2', senderId: 'u1',   senderName: 'alex_vibe', body: "Can't wait for the match!!",                      createdAt: new Date(Date.now() - 1800000).toISOString() },
-  { id: '3', senderId: ME,     senderName: 'Me',        body: 'Same, this is going to be epic!',                  createdAt: new Date(Date.now() - 900000).toISOString() },
+const SECTIONS: { value: Section; label: string }[] = [
+  { value: 'pre-event', label: 'Pre-Event' },
+  { value: 'during', label: 'During' },
+  { value: 'post-event', label: 'Post-Event' },
 ];
 
-function formatTime(dateStr: string) {
-  const diff  = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  if (mins < 1)  return 'now';
-  if (mins < 60) return `${mins}m`;
-  return `${hours}h`;
+interface ChatMessage {
+  id: string;
+  body?: string;
+  content?: string;
+  text?: string;
+  senderId?: string;
+  isOrganizer?: boolean;
+  createdAt?: string;
+  sender?: {
+    id?: string;
+    displayName?: string;
+    username?: string;
+    avatarUrl?: string | null;
+    role?: string;
+  };
 }
 
-interface Props { eventId: string }
+function msgText(m: ChatMessage): string {
+  return m.body ?? m.content ?? m.text ?? '';
+}
 
-// ─── Full-screen chat modal ───────────────────────────────────────────────────
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-function ChatModal({
-  visible,
-  onClose,
-  messages,
-  input,
-  setInput,
-  onSend,
-  section,
-  setSection,
+// ─── MessageBubble ────────────────────────────────────────────────────────────
+
+function MessageBubble({
+  msg,
+  isMe,
 }: {
-  visible: boolean;
-  onClose: () => void;
-  messages: ChatMsg[];
-  input: string;
-  setInput: (v: string) => void;
-  onSend: () => void;
-  section: Section;
-  setSection: (s: Section) => void;
+  msg: ChatMessage;
+  isMe: boolean;
 }) {
-  const scrollRef = useRef<ScrollView>(null);
+  const router = useRouter();
+  const name =
+    msg.sender?.displayName?.trim() ||
+    msg.sender?.username?.trim() ||
+    'User';
+  const isOrganizer = msg.sender?.role === 'ORGANIZER' || msg.isOrganizer;
+  const ts = timeAgo(msg.createdAt);
+  const avatarUrl = msg.sender?.avatarUrl;
+  const text = msgText(msg);
+  const senderId = msg.sender?.id;
+
+  if (!text) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={m.safe}>
-        {/* Header */}
-        <View style={m.header}>
-          <Text style={m.headerTitle}>Event Chat</Text>
-          <TouchableOpacity onPress={onClose} style={m.closeBtn} activeOpacity={0.7}>
-            <Ionicons name="close" size={22} color={neutral[700]} />
-          </TouchableOpacity>
-        </View>
+    <View style={[b.row, isMe && b.rowReverse]}>
+      {/* Avatar — only for others */}
+      {!isMe && (
+        <TouchableOpacity
+          onPress={() => senderId && router.push(`/users/${senderId}` as any)}
+          activeOpacity={0.8}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={b.avatar} contentFit="cover" />
+          ) : (
+            <View style={b.avatarFb}>
+              <Text style={b.avatarLetter}>{name[0]?.toUpperCase()}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
 
-        {/* Section tabs */}
-        <View style={m.sectionRow}>
-          {(Object.keys(SECTION_LABELS) as Section[]).map((sec) => (
+      <View style={[b.col, isMe && b.colRight]}>
+        {!isMe && (
+          <View style={b.metaRow}>
             <TouchableOpacity
-              key={sec}
-              style={[m.secBtn, section === sec && m.secBtnActive]}
-              onPress={() => setSection(sec)}
+              onPress={() => senderId && router.push(`/users/${senderId}` as any)}
               activeOpacity={0.8}
             >
-              <Text style={[m.secLabel, section === sec && m.secLabelActive]}>
-                {SECTION_LABELS[sec]}
-              </Text>
+              <Text style={b.senderName}>{name}</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          {/* Messages */}
-          <ScrollView
-            ref={scrollRef}
-            style={{ flex: 1 }}
-            contentContainerStyle={m.list}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
-          >
-            {messages.map((item) => {
-              const isMine = item.senderId === ME;
-              return (
-                <View key={item.id} style={[m.msgRow, isMine && m.msgRowRight]}>
-                  {!isMine && (
-                    <View style={m.avatar}>
-                      <Text style={m.avatarText}>{item.senderName.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  <View style={[m.bubble, isMine ? m.bubbleMine : m.bubbleTheirs]}>
-                    {!isMine && (
-                      <View style={m.senderRow}>
-                        <Text style={[m.senderName, item.isOrganizer && { color: brand.primary }]}>
-                          {item.senderName}
-                        </Text>
-                        {item.isOrganizer && (
-                          <View style={m.orgBadge}>
-                            <Text style={m.orgBadgeText}>Organizer</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                    <Text style={isMine ? m.textMine : m.textTheirs}>{item.body}</Text>
-                    <Text style={[m.time, isMine && m.timeRight]}>{formatTime(item.createdAt)}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </ScrollView>
-
-          {/* Input bar */}
-          <View style={m.inputBar}>
-            <TextInput
-              style={m.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Type a message…"
-              placeholderTextColor={neutral[400]}
-              returnKeyType="send"
-              blurOnSubmit={false}
-              autoFocus
-              onSubmitEditing={onSend}
-            />
-            <TouchableOpacity
-              style={[m.sendBtn, !input.trim() && m.sendBtnDisabled]}
-              onPress={onSend}
-              disabled={!input.trim()}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="send" size={16} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-// ─── ChatTab (preview + tap-to-expand) ───────────────────────────────────────
-
-export default function ChatTab({ eventId }: Props) {
-  const [section,   setSection]   = useState<Section>('PRE_EVENT');
-  const [messages,  setMessages]  = useState<ChatMsg[]>(MOCK_MESSAGES);
-  const [input,     setInput]     = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-
-  const handleSend = () => {
-    const body = input.trim();
-    if (!body) return;
-    setMessages((prev) => [...prev, {
-      id: `opt-${Date.now()}`, senderId: ME, senderName: 'Me',
-      body, createdAt: new Date().toISOString(),
-    }]);
-    setInput('');
-  };
-
-  const lastMessages = messages.slice(-3);
-
-  return (
-    <View style={s.wrap}>
-      {/* Section tabs */}
-      <View style={s.sectionRow}>
-        {(Object.keys(SECTION_LABELS) as Section[]).map((sec) => (
-          <TouchableOpacity
-            key={sec}
-            style={[s.secBtn, section === sec && s.secBtnActive]}
-            onPress={() => setSection(sec)}
-            activeOpacity={0.8}
-          >
-            <Text style={[s.secLabel, section === sec && s.secLabelActive]}>
-              {SECTION_LABELS[sec]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Message preview */}
-      <View style={s.preview}>
-        {lastMessages.map((item) => {
-          const isMine = item.senderId === ME;
-          return (
-            <View key={item.id} style={[s.msgRow, isMine && s.msgRowRight]}>
-              {!isMine && (
-                <View style={s.avatar}>
-                  <Text style={s.avatarText}>{item.senderName.charAt(0).toUpperCase()}</Text>
-                </View>
-              )}
-              <View style={[s.bubble, isMine ? s.bubbleMine : s.bubbleTheirs]}>
-                {!isMine && (
-                  <View style={s.senderRow}>
-                    <Text style={[s.senderName, item.isOrganizer && { color: brand.primary }]}>
-                      {item.senderName}
-                    </Text>
-                    {item.isOrganizer && (
-                      <View style={s.orgBadge}>
-                        <Text style={s.orgBadgeText}>Organizer</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-                <Text style={isMine ? s.textMine : s.textTheirs}>{item.body}</Text>
-                <Text style={[s.time, isMine && s.timeRight]}>{formatTime(item.createdAt)}</Text>
+            {isOrganizer && (
+              <View style={b.organizerBadge}>
+                <Text style={b.organizerText}>Organizer</Text>
               </View>
-            </View>
-          );
-        })}
-      </View>
+            )}
+            {ts ? <Text style={b.ts}>{ts}</Text> : null}
+          </View>
+        )}
 
-      {/* Tap-to-expand input */}
-      <TouchableOpacity
-        style={s.inputTrigger}
-        onPress={() => setModalOpen(true)}
-        activeOpacity={0.85}
-      >
-        <Text style={s.inputTriggerText}>Type a message…</Text>
-        <View style={s.sendBtnPreview}>
-          <Ionicons name="send" size={16} color="#fff" />
+        <View style={[b.bubble, isMe ? b.bubbleMe : b.bubbleOther]}>
+          <Text style={[b.bubbleText, isMe && b.bubbleTextMe]}>
+            {text}
+          </Text>
         </View>
-      </TouchableOpacity>
 
-      {/* Full-screen chat modal */}
-      <ChatModal
-        visible={modalOpen}
-        onClose={() => setModalOpen(false)}
-        messages={messages}
-        input={input}
-        setInput={setInput}
-        onSend={handleSend}
-        section={section}
-        setSection={setSection}
-      />
+        {isMe && ts ? (
+          <Text style={[b.ts, { alignSelf: 'flex-end', marginTop: 3 }]}>{ts}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-// ─── Preview styles ───────────────────────────────────────────────────────────
-
-const s = StyleSheet.create({
-  wrap: { paddingBottom: 24 },
-
-  sectionRow:     { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  secBtn:         { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: neutral[100], alignItems: 'center' },
-  secBtnActive:   { backgroundColor: brand.primaryDark },
-  secLabel:       { fontFamily: fontFamily.semibold, fontSize: 12, color: neutral[500] },
-  secLabelActive: { color: '#fff' },
-
-  preview: { paddingHorizontal: 14, gap: 8, marginBottom: 12 },
-
-  msgRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 6 },
-  msgRowRight: { flexDirection: 'row-reverse' },
-  avatar:      { width: 30, height: 30, borderRadius: 15, backgroundColor: brand.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText:  { fontFamily: fontFamily.bold, fontSize: 11, color: '#fff' },
-
-  bubble:       { maxWidth: '75%', padding: 10, borderRadius: 14 },
-  bubbleMine:   { backgroundColor: brand.primary },
-  bubbleTheirs: { backgroundColor: neutral[100] },
-
-  senderRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  senderName:   { fontFamily: fontFamily.bold, fontSize: 11, color: neutral[600] },
-  orgBadge:     { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10, backgroundColor: `${brand.primary}20` },
-  orgBadgeText: { fontFamily: fontFamily.semibold, fontSize: 9, color: brand.primary },
-
-  textMine:   { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#fff',       lineHeight: 20 },
-  textTheirs: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800], lineHeight: 20 },
-  time:       { fontFamily: fontFamily.regular, fontSize: 9, color: 'rgba(0,0,0,0.35)', marginTop: 3 },
-  timeRight:  { color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
-
-  inputTrigger: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 14, gap: 8,
-    borderRadius: 24, borderWidth: 1.5,
-    borderColor: neutral[200], backgroundColor: neutral[50],
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  inputTriggerText: {
-    flex: 1, fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm, color: neutral[400],
-  },
-  sendBtnPreview: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: neutral[300],
+const b = StyleSheet.create({
+  row: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginBottom: 10 },
+  rowReverse: { flexDirection: 'row-reverse' },
+  avatar: { width: 32, height: 32, borderRadius: 16, marginTop: 2 },
+  avatarFb: {
+    width: 32, height: 32, borderRadius: 16, marginTop: 2,
+    backgroundColor: `${brand.primary}20`,
     alignItems: 'center', justifyContent: 'center',
   },
+  avatarLetter: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
+  col: { flex: 1, maxWidth: '78%', alignItems: 'flex-start' },
+  colRight: { alignItems: 'flex-end' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 3 },
+  senderName: { fontFamily: fontFamily.semibold, fontSize: 12, color: neutral[700] },
+  organizerBadge: {
+    backgroundColor: `${brand.primary}15`,
+    borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1.5,
+  },
+  organizerText: { fontFamily: fontFamily.semibold, fontSize: 10, color: brand.primary },
+  ts: { fontFamily: fontFamily.regular, fontSize: 10, color: neutral[300] },
+  bubble: {
+    borderRadius: 18, paddingHorizontal: 13, paddingVertical: 9,
+    maxWidth: '100%',
+  },
+  bubbleOther: {
+    backgroundColor: neutral[100],
+    borderTopLeftRadius: 4,
+  },
+  bubbleMe: {
+    backgroundColor: '#5B1A57',
+    borderTopRightRadius: 4,
+  },
+  bubbleText: {
+    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
+    color: neutral[800], lineHeight: 20,
+  },
+  bubbleTextMe: { color: '#fff' },
 });
 
-// ─── Modal styles ─────────────────────────────────────────────────────────────
+// ─── ChatTab ──────────────────────────────────────────────────────────────────
 
-const m = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: '#fff' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[200],
+interface Props {
+  eventId: string;
+}
+
+export default function ChatTab({ eventId }: Props) {
+  const { user, isAuthenticated } = useAuth();
+
+  const [section, setSection] = useState<Section>('pre-event');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState('');
+  const [connected, setConnected] = useState(false);
+
+  const socketRef = useRef<Socket | null>(null);
+  const pendingRef = useRef<Map<string, string>>(new Map());
+  const listRef = useRef<FlatList<ChatMessage>>(null);
+
+  // ── Socket setup ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!eventId) return;
+
+    let socket: Socket;
+
+    const init = async () => {
+      const token = await AsyncStorage.getItem('accessToken');
+      const socketUrl = API_URL.replace(/\/$/, '');
+
+      socket = io(socketUrl, {
+        path: '/socket.io',
+        transports: ['websocket'],
+        auth: token ? { token: `Bearer ${token}` } : undefined,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        setConnected(true);
+        socket.emit('join:event-chat', {
+          eventId,
+          section: SECTION_KEY[section],
+        });
+      });
+
+      socket.on('disconnect', () => setConnected(false));
+      socket.on('connect_error', () => setConnected(false));
+
+      socket.on('new:event-chat', (msg: ChatMessage) => {
+        setMessages((prev) => {
+          if (msg.id && prev.some((m) => m.id === msg.id)) return prev;
+          const isMe =
+            msg.sender?.id === user?.id || msg.senderId === user?.id;
+          if (isMe) {
+            const text = msgText(msg);
+            const optId = pendingRef.current.get(text);
+            if (optId) {
+              pendingRef.current.delete(text);
+              return prev.map((m) => (m.id === optId ? msg : m));
+            }
+          }
+          return [msg, ...prev];
+        });
+      });
+    };
+
+    init();
+
+    return () => {
+      socket?.disconnect();
+      socketRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  // Re-join when section changes
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit('join:event-chat', {
+        eventId,
+        section: SECTION_KEY[section],
+      });
+    }
+  }, [section, eventId]);
+
+  // ── History ───────────────────────────────────────────────────────────────
+
+  const fetchHistory = useCallback(async (sec: Section) => {
+    if (!eventId) return;
+    setLoading(true);
+    setMessages([]);
+    pendingRef.current.clear();
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(
+        `${API_URL}/v1/events/${eventId}/chat/${SECTION_KEY[sec]}`,
+        { headers },
+      );
+      if (!res.ok) { setMessages([]); return; }
+      const json = await res.json();
+      const history: ChatMessage[] = json?.data?.data ?? [];
+      setMessages(history); // newest first
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchHistory(section);
+  }, [section, fetchHistory]);
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+
+  const handleSend = () => {
+    const text = input.trim();
+    if (!text || !connected || !isAuthenticated) return;
+
+    socketRef.current?.emit('send:event-chat', {
+      eventId,
+      section: SECTION_KEY[section],
+      body: text,
+    });
+
+    // Optimistic bubble
+    const optId = `opt-${Date.now()}`;
+    pendingRef.current.set(text, optId);
+    const optimistic: ChatMessage = {
+      id: optId,
+      body: text,
+      senderId: user?.id,
+      sender: {
+        id: user?.id,
+        displayName: user?.displayName,
+        username: user?.username,
+        avatarUrl: user?.avatarUrl,
+      },
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [optimistic, ...prev]);
+    setInput('');
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <KeyboardAvoidingView
+      style={s.wrap}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    >
+      {/* Section tabs */}
+      <View style={s.tabs}>
+        {SECTIONS.map((sec) => {
+          const active = section === sec.value;
+          return (
+            <TouchableOpacity
+              key={sec.value}
+              style={[s.tab, active && s.tabActive]}
+              onPress={() => setSection(sec.value)}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.tabText, active && s.tabTextActive]}>
+                {sec.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Connection indicator */}
+      {!connected && (
+        <View style={s.offlineBanner}>
+          <ActivityIndicator size="small" color={brand.primary} />
+          <Text style={s.offlineText}>Connecting to chat…</Text>
+        </View>
+      )}
+
+      {/* Message list — inverted so newest is at bottom visually */}
+      {loading ? (
+        <View style={s.center}>
+          <ActivityIndicator color={brand.primary} size="large" />
+        </View>
+      ) : messages.length === 0 ? (
+        <View style={s.center}>
+          <View style={s.emptyIcon}>
+            <Ionicons name="chatbubbles-outline" size={36} color={neutral[300]} />
+          </View>
+          <Text style={s.emptyTitle}>No messages yet</Text>
+          <Text style={s.emptySub}>Be the first to start the conversation!</Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(m, i) => m.id ?? String(i)}
+          renderItem={({ item }) => (
+            <MessageBubble
+              msg={item}
+              isMe={item.sender?.id === user?.id || item.senderId === user?.id}
+            />
+          )}
+          inverted
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.listContent}
+          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews
+          windowSize={10}
+        />
+      )}
+
+      {/* Input bar */}
+      <View style={s.inputBar}>
+        {isAuthenticated ? (
+          <>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder={connected ? 'Type a message…' : 'Connecting…'}
+              placeholderTextColor={neutral[400]}
+              style={s.input}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+              blurOnSubmit={false}
+              editable={connected}
+              multiline
+            />
+            <TouchableOpacity
+              style={[s.sendBtn, (!input.trim() || !connected) && s.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!input.trim() || !connected}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="send" size={18} color="#fff" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text style={s.signInPrompt}>
+            Sign in to join the conversation
+          </Text>
+        )}
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: '#fff' },
+
+  // Section tabs
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+    gap: 6,
   },
-  headerTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.base, color: neutral[800] },
-  closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: neutral[100], alignItems: 'center', justifyContent: 'center' },
+  tab: {
+    flex: 1, paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: neutral[100],
+    alignItems: 'center',
+  },
+  tabActive: { backgroundColor: brand.primary },
+  tabText: { fontFamily: fontFamily.semibold, fontSize: 12, color: neutral[500] },
+  tabTextActive: { color: '#fff' },
 
-  sectionRow:     { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
-  secBtn:         { flex: 1, paddingVertical: 8, borderRadius: 20, backgroundColor: neutral[100], alignItems: 'center' },
-  secBtnActive:   { backgroundColor: brand.primaryDark },
-  secLabel:       { fontFamily: fontFamily.semibold, fontSize: 12, color: neutral[500] },
-  secLabelActive: { color: '#fff' },
+  // Offline banner
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 7,
+    backgroundColor: neutral[50],
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+  },
+  offlineText: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[500] },
 
-  list:        { paddingHorizontal: 14, paddingVertical: 8, gap: 8 },
+  // Empty / loading
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 40 },
+  emptyIcon: {
+    width: 68, height: 68, borderRadius: 20,
+    backgroundColor: neutral[50],
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
+  },
+  emptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[700] },
+  emptySub: {
+    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
+    color: neutral[400], textAlign: 'center', marginTop: 4, paddingHorizontal: 32,
+  },
 
-  msgRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 8 },
-  msgRowRight: { flexDirection: 'row-reverse' },
-  avatar:      { width: 30, height: 30, borderRadius: 15, backgroundColor: brand.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText:  { fontFamily: fontFamily.bold, fontSize: 11, color: '#fff' },
+  // Message list
+  listContent: {
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
 
-  bubble:       { maxWidth: '75%', padding: 10, borderRadius: 14 },
-  bubbleMine:   { backgroundColor: brand.primary },
-  bubbleTheirs: { backgroundColor: neutral[100] },
-
-  senderRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  senderName:   { fontFamily: fontFamily.bold, fontSize: 11, color: neutral[600] },
-  orgBadge:     { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10, backgroundColor: `${brand.primary}20` },
-  orgBadgeText: { fontFamily: fontFamily.semibold, fontSize: 9, color: brand.primary },
-
-  textMine:   { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: '#fff',       lineHeight: 20 },
-  textTheirs: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800], lineHeight: 20 },
-  time:       { fontFamily: fontFamily.regular, fontSize: 9, color: 'rgba(0,0,0,0.35)', marginTop: 3 },
-  timeRight:  { color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
-
+  // Input bar
   inputBar: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: neutral[200],
-    gap: 8, backgroundColor: '#fff',
+    backgroundColor: '#fff',
   },
   input: {
-    flex: 1, height: 42, borderRadius: 21,
-    borderWidth: 1.5, borderColor: neutral[200],
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: neutral[200],
+    backgroundColor: neutral[50],
     paddingHorizontal: 14,
-    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
-    color: neutral[800], backgroundColor: neutral[50],
+    paddingVertical: Platform.OS === 'ios' ? 10 : 7,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[800],
   },
-  sendBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { backgroundColor: neutral[300] },
+  sendBtn: {
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: '#5B1A57',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sendBtnDisabled: { opacity: 0.35 },
+  signInPrompt: {
+    flex: 1, textAlign: 'center',
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[400],
+    paddingVertical: 8,
+  },
 });

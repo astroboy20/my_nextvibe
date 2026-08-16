@@ -372,10 +372,11 @@ function PostcardCard({
                 overlayUrl={m.vibeTagOverlayUrl}
               />
             ) : (
+              // contain — no cropping/zoom, letterboxed on black
               <Image
                 source={{ uri: m.mediaUrl! }}
                 style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
+                contentFit="contain"
                 transition={200}
               />
             )}
@@ -383,31 +384,21 @@ function PostcardCard({
         ))}
       </ScrollView>
 
-      {/* ── Gradient overlay — bottom 45% ──────────────────────────── */}
-      <View style={ov.gradient} pointerEvents="none" />
-
-      {/* ── Dot indicators ─────────────────────────────────────────── */}
-      {media.length > 1 && (
-        <View style={ov.dots} pointerEvents="none">
-          {media.map((_, i) => (
-            <View
-              key={i}
-              style={[ov.dot, i === mediaIdx && ov.dotActive]}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* ── Multi-media badge ───────────────────────────────────────── */}
-      {media.length > 1 && (
-        <View style={ov.multiBadge} pointerEvents="none">
-          <Ionicons name="layers" size={13} color="#fff" />
-          <Text style={ov.multiText}>{media.length}</Text>
-        </View>
-      )}
+      {/* ── Gradient — bottom 50% so info is readable ──────────────── */}
+      <GradientFade />
 
       {/* ── Bottom info overlay ─────────────────────────────────────── */}
       <View style={ov.infoWrap} pointerEvents="box-none">
+
+        {/* Dot indicators — right above the author row, clearly visible */}
+        {media.length > 1 && (
+          <View style={ov.dots} pointerEvents="none">
+            {media.map((_, i) => (
+              <View key={i} style={[ov.dot, i === mediaIdx && ov.dotActive]} />
+            ))}
+          </View>
+        )}
+
         {/* Author */}
         <View style={ov.authorRow}>
           {postcard.author?.avatarUrl ? (
@@ -418,18 +409,12 @@ function PostcardCard({
             />
           ) : (
             <View style={ov.avatarFb}>
-              <Text style={ov.avatarL}>
-                {displayName[0]?.toUpperCase()}
-              </Text>
+              <Text style={ov.avatarL}>{displayName[0]?.toUpperCase()}</Text>
             </View>
           )}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={ov.authorName} numberOfLines={1}>
-              {displayName}
-            </Text>
-            {timeAgo ? (
-              <Text style={ov.timeAgo}>{timeAgo}</Text>
-            ) : null}
+            <Text style={ov.authorName} numberOfLines={1}>{displayName}</Text>
+            {timeAgo ? <Text style={ov.timeAgo}>{timeAgo}</Text> : null}
           </View>
         </View>
 
@@ -438,10 +423,7 @@ function PostcardCard({
           <Text style={ov.caption}>
             {shownCaption}
             {isLong && (
-              <Text
-                style={ov.readMore}
-                onPress={() => setExpanded((v) => !v)}
-              >
+              <Text style={ov.readMore} onPress={() => setExpanded((v) => !v)}>
                 {expanded ? ' less' : ' more'}
               </Text>
             )}
@@ -450,11 +432,7 @@ function PostcardCard({
 
         {/* Actions row */}
         <View style={ov.actions}>
-          <TouchableOpacity
-            onPress={handleLike}
-            style={ov.actionBtn}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity onPress={handleLike} style={ov.actionBtn} activeOpacity={0.8}>
             <Ionicons
               name={liked ? 'heart' : 'heart-outline'}
               size={26}
@@ -463,11 +441,7 @@ function PostcardCard({
             <Text style={ov.actionCount}>{likeCount}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => setShowComments(true)}
-            style={ov.actionBtn}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity onPress={() => setShowComments(true)} style={ov.actionBtn} activeOpacity={0.8}>
             <Ionicons name="chatbubble-outline" size={24} color="#fff" />
             <Text style={ov.actionCount}>{postcard.commentCount ?? 0}</Text>
           </TouchableOpacity>
@@ -479,6 +453,14 @@ function PostcardCard({
         </View>
       </View>
 
+      {/* Multi-media badge — top right, small */}
+      {media.length > 1 && (
+        <View style={ov.multiBadge} pointerEvents="none">
+          <Ionicons name="layers" size={12} color="#fff" />
+          <Text style={ov.multiText}>{media.length}</Text>
+        </View>
+      )}
+
       {/* Comments */}
       {showComments && postcard.id && (
         <Modal
@@ -487,50 +469,37 @@ function PostcardCard({
           presentationStyle="pageSheet"
           onRequestClose={() => setShowComments(false)}
         >
-          <CommentSheet
-            postcardId={postcard.id}
-            onClose={() => setShowComments(false)}
-          />
+          <CommentSheet postcardId={postcard.id} onClose={() => setShowComments(false)} />
         </Modal>
       )}
     </View>
   );
 }
 
-// ── Overlay styles ─────────────────────────────────────────────────────────────
-
 const ov = StyleSheet.create({
-  // Black gradient from mid-screen to bottom
-  gradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: H * 0.5,
-    // Approximated gradient — solid on bottom, transparent at top
-    backgroundColor: 'transparent',
-    // We use two views to fake a gradient
-  },
+  // GradientFade handles the darkening — no extra View needed here
+  gradient: { display: 'none' },  // kept to avoid ref errors but unused
 
+  // Dots — now inside infoWrap, above author row
   dots: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 20,
-    alignSelf: 'center',
     flexDirection: 'row',
     gap: 5,
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   dot: {
     width: 6, height: 6, borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.45)',
   },
   dotActive: {
-    width: 16, height: 6, borderRadius: 3,
+    width: 18, height: 6, borderRadius: 3,
     backgroundColor: '#fff',
   },
 
+  // Multi-media badge — top right corner
   multiBadge: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 58 : 18,
+    top: Platform.OS === 'ios' ? 60 : 20,
     right: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -542,26 +511,23 @@ const ov = StyleSheet.create({
   },
   multiText: { fontFamily: fontFamily.bold, fontSize: 11, color: '#fff' },
 
-  // Overlaid info at bottom of screen
+  // Bottom info overlay — sits on top of the gradient
   infoWrap: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: 14,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
-    paddingTop: 60,
-    // Gradient-like darkening
-    backgroundColor: 'rgba(0,0,0,0.0)',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingTop: 20,
     gap: 8,
   },
 
-  authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
   },
-  avatar: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
   avatarFb: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: `${brand.primary}CC`,
@@ -570,49 +536,33 @@ const ov = StyleSheet.create({
   },
   avatarL: { fontFamily: fontFamily.bold, fontSize: 15, color: '#fff' },
   authorName: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.sm,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   timeAgo: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 1,
+    fontFamily: fontFamily.regular, fontSize: fontSize.xs,
+    color: 'rgba(255,255,255,0.7)', marginTop: 1,
   },
-
   caption: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: '#fff',
-    lineHeight: 19,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
+    color: '#fff', lineHeight: 19,
+    textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   readMore: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: 'rgba(255,255,255,0.8)',
+    fontFamily: fontFamily.semibold, fontSize: fontSize.sm,
+    color: 'rgba(255,255,255,0.85)',
   },
-
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-    marginTop: 2,
-  },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 2 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   actionCount: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 });
 

@@ -1,29 +1,37 @@
+/**
+ * Home Screen
+ *
+ * Two tabs: Events and Postcards.
+ * Both use the SAME events endpoint and the SAME EventCard component.
+ * The only difference:
+ *   Events  → tap navigates to /events/:id
+ *   Postcards → tap navigates to /events/postcards/:id  (the postcard grid)
+ *
+ * The Postcards tab additionally filters to only show events that
+ * have at least one postcard (hasVibeTag flag acts as a proxy until
+ * the API returns a postcards count directly).
+ */
 import EventCard, { type EventCardData } from "@/components/discover/EventCard";
 import FeedTabs, { type FeedTabDef } from "@/components/discover/FeedTabs";
 import FilterChips, { type ChipDef } from "@/components/discover/FilterChips";
 import SearchFilterCard from "@/components/discover/SearchFilterCard";
 import SegmentedControl from "@/components/discover/SegmentedControl";
 import TopNavBar from "@/components/navigation/TopNavBar";
-import {
-  EventCardGridSkeleton,
-  PostcardCardGridSkeleton,
-} from "@/components/ui/Skeleton";
+import { EventCardGridSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import {
   toCardData,
   useGetEventsQuery,
-  useGetPostcardsQuery,
   type DiscoverEvent,
-  type PostcardItem,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -31,7 +39,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ─── Static config ────────────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 
 const FEED_TABS: FeedTabDef[] = [
   { label: "For You",  icon: "sparkles-outline" },
@@ -40,359 +48,188 @@ const FEED_TABS: FeedTabDef[] = [
 ];
 
 const FILTER_CHIPS: ChipDef[] = [
-  { label: "Has Games",      icon: "game-controller-outline" },
-  { label: "Has VibeTag",    icon: "pricetag-outline" },
-  { label: "Free",           icon: "gift-outline" },
-  { label: "Starting Soon",  icon: "time-outline" },
+  { label: "Has Games",     icon: "game-controller-outline" },
+  { label: "Has VibeTag",   icon: "pricetag-outline" },
+  { label: "Free",          icon: "gift-outline" },
+  { label: "Starting Soon", icon: "time-outline" },
 ];
 
 const PAGE_SIZE = 20;
 
-// "Starting Soon" = starts within the next 48 hours
 function isStartingSoon(startsAt?: string): boolean {
   if (!startsAt) return false;
-  const now  = Date.now();
-  const start = new Date(startsAt).getTime();
-  return start > now && start - now <= 48 * 60 * 60 * 1000;
-}
-
-// ─── Postcard card ────────────────────────────────────────────────────────────
-
-function PostcardCard({ item }: { item: PostcardItem }) {
-  const mediaUrl = item.media?.[0]?.mediaUrl;
-  return (
-    <View style={pc.card}>
-      <View style={pc.imgWrap}>
-        {mediaUrl ? (
-          <Image
-            source={{ uri: mediaUrl }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={pc.imgFallback}>
-            <Ionicons name="image-outline" size={28} color={neutral[300]} />
-          </View>
-        )}
-        <View style={pc.overlay}>
-          <Ionicons name="heart" size={11} color="#fff" />
-          <Text style={pc.likeText}>{item.likeCount ?? 0}</Text>
-        </View>
-      </View>
-      {item.caption ? (
-        <View style={pc.info}>
-          <Text style={pc.caption} numberOfLines={2}>
-            {item.caption}
-          </Text>
-          {item.author?.username && (
-            <Text style={pc.author}>@{item.author.username}</Text>
-          )}
-        </View>
-      ) : null}
-    </View>
-  );
+  const diff = new Date(startsAt).getTime() - Date.now();
+  return diff > 0 && diff <= 48 * 3_600_000;
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const router   = useRouter();
 
-  const [contentTab,  setContentTab]  = useState<"Events" | "Postcards">("Events");
-  const [feedTab,     setFeedTab]     = useState("For You");
-  const [search,      setSearch]      = useState("");
-  const [activeChips, setActiveChips] = useState<string[]>([]);
-  const [selectedVibe,    setSelectedVibe]    = useState<string | null>(null);
-  const [locationLabel,   setLocationLabel]   = useState<string | null>(null);
-  const [locationCoords,  setLocationCoords]  = useState<{ lat: number; lng: number } | null>(null);
+  const [contentTab, setContentTab] = useState<"Events" | "Postcards">("Events");
+  const [feedTab,    setFeedTab]    = useState("For You");
+  const [search,     setSearch]     = useState("");
+  const [activeChips,   setActiveChips]   = useState<string[]>([]);
+  const [selectedVibe,  setSelectedVibe]  = useState<string | null>(null);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
 
-  const toggleChip = (label: string) =>
-    setActiveChips((prev) =>
-      prev.includes(label) ? prev.filter((c) => c !== label) : [...prev, label]
-    );
+  const toggleChip  = (label: string) =>
+    setActiveChips((p) => p.includes(label) ? p.filter((c) => c !== label) : [...p, label]);
 
-  const clearAllFilters = () => {
+  const clearFilters = () => {
     setActiveChips([]);
     setSelectedVibe(null);
     setLocationLabel(null);
-    setLocationCoords(null);
     setSearch("");
   };
 
-  // ── Events pagination ──────────────────────────────────────────────────────
-  const [eventsPage,    setEventsPage]    = useState(1);
-  const [allEvents,     setAllEvents]     = useState<DiscoverEvent[]>([]);
-  const [hasNextEvents, setHasNextEvents] = useState(true);
-  const eventsLoadingMore = useRef(false);
+  // ── Pagination (shared — both tabs use the same query) ─────────────────────
+  const [page,      setPage]      = useState(1);
+  const [allEvents, setAllEvents] = useState<DiscoverEvent[]>([]);
+  const [hasNext,   setHasNext]   = useState(true);
+  const loadingMore = useRef(false);
 
   const {
-    data:       eventsData,
-    isLoading:  eventsLoading,
-    isFetching: eventsFetching,
-    refetch:    refetchEventsBase,
-  } = useGetEventsQuery({ page: eventsPage, limit: PAGE_SIZE });
+    data,
+    isLoading,
+    isFetching,
+    refetch: refetchBase,
+  } = useGetEventsQuery({ page, limit: PAGE_SIZE });
 
   useEffect(() => {
-    if (!eventsData) return;
-    const incoming: DiscoverEvent[] = eventsData?.data?.data ?? [];
-
+    if (!data) return;
+    const incoming: DiscoverEvent[] = data?.data?.data ?? [];
     setAllEvents((prev) => {
-      if (eventsPage === 1) return incoming;
+      if (page === 1) return incoming;
       const seen = new Set(prev.map((e) => e.id));
       return [...prev, ...incoming.filter((e) => !seen.has(e.id))];
     });
+    const meta = data?.data?.meta;
+    setHasNext(meta?.hasNext ?? incoming.length === PAGE_SIZE);
+    loadingMore.current = false;
+  }, [data, page]);
 
-    const meta = eventsData?.data?.meta;
-    setHasNextEvents(meta?.hasNext ?? incoming.length === PAGE_SIZE);
-    eventsLoadingMore.current = false;
-  }, [eventsData, eventsPage]);
-
-  const handleRefreshEvents = useCallback(() => {
-    eventsLoadingMore.current = false;
-    setEventsPage(1);
+  const handleRefresh = useCallback(() => {
+    loadingMore.current = false;
+    setPage(1);
     setAllEvents([]);
-    refetchEventsBase();
-  }, [refetchEventsBase]);
+    refetchBase();
+  }, [refetchBase]);
 
-  const handleLoadMoreEvents = useCallback(() => {
-    if (eventsLoadingMore.current || eventsFetching || !hasNextEvents) return;
-    eventsLoadingMore.current = true;
-    setEventsPage((p) => p + 1);
-  }, [eventsFetching, hasNextEvents]);
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore.current || isFetching || !hasNext) return;
+    loadingMore.current = true;
+    setPage((p) => p + 1);
+  }, [isFetching, hasNext]);
 
-  // ── Postcards pagination ───────────────────────────────────────────────────
-  const [postcardsPage,    setPostcardsPage]    = useState(1);
-  const [allPostcards,     setAllPostcards]     = useState<PostcardItem[]>([]);
-  const [hasNextPostcards, setHasNextPostcards] = useState(true);
-  const postcardsLoadingMore = useRef(false);
-
-  const {
-    data:       postcardsData,
-    isLoading:  postcardsLoading,
-    isFetching: postcardsFetching,
-    refetch:    refetchPostcardsBase,
-  } = useGetPostcardsQuery(
-    { page: postcardsPage, limit: PAGE_SIZE },
-    { skip: contentTab !== "Postcards" }
-  );
-
-  useEffect(() => {
-    if (!postcardsData) return;
-    const incoming: PostcardItem[] = (postcardsData?.data as any)?.data ?? [];
-
-    setAllPostcards((prev) => {
-      if (postcardsPage === 1) return incoming;
-      const seen = new Set(prev.map((p) => p.id));
-      return [...prev, ...incoming.filter((p) => !seen.has(p.id))];
-    });
-
-    const meta = (postcardsData?.data as any)?.meta;
-    setHasNextPostcards(meta?.hasNext ?? incoming.length === PAGE_SIZE);
-    postcardsLoadingMore.current = false;
-  }, [postcardsData, postcardsPage]);
-
-  const handleRefreshPostcards = useCallback(() => {
-    postcardsLoadingMore.current = false;
-    setPostcardsPage(1);
-    setAllPostcards([]);
-    refetchPostcardsBase();
-  }, [refetchPostcardsBase]);
-
-  const handleLoadMorePostcards = useCallback(() => {
-    if (postcardsLoadingMore.current || postcardsFetching || !hasNextPostcards) return;
-    postcardsLoadingMore.current = true;
-    setPostcardsPage((p) => p + 1);
-  }, [postcardsFetching, hasNextPostcards]);
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  const isEventsFirstLoad    = eventsLoading    && allEvents.length === 0;
-  const isPostcardsFirstLoad = postcardsLoading && allPostcards.length === 0;
-
-  const isRefreshing =
-    contentTab === "Events"
-      ? eventsFetching   && eventsPage === 1
-      : postcardsFetching && postcardsPage === 1;
-
-  const handleRefresh = contentTab === "Events"
-    ? handleRefreshEvents
-    : handleRefreshPostcards;
-
-  // ── Client-side filters ────────────────────────────────────────────────────
-  const visibleEvents: EventCardData[] = useMemo(() => {
+  // ── Client-side filter (applied to both tabs) ──────────────────────────────
+  const filtered: EventCardData[] = useMemo(() => {
     let list = allEvents.map(toCardData);
 
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
-        (e) =>
-          e.title.toLowerCase().includes(q) ||
-          e.location.toLowerCase().includes(q)
+        (e) => e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q),
       );
     }
+    if (activeChips.includes("Has Games"))     list = list.filter((e) => e.hasGames);
+    if (activeChips.includes("Has VibeTag"))   list = list.filter((e) => e.hasVibeTag);
+    if (activeChips.includes("Starting Soon")) list = list.filter((e) => isStartingSoon(e.startsAt));
 
-    if (activeChips.includes("Has Games"))
-      list = list.filter((e) => e.hasGames);
-    if (activeChips.includes("Has VibeTag"))
-      list = list.filter((e) => e.hasVibeTag);
-    if (activeChips.includes("Starting Soon"))
-      list = list.filter((e) => isStartingSoon(e.startsAt));
-
-    // Vibe: match tag labels OR event title containing the vibe word
     if (selectedVibe) {
       const v = selectedVibe.toLowerCase();
-      list = list.filter((e) =>
-        e.tags.some((t) => t.label.toLowerCase().includes(v)) ||
-        e.title.toLowerCase().includes(v)
+      list = list.filter(
+        (e) =>
+          e.tags.some((t) => t.label.toLowerCase().includes(v)) ||
+          e.title.toLowerCase().includes(v),
       );
     }
-
-    // Location: match city/region name inside event's location string
     if (locationLabel) {
-      // Extract the first segment (city) from the resolved label e.g. "Lagos, Lagos"
       const city = locationLabel.split(",")[0].trim().toLowerCase();
-      list = list.filter((e) =>
-        e.location.toLowerCase().includes(city)
-      );
+      list = list.filter((e) => e.location.toLowerCase().includes(city));
+    }
+
+    // Postcards tab: only show events that have postcards (hasVibeTag is the
+    // best available signal without a dedicated postcards-count field)
+    if (contentTab === "Postcards") {
+      list = list.filter((e) => e.hasVibeTag || (e as any).memories > 0);
     }
 
     return list;
-  }, [allEvents, search, activeChips, selectedVibe, locationLabel]);
+  }, [allEvents, search, activeChips, selectedVibe, locationLabel, contentTab]);
 
-  // ── Footer loaders ─────────────────────────────────────────────────────────
-  const EventsFooter =
-    eventsFetching && eventsPage > 1 ? (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={brand.primary} />
-      </View>
-    ) : null;
+  const isFirstLoad = isLoading && allEvents.length === 0;
+  const isRefreshing = isFetching && page === 1;
 
-  const PostcardsFooter =
-    postcardsFetching && postcardsPage > 1 ? (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={brand.primary} />
-      </View>
-    ) : null;
-
-  // ── Shared list header ─────────────────────────────────────────────────────
+  // ── Shared header ──────────────────────────────────────────────────────────
   const ListHeader = (
     <>
-      {/* Greeting */}
-      <View style={styles.greeting}>
-        <Text style={styles.greetingText}>
+      <View style={s.greeting}>
+        <Text style={s.greetingText}>
           Hey
-          {user?.displayName
-            ? `, ${user.displayName}`
-            : user?.username
-            ? `, ${user.username}`
-            : ""}{" "}
-          👋
+          {user?.displayName ? `, ${user.displayName}`
+            : user?.username  ? `, ${user.username}` : ""} 👋
         </Text>
       </View>
 
-      {/* Events / Postcards toggle */}
-      <View style={styles.segRow}>
+      <View style={s.segRow}>
         <SegmentedControl
           options={["Events", "Postcards"]}
           selected={contentTab}
-          onSelect={(v) => setContentTab(v as "Events" | "Postcards")}
+          onSelect={(v) => {
+            setContentTab(v as "Events" | "Postcards");
+            // Reset filters when switching tabs
+            setSearch("");
+            setActiveChips([]);
+          }}
         />
       </View>
 
-      {/* Search + filters */}
       <SearchFilterCard
         search={search}
         onSearchChange={setSearch}
         selectedVibe={selectedVibe}
         onVibeChange={setSelectedVibe}
         locationLabel={locationLabel}
-        onLocationChange={(coords, label) => {
-          setLocationCoords(coords);
-          setLocationLabel(label);
-        }}
+        onLocationChange={(_coords, label) => setLocationLabel(label)}
       />
 
-      {/* Feed tabs */}
       <FeedTabs tabs={FEED_TABS} active={feedTab} onSelect={setFeedTab} />
 
-      {/* Filter chips (events only) */}
-      {contentTab === "Events" && (
-        <FilterChips
-          chips={FILTER_CHIPS}
-          active={activeChips}
-          onToggle={toggleChip}
-          hasActiveFilters={
-            activeChips.length > 0 || !!selectedVibe || !!locationLabel || search.length > 0
-          }
-          onClearAll={clearAllFilters}
-        />
-      )}
+      {/* Filter chips — shown on both tabs but VibeTag chip hidden on Postcards
+          since we already pre-filter by hasVibeTag */}
+      <FilterChips
+        chips={
+          contentTab === "Postcards"
+            ? FILTER_CHIPS.filter((c) => c.label !== "Has VibeTag")
+            : FILTER_CHIPS
+        }
+        active={activeChips}
+        onToggle={toggleChip}
+        hasActiveFilters={
+          activeChips.length > 0 || !!selectedVibe || !!locationLabel || search.length > 0
+        }
+        onClearAll={clearFilters}
+      />
 
-      <View style={styles.divider} />
+      <View style={s.divider} />
     </>
   );
 
-  // ── Events view ────────────────────────────────────────────────────────────
-  if (contentTab === "Events") {
-    return (
-      <SafeAreaView style={styles.safe} edges={["left", "right"]}>
-        <TopNavBar notificationCount={2} />
-        <FlatList
-          data={isEventsFirstLoad ? [] : visibleEvents}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onEndReached={handleLoadMoreEvents}
-          onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={brand.primary}
-            />
-          }
-          ListHeaderComponent={
-            <>
-              {ListHeader}
-              {isEventsFirstLoad && <EventCardGridSkeleton count={6} />}
-            </>
-          }
-          ListFooterComponent={EventsFooter}
-          renderItem={({ item }) => (
-            <View style={styles.cardWrap}>
-              <EventCard item={item} />
-            </View>
-          )}
-          ListEmptyComponent={
-            !isEventsFirstLoad && !eventsFetching && allEvents.length > 0 && visibleEvents.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={40}
-                  color={neutral[200]}
-                />
-                <Text style={styles.emptyText}>No events found</Text>
-              </View>
-            ) : null
-          }
-        />
-      </SafeAreaView>
-    );
-  }
-
-  // ── Postcards view ─────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe} edges={["left", "right"]}>
+    <SafeAreaView style={s.safe} edges={["left", "right"]}>
       <TopNavBar notificationCount={2} />
       <FlatList
-        data={isPostcardsFirstLoad ? [] : allPostcards}
+        data={isFirstLoad ? [] : filtered}
         keyExtractor={(item) => item.id}
         numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.listContent}
+        columnWrapperStyle={s.row}
+        contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
-        onEndReached={handleLoadMorePostcards}
+        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.4}
         refreshControl={
           <RefreshControl
@@ -404,20 +241,41 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <>
             {ListHeader}
-            {isPostcardsFirstLoad && <PostcardCardGridSkeleton count={6} />}
+            {isFirstLoad && <EventCardGridSkeleton count={6} />}
           </>
         }
-        ListFooterComponent={PostcardsFooter}
+        ListFooterComponent={
+          isFetching && page > 1 ? (
+            <View style={s.footer}>
+              <ActivityIndicator size="small" color={brand.primary} />
+            </View>
+          ) : null
+        }
         renderItem={({ item }) => (
-          <View style={styles.cardWrap}>
-            <PostcardCard item={item as PostcardItem} />
+          <View style={s.cardWrap}>
+            <EventCard
+              item={item}
+              // Postcards tab routes to the postcard grid; Events tab uses
+              // the default EventCard routing (/events/:id)
+              onPress={
+                contentTab === "Postcards"
+                  ? () => router.push(`/events/postcards/${item.id}` as any)
+                  : undefined
+              }
+            />
           </View>
         )}
         ListEmptyComponent={
-          !isPostcardsFirstLoad && !postcardsFetching ? (
-            <View style={styles.emptyWrap}>
-              <Ionicons name="images-outline" size={40} color={neutral[200]} />
-              <Text style={styles.emptyText}>No postcards yet</Text>
+          !isFirstLoad && !isFetching ? (
+            <View style={s.empty}>
+              <Ionicons
+                name={contentTab === "Events" ? "calendar-outline" : "images-outline"}
+                size={40}
+                color={neutral[200]}
+              />
+              <Text style={s.emptyText}>
+                {contentTab === "Events" ? "No events found" : "No postcards yet"}
+              </Text>
             </View>
           ) : null
         }
@@ -428,92 +286,35 @@ export default function HomeScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  safe:        { flex: 1, backgroundColor: "#fff" },
-  listContent: { paddingBottom: 32 },
+const s = StyleSheet.create({
+  safe:    { flex: 1, backgroundColor: "#fff" },
+  content: { paddingBottom: 32 },
 
-  greeting: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 4,
-  },
+  greeting: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 },
   greetingText: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
     color: neutral[900],
   },
 
-  segRow: {
-    alignItems: "center",
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
+  segRow: { alignItems: "center", paddingVertical: 12 },
+
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: neutral[200],
     marginHorizontal: 16,
     marginBottom: 14,
   },
-  row: {
-    paddingHorizontal: 12,
-    gap: 12,
-    marginBottom: 12,
-  },
+
+  row:     { paddingHorizontal: 12, gap: 12, marginBottom: 12 },
   cardWrap: { flex: 1 },
 
-  emptyWrap: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 12,
-  },
+  empty: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyText: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     color: neutral[400],
   },
-  footerLoader: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-});
 
-// ─── Postcard styles ──────────────────────────────────────────────────────────
-
-const pc = StyleSheet.create({
-  card: {
-    flex: 1,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: neutral[50],
-    borderWidth: 1,
-    borderColor: neutral[100],
-  },
-  imgWrap: {
-    width: "100%",
-    height: 160,
-    backgroundColor: neutral[200],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  imgFallback: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  overlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  likeText: { fontFamily: fontFamily.semibold, fontSize: 10, color: "#fff" },
-  info:     { padding: 8 },
-  caption:  { fontFamily: fontFamily.regular,  fontSize: 11, color: neutral[700], lineHeight: 16 },
-  author:   { fontFamily: fontFamily.semibold, fontSize: 10, color: neutral[500], marginTop: 3 },
+  footer: { paddingVertical: 20, alignItems: "center" },
 });

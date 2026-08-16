@@ -395,19 +395,40 @@ export default function EventDetailScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <AppHeader onBack={() => router.back()} notificationCount={0} />
 
-      {/* When the games tab is active, bypass the outer ScrollView so the
-          game player fills all available space without needing to scroll. */}
-      {activeTab === "games" ? (
+      {/*
+       * Tabs that manage their own scroll (chat, postcards, games) bypass
+       * the outer ScrollView entirely — hero + tabbar fixed at top, content
+       * fills the remaining flex space. This prevents the
+       * "VirtualizedLists nested inside ScrollView" warning and gives each
+       * tab its full screen height.
+       *
+       * Simple tabs (about, rsvp, qr) use the outer ScrollView so the hero
+       * scrolls naturally with their content.
+       */}
+      {(activeTab === "games" || activeTab === "chat" || activeTab === "postcards") ? (
         <View style={styles.fullFlex}>
-          {/* Hide hero while playing so the game fills the screen */}
-          {!isPlayingGame && HeroBlock}
+          {/* Hide hero while actively playing a game round */}
+          {!(activeTab === "games" && isPlayingGame) && HeroBlock}
           {TabBar}
-          <GameTab
-            eventId={event.id}
-            eventName={event.name}
-            startsAt={event.startsAt}
-            onPlayingChange={setIsPlayingGame}
-          />
+          {activeTab === "games" && (
+            <GameTab
+              eventId={event.id}
+              eventName={event.name}
+              startsAt={event.startsAt}
+              onPlayingChange={setIsPlayingGame}
+            />
+          )}
+          {activeTab === "chat" && (
+            <ChatTab eventId={event.id} />
+          )}
+          {activeTab === "postcards" && (
+            <PostcardsTab
+              eventId={event.id}
+              vibeTag={vibeTagData}
+              eventName={event.name}
+              eventStartsAt={event.startsAt}
+            />
+          )}
         </View>
       ) : (
         <ScrollView
@@ -421,15 +442,6 @@ export default function EventDetailScreen() {
             {activeTab === "about"     && <AboutTab event={event} />}
             {activeTab === "qr"        && <QrTab event={event} />}
             {activeTab === "rsvp"      && <RsvpTab event={event} />}
-            {activeTab === "postcards" && (
-              <PostcardsTab
-                eventId={event.id}
-                vibeTag={vibeTagData}
-                eventName={event.name}
-                eventStartsAt={event.startsAt}
-              />
-            )}
-            {activeTab === "chat"      && <ChatTab eventId={event.id} />}
           </View>
         </ScrollView>
       )}

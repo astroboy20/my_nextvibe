@@ -1,33 +1,32 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
-  EventRowSkeleton,
-  PostcardGridSkeleton,
-  ProfileHeaderSkeleton,
-  TicketRowSkeleton,
+    EventRowSkeleton,
+    PostcardGridSkeleton,
+    ProfileHeaderSkeleton,
+    TicketRowSkeleton,
 } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useGetMeQuery,
-  useGetMyTicketsQuery,
-  useGetOrganizerEventsQuery,
-  useGetUserActivityQuery,
-  type OrganizerEvent,
-  type PostcardItem,
-  type UserTicket,
+    useGetMeQuery,
+    useGetOrganizerEventsQuery,
+    useGetUserActivityQuery,
+    type OrganizerEvent,
+    type PostcardItem,
+    type UserTicket
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -299,27 +298,26 @@ export default function ProfileScreen() {
   const postcards = activityData?.data?.postcards ?? [];
   const tickets = activityData?.data?.tickets ?? [];
 
-  // Header is loading until we have user + activity stats for the first time
-  const headerLoading =
-    (meLoading && !meData) || (activityLoading && !activityData);
+  // Header skeleton: only on true first load (no cached data yet)
+  const headerLoading = meLoading || (activityLoading && !activityData);
 
+  // Per-tab skeleton: only when data has never been fetched for that tab
   const isTabLoading =
-    (activeTab === "events" && eventsLoading && !eventsData) ||
-    (activeTab === "postcards" && activityLoading && !activityData) ||
-    (activeTab === "tickets" && activityLoading && !activityData);
+    (activeTab === "events"    && eventsLoading    && !eventsData) ||
+    (activeTab === "postcards" && activityLoading  && !activityData) ||
+    (activeTab === "tickets"   && activityLoading  && !activityData);
 
+  // Pull-to-refresh indicator: only when re-fetching data that already exists
   const isRefreshing =
-    (meLoading && !!meData) ||
-    (activityLoading && !!activityData) ||
-    (eventsLoading && !!eventsData);
+    (meLoading         && !!meData) ||
+    (activityLoading   && !!activityData) ||
+    (activeTab === "events" && eventsLoading && !!eventsData);
 
   const handleRefresh = () => {
     refetchMe();
     refetchActivity();
     refetchEvents();
   };
-
-  console.log(activityData, "data");
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
