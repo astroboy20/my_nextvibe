@@ -87,10 +87,36 @@ export function toCardData(e: DiscoverEvent): EventCardData {
 
 // ── API slice ─────────────────────────────────────────────────────────────────
 
+// ── Postcard comment ─────────────────────────────────────────────────────────
+export interface PostcardComment {
+  id: string;
+  content: string;
+  createdAt?: string;
+  author?: {
+    displayName?: string;
+    username?: string;
+    avatarUrl?: string | null;
+  };
+}
+
+// ── Leaderboard entry ─────────────────────────────────────────────────────────
+export interface LeaderboardEntry {
+  id: string;
+  totalLikes?: number;
+  likeCount?: number;
+  totalComments?: number;
+  commentCount?: number;
+  author?: {
+    displayName?: string;
+    username?: string;
+    avatarUrl?: string | null;
+  };
+}
+
 export const eventsApi = createApi({
   reducerPath: 'eventsApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Events', 'Event', 'Postcards'],
+  tagTypes: ['Events', 'Event', 'Postcards', 'PostcardComments'],
   endpoints: (build) => ({
 
     // ── Discover feed ─────────────────────────────────────────────────────────
@@ -175,6 +201,108 @@ export const eventsApi = createApi({
         return `/v1/postcards${qs ? `?${qs}` : ''}`;
       },
       providesTags: ['Postcards'],
+    }),
+
+    // POST /v1/events/:eventId/postcards  (create)
+    createPostcards: build.mutation<
+      { success: boolean; data: any },
+      { eventId: string; vibeTagId?: string; media: Array<{ fileKey: string; mediaType: string; mediaUrl: string }>; caption?: string }
+    >({
+      query: ({ eventId, ...body }) => ({
+        url: `/v1/events/${eventId}/postcards`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Postcards', id: eventId }],
+    }),
+
+    // GET /v1/events/:eventId/postcards/:postcardId  (single postcard)
+    getPostcard: build.query<
+      { success: boolean; data: any },
+      string
+    >({
+      query: (postcardId) => `/v1/postcards/${postcardId}`,
+    }),
+
+    // POST /v1/postcards/:postcardId/like  (toggle like)
+    toggleLikePostcard: build.mutation<
+      { success: boolean; liked?: boolean; currentLikes?: number },
+      { eventId: string; postcardId: string }
+    >({
+      query: ({ postcardId }) => ({
+        url: `/v1/postcards/${postcardId}/like`,
+        method: 'POST',
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Postcards', id: eventId }],
+    }),
+
+    // GET /v1/postcards/:postcardId/comments
+    getPostcardComments: build.query<
+      { success: boolean; data: PostcardComment[] },
+      string
+    >({
+      query: (postcardId) => `/v1/postcards/${postcardId}/comments`,
+      providesTags: (_, __, id) => [{ type: 'PostcardComments', id }],
+    }),
+
+    // POST /v1/postcards/:postcardId/comments
+    commentOnPostcard: build.mutation<
+      { success: boolean; data: any },
+      { postcardId: string; content: string }
+    >({
+      query: ({ postcardId, content }) => ({
+        url: `/v1/postcards/${postcardId}/comments`,
+        method: 'POST',
+        body: { content },
+      }),
+      invalidatesTags: (_, __, { postcardId }) => [{ type: 'PostcardComments', id: postcardId }],
+    }),
+
+    // POST /v1/postcards/:postcardId/swap  (replace existing postcard)
+    swapPostcard: build.mutation<
+      { success: boolean; data: any },
+      { postcardId: string; eventId: string; vibeTagId?: string; media: Array<{ fileKey: string; mediaType: string; mediaUrl: string }>; caption?: string }
+    >({
+      query: ({ postcardId, eventId: _eventId, ...body }) => ({
+        url: `/v1/postcards/${postcardId}/swap`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Postcards', id: eventId }],
+    }),
+
+    // GET /v1/events/:eventId/postcards/leaderboard
+    getPostcardLeaderboard: build.query<
+      { success: boolean; data: LeaderboardEntry[] },
+      { eventId: string; activityTiming?: string }
+    >({
+      query: ({ eventId, activityTiming }) => {
+        const p = new URLSearchParams();
+        if (activityTiming) p.set('activityTiming', activityTiming);
+        const qs = p.toString();
+        return `/v1/events/${eventId}/postcards/leaderboard${qs ? `?${qs}` : ''}`;
+      },
+    }),
+
+    // GET /v1/events/:eventId/vibetags
+    getEventVibeTags: build.query<
+      { success: boolean; data: Array<{ id: string; name: string; imageUrl: string; activityTiming?: string }> },
+      string
+    >({
+      query: (eventId) => `/v1/events/${eventId}/vibetags`,
+      providesTags: (_, __, id) => [{ type: 'Event', id }],
+    }),
+
+    // POST /v1/storage/upload-multiple  (multipart upload)
+    uploadPostcardMedia: build.mutation<
+      { success: boolean; data: Array<{ fileKey: string; mediaType: string; url: string }> },
+      FormData
+    >({
+      query: (formData) => ({
+        url: '/v1/storage/upload-multiple',
+        method: 'POST',
+        body: formData,
+      }),
     }),
 
     // POST /v1/events/:eventId/rsvp
@@ -296,4 +424,13 @@ export const {
   useUploadIntentMutation,
   useGetEventAttendeesQuery,
   useGetEventTicketsQuery,
+  useCreatePostcardsMutation,
+  useGetPostcardQuery,
+  useToggleLikePostcardMutation,
+  useGetPostcardCommentsQuery,
+  useCommentOnPostcardMutation,
+  useGetPostcardLeaderboardQuery,
+  useUploadPostcardMediaMutation,
+  useGetEventVibeTagsQuery,
+  useSwapPostcardMutation,
 } = eventsApi;

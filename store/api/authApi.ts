@@ -112,7 +112,7 @@ export const authApi = createApi({
           await AsyncStorage.removeItem('refreshToken');
           dispatch(clearAuth());
         }
-        return { data: undefined };
+        return { data: null as unknown as void };
       },
     }),
 

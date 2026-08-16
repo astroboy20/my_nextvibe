@@ -1,5 +1,6 @@
 import AboutTab from "@/components/event/AboutTab";
 import ChatTab from "@/components/event/ChatTab";
+import GameTab from "@/components/event/GameTab/GameTab";
 import PostcardsTab from "@/components/event/PostcardsTab";
 import QrTab from "@/components/event/QrTab";
 import RsvpTab from "@/components/event/RsvpTab";
@@ -13,7 +14,7 @@ import {
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { getTagStyle, tagColor } from "@/constants/TagColors";
 import { fontFamily, fontSize } from "@/constants/Typography";
-import { useGetEventByIdQuery } from "@/store/api/eventsApi";
+import { useGetEventByIdQuery, useGetEventVibeTagsQuery } from "@/store/api/eventsApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ResizeMode, Video } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -36,7 +37,7 @@ const HERO_H = width * 1.1;  // fallback for no-image state
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabId = "about" | "rsvp" | "postcards" | "chat" | "qr";
+type TabId = "about" | "rsvp" | "qr" | "games" | "postcards" | "chat";
 
 interface TabDef {
   id: TabId;
@@ -58,7 +59,8 @@ const TABS: TabDef[] = [
     icon: "checkmark-circle-outline",
     show: () => true,
   },
-  { id: "qr", label: "QR Code", icon: "qr-code-outline", show: () => true },
+  { id: "qr",    label: "QR Code", icon: "qr-code-outline",           show: () => true },
+  { id: "games", label: "Games",   icon: "game-controller-outline",   show: () => true },
   {
     id: "postcards",
     label: "Postcards",
@@ -66,7 +68,6 @@ const TABS: TabDef[] = [
     show: (e) => !!e.hasVibeTag,
   },
   { id: "chat", label: "Chat", icon: "chatbubbles-outline", show: () => true },
-
 ];
 
 // ─── Alternating hero media ───────────────────────────────────────────────────
@@ -230,8 +231,19 @@ export default function EventDetailScreen() {
 
   const event = eventRes?.data;
 
+  // Fetch vibetags separately if the event detail doesn't embed them
+  const { data: vibeTagsRes } = useGetEventVibeTagsQuery(id ?? "", {
+    skip: !id || !event?.hasVibeTag,
+  });
+  // Prefer embedded vibeTag from event detail; fall back to dedicated endpoint
+  const vibeTagData =
+    event?.vibeTag?.length
+      ? event.vibeTag
+      : (vibeTagsRes?.data ?? null);
+
   const [activeTab, setActiveTab] = useState<TabId>("about");
   const [liked, setLiked] = useState(false);
+  const [isPlayingGame, setIsPlayingGame] = useState(false);
 
   const handleShare = async () => {
     if (!event) return;
@@ -325,10 +337,6 @@ export default function EventDetailScreen() {
           else                              pills.push({ label: "📍 Onsite",  color: tagColor("Onsite"),  textColor: getTagStyle("Onsite").text  });
           if (event.hasGame)    pills.push({ label: "🎮 Games",   color: tagColor("Games"),   textColor: getTagStyle("Games").text   });
           if (event.hasVibeTag) pills.push({ label: "✨ VibeTag", color: tagColor("VibeTag"), textColor: getTagStyle("VibeTag").text });
-          (event.tags ?? []).forEach((t) => {
-            const s = getTagStyle(t);
-            pills.push({ label: t, color: s.bg, textColor: s.text });
-          });
           return (
             <View style={styles.tagsRow}>
               {pills.map((p) => (
@@ -361,7 +369,10 @@ export default function EventDetailScreen() {
             <TouchableOpacity
               key={tab.id}
               style={styles.tab}
-              onPress={() => setActiveTab(tab.id)}
+              onPress={() => {
+                setActiveTab(tab.id);
+                if (tab.id !== "games") setIsPlayingGame(false);
+              }}
               activeOpacity={0.75}
             >
               <Ionicons
@@ -383,21 +394,45 @@ export default function EventDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <AppHeader onBack={() => router.back()} notificationCount={0} />
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[1]}
-      >
-        {HeroBlock}
-        {TabBar}
-        <View style={styles.tabContent}>
-          {activeTab === "about" && <AboutTab event={event} />}
-          {activeTab === "qr" && <QrTab event={event} />}
-          {activeTab === "rsvp" && <RsvpTab event={event} />}
-          {activeTab === "postcards" && <PostcardsTab eventId={event.id} />}
-          {activeTab === "chat" && <ChatTab eventId={event.id} />}
+
+      {/* When the games tab is active, bypass the outer ScrollView so the
+          game player fills all available space without needing to scroll. */}
+      {activeTab === "games" ? (
+        <View style={styles.fullFlex}>
+          {/* Hide hero while playing so the game fills the screen */}
+          {!isPlayingGame && HeroBlock}
+          {TabBar}
+          <GameTab
+            eventId={event.id}
+            eventName={event.name}
+            startsAt={event.startsAt}
+            onPlayingChange={setIsPlayingGame}
+          />
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={[1]}
+        >
+          {HeroBlock}
+          {TabBar}
+          <View style={styles.tabContent}>
+            {activeTab === "about"     && <AboutTab event={event} />}
+            {activeTab === "qr"        && <QrTab event={event} />}
+            {activeTab === "rsvp"      && <RsvpTab event={event} />}
+            {activeTab === "postcards" && (
+              <PostcardsTab
+                eventId={event.id}
+                vibeTag={vibeTagData}
+                eventName={event.name}
+                eventStartsAt={event.startsAt}
+              />
+            )}
+            {activeTab === "chat"      && <ChatTab eventId={event.id} />}
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -543,4 +578,5 @@ const styles = StyleSheet.create({
   },
 
   tabContent: { flex: 1 },
+  fullFlex:   { flex: 1 },
 });

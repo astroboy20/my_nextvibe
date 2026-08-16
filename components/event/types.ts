@@ -23,6 +23,13 @@ export interface EventPostcard {
   media?: Array<{ mediaUrl?: string | null; mediaType?: 'PHOTO' | 'VIDEO' | null }>;
 }
 
+export interface EventVibeTag {
+  id: string;
+  name: string;
+  imageUrl: string;
+  activityTiming?: 'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT' | 'BOTH' | string;
+}
+
 export interface EventDetail {
   id: string;
   name: string;
@@ -47,6 +54,8 @@ export interface EventDetail {
   rsvpStatus?: string | null;
   organizer?: EventOrganizer;
   tags?: Array<{ id: string; name: string; imageUrl?: string | null }>;
+  /** VibeTags attached to this event — present when hasVibeTag is true */
+  vibeTag?: EventVibeTag[] | null;
   qrCode?: string;
   _count?: { attendees?: number; postcards?: number };
 }

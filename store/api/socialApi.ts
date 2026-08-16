@@ -79,6 +79,8 @@ export const socialApi = createApi({
         url: `/v1/users/${userId}/follow`,
         method: isCurrentlyFollowing ? 'DELETE' : 'POST',
       }),
+      // Invalidate people + feed, and also any cached event detail that
+      // embeds organizer.isFollowing so AboutTab reads fresh state on remount
       invalidatesTags: ['People', 'Feed'],
     }),
 
