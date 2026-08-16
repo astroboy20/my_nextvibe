@@ -30,17 +30,23 @@ export interface EventDetail {
   flierUrl?: string | null;
   promoVideoUrl?: string | null;
   startsAt: string;
+  endsAt?: string | null;
   status: string;
   mode: 'ONSITE' | 'VIRTUAL' | 'HYBRID';
   locationName?: string | null;
   virtualLink?: string | null;
   isPublic: boolean;
+  capacity?: number | null;
   hasGame?: boolean;
   hasVibeTag?: boolean;
   attendeeCount?: number;
+  attendingCount?: number;
+  maybeCount?: number;
+  cantGoCount?: number;
   isRsvped?: boolean;
   rsvpStatus?: string | null;
   organizer?: EventOrganizer;
-  tags?: string[];
+  tags?: Array<{ id: string; name: string; imageUrl?: string | null }>;
   qrCode?: string;
+  _count?: { attendees?: number; postcards?: number };
 }

@@ -199,6 +199,58 @@ export const eventsApi = createApi({
       invalidatesTags: ['Events'],
     }),
 
+    // PATCH /v1/events/:eventId
+    updateEvent: build.mutation<
+      { success: boolean; data: any },
+      { eventId: string; data: Record<string, any> }
+    >({
+      query: ({ eventId, data }) => ({
+        url: `/v1/events/${eventId}`,
+        method: 'PATCH',
+        body: Object.fromEntries(Object.entries(data).filter(([, v]) => v != null)),
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }, 'Events'],
+    }),
+
+    // PATCH /v1/events/:eventId/status
+    updateEventStatus: build.mutation<
+      { success: boolean; data: any },
+      { eventId: string; status: 'PUBLISHED' | 'CANCELLED' | 'ENDED' }
+    >({
+      query: ({ eventId, status }) => ({
+        url: `/v1/events/${eventId}/status`,
+        method: 'PATCH',
+        body: { status },
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }, 'Events'],
+    }),
+
+    // POST /v1/events/:eventId/tags/add
+    addEventTags: build.mutation<
+      { success: boolean },
+      { eventId: string; tagIds: string[] }
+    >({
+      query: ({ eventId, tagIds }) => ({
+        url: `/v1/events/${eventId}/tags/add`,
+        method: 'POST',
+        body: { tagIds },
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
+    }),
+
+    // POST /v1/events/:eventId/tags/remove
+    removeEventTags: build.mutation<
+      { success: boolean },
+      { eventId: string; tagIds: string[] }
+    >({
+      query: ({ eventId, tagIds }) => ({
+        url: `/v1/events/${eventId}/tags/remove`,
+        method: 'POST',
+        body: { tagIds },
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
+    }),
+
     // POST /v1/events/upload-intent  (presigned URL for flier/video)
     uploadIntent: build.mutation<
       { success: boolean; data: { uploadUrl: string; fileUrl: string } },
@@ -237,6 +289,10 @@ export const {
   useGetPostcardsQuery,
   useRsvpEventMutation,
   useCreateEventMutation,
+  useUpdateEventMutation,
+  useUpdateEventStatusMutation,
+  useAddEventTagsMutation,
+  useRemoveEventTagsMutation,
   useUploadIntentMutation,
   useGetEventAttendeesQuery,
   useGetEventTicketsQuery,

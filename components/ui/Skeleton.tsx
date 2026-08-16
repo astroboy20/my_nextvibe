@@ -327,7 +327,73 @@ const detail = StyleSheet.create({
   content: { padding: 16 },
 });
 
-// ── Social feed ───────────────────────────────────────────────────────────────
+// ── Edit Event dashboard ──────────────────────────────────────────────────────
+
+export function EditEventHeaderSkeleton() {
+  return (
+    <View style={editEv.card}>
+      <Skeleton width={88} height={88} borderRadius={12} />
+      <View style={editEv.info}>
+        <Skeleton width="70%" height={16} borderRadius={8} />
+        <Skeleton width="50%" height={11} borderRadius={6} style={{ marginTop: 8 }} />
+        <Skeleton width="45%" height={11} borderRadius={6} style={{ marginTop: 6 }} />
+        <View style={editEv.actions}>
+          <Skeleton width={60} height={28} borderRadius={20} />
+          <Skeleton width={60} height={28} borderRadius={20} />
+          <Skeleton width={60} height={28} borderRadius={20} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function EditEventDashboardSkeleton() {
+  return (
+    <>
+      <EditEventHeaderSkeleton />
+      {[0, 1, 2, 3].map((i) => (
+        <View key={i} style={editEv.dashCard}>
+          <View style={editEv.dashHeader}>
+            <Skeleton width={28} height={28} borderRadius={8} />
+            <Skeleton width="40%" height={14} borderRadius={7} />
+            <Skeleton width={60} height={22} borderRadius={20} style={{ marginLeft: 'auto' }} />
+          </View>
+        </View>
+      ))}
+    </>
+  );
+}
+
+const editEv = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    gap: 14,
+    padding: 14,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: neutral[200],
+    marginBottom: 16,
+  },
+  info:    { flex: 1, justifyContent: 'space-between' },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  dashCard: {
+    borderWidth: 1,
+    borderColor: neutral[200],
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
+    marginBottom: 12,
+  },
+  dashHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+});
+
+
 
 /** Single postcard card skeleton (full-width feed item) */
 export function PostcardFeedSkeleton() {

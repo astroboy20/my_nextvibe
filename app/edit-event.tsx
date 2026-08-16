@@ -23,76 +23,74 @@ import RsvpTracker from '@/components/edit-event/RsvpTracker';
 import StatusUpdater from '@/components/edit-event/StatusUpdater';
 import { isEventStarted } from '@/components/edit-event/types';
 import { AppHeader } from '@/components/navigation/TopNavBar';
+import { EditEventDashboardSkeleton } from '@/components/ui/Skeleton';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import {
+    useAddEventTagsMutation,
+    useGetEventByIdQuery,
+    useRemoveEventTagsMutation,
+    useUpdateEventMutation,
+    useUpdateEventStatusMutation,
+} from '@/store/api/eventsApi';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Linking,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Linking,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// ── Mock data (replace with real API calls) ───────────────────────────────────
-
-const MOCK_EVENT = {
-  id: '1',
-  name: 'Argentina vs. Spain',
-  description: 'Join us for the most electric match of the year! Watch Argentina take on Spain in an unforgettable showdown.',
-  mode: 'HYBRID' as const,
-  locationName: 'Eko Hotel, Lagos',
-  virtualLink: 'https://meet.google.com/abc-defg-hij',
-  capacity: '500',
-  startsAt: '2026-09-15T20:00:00Z',
-  endsAt: '2026-09-15T23:00:00Z',
-  flierUrl: null as string | null,
-  promoVideoUrl: null as string | null,
-  status: 'PUBLISHED',
-  attendingCount: 0,
-  maybeCount: 0,
-  cantGoCount: 0,
-};
-
-const MOCK_TAGS = [
-  { id: '1', name: 'Sports' },
-  { id: '2', name: 'Football' },
-  { id: '3', name: 'Virtual' },
-  { id: '4', name: 'Games' },
-  { id: '5', name: 'Live' },
-];
-
-const MOCK_EVENT_TAGS = [
-  { id: '1', name: 'Sports' },
-  { id: '2', name: 'Football' },
-];
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function EditEventScreen() {
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const eventId = id ?? MOCK_EVENT.id;
+  const router  = useRouter();
+  const { id }  = useLocalSearchParams<{ id: string }>();
+  const eventId = id ?? '';
 
-  const [event, setEvent] = useState({ ...MOCK_EVENT, tags: MOCK_EVENT_TAGS });
-  const [allTags, setAllTags] = useState(MOCK_TAGS);
+  // ── Fetch event ────────────────────────────────────────────────────────────
+  const {
+    data:      eventData,
+    isLoading: isLoadingEvent,
+    isError:   isErrorEvent,
+    refetch:   refetchEvent,
+  } = useGetEventByIdQuery(eventId, { skip: !eventId });
 
-  const [showQR, setShowQR] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  // ── Mutations ──────────────────────────────────────────────────────────────
+  const [updateEvent]       = useUpdateEventMutation();
+  const [updateEventStatus] = useUpdateEventStatusMutation();
+  const [addEventTags]      = useAddEventTagsMutation();
+  const [removeEventTags]   = useRemoveEventTagsMutation();
 
-  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
-  const [isAddingTag, setIsAddingTag] = useState(false);
-  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  // ── Local UI state ─────────────────────────────────────────────────────────
+  const [showQR,            setShowQR]            = useState(false);
+  const [showEdit,          setShowEdit]          = useState(false);
+  const [isSharing,         setIsSharing]         = useState(false);
+  const [confirmAction,     setConfirmAction]     = useState<ConfirmAction | null>(null);
+  const [isUpdatingStatus,  setIsUpdatingStatus]  = useState(false);
+  const [isSaving,          setIsSaving]          = useState(false);
+  const [removingTagId,     setRemovingTagId]     = useState<string | null>(null);
+  const [isAddingTag,       setIsAddingTag]       = useState(false);
+  const [isCreatingTag,     setIsCreatingTag]     = useState(false);
+
+  // Optimistic local tags list — seeded from API, updated on add/remove
+  const [localTags, setLocalTags] = useState<Array<{ id: string; name: string }>>([]);
+
+  const event = eventData?.data;
+
+  // Sync local tags when event data arrives
+  useEffect(() => {
+    if (event?.tags) {
+      setLocalTags(event.tags.map((t: any) => ({ id: t.id, name: t.name })));
+    }
+  }, [event?.tags]);
 
   const eventUrl = `https://nextvibe.app/events/${eventId}`;
   const liveGameCount = 1; // TODO: derive from games API
@@ -100,11 +98,12 @@ export default function EditEventScreen() {
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleShare = async () => {
+    if (!event) return;
     setIsSharing(true);
     try {
       await Share.share({
         message: `Check out this event: ${event.name}\n${eventUrl}`,
-        title: event.name,
+        title:   event.name,
       });
     } finally {
       setIsSharing(false);
@@ -118,77 +117,134 @@ export default function EditEventScreen() {
   };
 
   const handleSave = async (payload: Record<string, any>) => {
+    if (!eventId) return;
     setIsSaving(true);
     try {
-      // TODO: replace with updateEvent API call
-      setEvent((prev) => ({
-        ...prev,
-        name:          payload.name          ?? prev.name,
-        description:   payload.description   ?? prev.description,
-        locationName:  payload.locationName  ?? prev.locationName,
-        virtualLink:   payload.virtualLink   ?? prev.virtualLink,
-        capacity:      payload.capacity      ? String(payload.capacity) : prev.capacity,
-        startsAt:      payload.startsAt      ?? prev.startsAt,
-        endsAt:        payload.endsAt        ?? prev.endsAt,
-        flierUrl:      payload.flierUrl      ?? prev.flierUrl,
-        promoVideoUrl: payload.promoVideoUrl ?? prev.promoVideoUrl,
-      }));
+      await updateEvent({ eventId, data: payload }).unwrap();
       setShowEdit(false);
       Alert.alert('Saved', 'Event updated successfully.');
     } catch {
-      Alert.alert('Error', 'Failed to update event.');
+      Alert.alert('Error', 'Failed to update event. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleStatusUpdate = async (action: ConfirmAction) => {
+    if (!eventId) return;
     setIsUpdatingStatus(true);
     try {
-      // TODO: replace with updateEventStatus API call
-      setEvent((prev) => ({ ...prev, status: action }));
+      await updateEventStatus({ eventId, status: action as 'PUBLISHED' | 'CANCELLED' | 'ENDED' }).unwrap();
       const msg =
         action === 'PUBLISHED' ? "Event published! It's now live." :
-        action === 'ENDED'     ? 'Event marked as ended.' :
+        action === 'ENDED'     ? 'Event marked as ended.'          :
                                  'Event cancelled.';
       Alert.alert('Updated', msg);
       setConfirmAction(null);
     } catch {
-      Alert.alert('Error', 'Failed to update status.');
+      Alert.alert('Error', 'Failed to update status. Please try again.');
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
   const handleAddTag = async (tagId: string) => {
+    if (!eventId) return;
     setIsAddingTag(true);
     try {
+      await addEventTags({ eventId, tagIds: [tagId] }).unwrap();
+      // Optimistically update local tags — full sync happens via cache invalidation
+      const allTags: Array<{ id: string; name: string }> = (event as any)?._allTags ?? [];
       const tag = allTags.find((t) => t.id === tagId);
-      if (tag) setEvent((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
+      if (tag) setLocalTags((prev) => [...prev, tag]);
+    } catch {
+      Alert.alert('Error', 'Failed to add tag.');
     } finally {
       setIsAddingTag(false);
     }
   };
 
   const handleRemoveTag = async (tagId: string) => {
+    if (!eventId) return;
     setRemovingTagId(tagId);
     try {
-      setEvent((prev) => ({ ...prev, tags: prev.tags.filter((t) => t.id !== tagId) }));
+      await removeEventTags({ eventId, tagIds: [tagId] }).unwrap();
+      setLocalTags((prev) => prev.filter((t) => t.id !== tagId));
+    } catch {
+      Alert.alert('Error', 'Failed to remove tag.');
     } finally {
       setRemovingTagId(null);
     }
   };
 
   const handleCreateAndAddTag = async (name: string) => {
+    // Tag creation requires a separate vibe-tags endpoint — for now add optimistically
     setIsCreatingTag(true);
     try {
-      const newTag = { id: String(Date.now()), name };
-      setAllTags((prev) => [...prev, newTag]);
-      setEvent((prev) => ({ ...prev, tags: [...prev.tags, newTag] }));
+      const tempTag = { id: `temp-${Date.now()}`, name };
+      setLocalTags((prev) => [...prev, tempTag]);
     } finally {
       setIsCreatingTag(false);
     }
   };
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+
+  if (isLoadingEvent) {
+    return (
+      <SafeAreaView style={s.safe} edges={['top']}>
+        <AppHeader onBack={() => router.back()} notificationCount={2} />
+        <ScrollView
+          style={s.scroll}
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <EditEventDashboardSkeleton />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Error ──────────────────────────────────────────────────────────────────
+
+  if (isErrorEvent || !event) {
+    return (
+      <SafeAreaView style={s.safe} edges={['top']}>
+        <AppHeader onBack={() => router.back()} notificationCount={2} />
+        <View style={s.errorWrap}>
+          <Ionicons name="alert-circle-outline" size={48} color={neutral[300]} />
+          <Text style={s.errorTitle}>Event not found</Text>
+          <Text style={s.errorSub}>We couldn't load this event. Please try again.</Text>
+          <TouchableOpacity style={s.retryBtn} onPress={() => refetchEvent()} activeOpacity={0.8}>
+            <Text style={s.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Derived values ─────────────────────────────────────────────────────────
+
+  const eventForCard = {
+    id:            event.id,
+    name:          event.name,
+    description:   event.description ?? '',
+    mode:          (event.mode ?? 'ONSITE') as 'ONSITE' | 'VIRTUAL' | 'HYBRID',
+    locationName:  event.locationName  ?? '',
+    virtualLink:   event.virtualLink   ?? '',
+    capacity:      String((event as any).capacity ?? ''),
+    startsAt:      event.startsAt      ?? '',
+    endsAt:        String((event as any).endsAt ?? ''),
+    flierUrl:      event.flierUrl      ?? null,
+    promoVideoUrl: event.promoVideoUrl ?? null,
+    status:        event.status        ?? 'DRAFT',
+    attendingCount: (event as any).attendingCount ?? (event as any)._count?.attendees ?? 0,
+    maybeCount:    (event as any).maybeCount    ?? 0,
+    cantGoCount:   (event as any).cantGoCount   ?? 0,
+    tags:          localTags,
+  };
+
+  const allTags: Array<{ id: string; name: string }> = (event as any).tags ?? [];
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -205,7 +261,7 @@ export default function EditEventScreen() {
       >
         {/* Event summary card */}
         <EventHeaderCard
-          event={event}
+          event={eventForCard}
           eventId={eventId}
           onQRPress={() => setShowQR(true)}
           isSharing={isSharing}
@@ -217,14 +273,14 @@ export default function EditEventScreen() {
         <DashboardCard
           title="RSVP Tracker"
           icon={<Ionicons name="people-outline" size={16} color={brand.primary} />}
-          badge={<InlineBadge label={`${event.attendingCount} Going`} />}
+          badge={<InlineBadge label={`${eventForCard.attendingCount} Going`} />}
           defaultOpen
         >
           <RsvpTracker
             counts={{
-              going:   event.attendingCount,
-              maybe:   event.maybeCount,
-              cantGo:  event.cantGoCount,
+              going:  eventForCard.attendingCount,
+              maybe:  eventForCard.maybeCount,
+              cantGo: eventForCard.cantGoCount,
             }}
           />
         </DashboardCard>
@@ -284,11 +340,11 @@ export default function EditEventScreen() {
           badge={
             isEventStarted(event.startsAt)
               ? <InlineBadge label="Locked" danger />
-              : <InlineBadge label={`${event.tags.length} Tags`} />
+              : <InlineBadge label={`${localTags.length} Tags`} />
           }
         >
           <EventTagsEditor
-            event={event}
+            event={{ ...eventForCard }}
             allTags={allTags}
             isAdding={isAddingTag}
             isCreating={isCreatingTag}
@@ -333,9 +389,9 @@ export default function EditEventScreen() {
           badge={<InlineBadge label="Insights" />}
         >
           <View style={s.statsGrid}>
-            <StatBox value={event.attendingCount} label="RSVPs"   color={brand.primary}    />
-            <StatBox value={0}                    label="Tickets" color={semantic.success}  />
-            <StatBox value={liveGameCount}         label="Games"   color="#9B59B6"           />
+            <StatBox value={eventForCard.attendingCount} label="RSVPs"   color={brand.primary}   />
+            <StatBox value={0}                           label="Tickets" color={semantic.success} />
+            <StatBox value={liveGameCount}               label="Games"   color="#9B59B6"          />
           </View>
           <Text style={[s.cardDesc, { marginTop: 10 }]}>
             Revenue, vibe-tags, postcards, social velocity & audience demographics on the full page.
@@ -366,7 +422,7 @@ export default function EditEventScreen() {
       />
 
       <EditEventForm
-        event={event}
+        event={eventForCard}
         visible={showEdit}
         onDismiss={() => setShowEdit(false)}
         onSave={handleSave}
@@ -419,95 +475,128 @@ function StatBox({ value, label, color }: { value: number; label: string; color:
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: neutral[50] },
-  scroll: { flex: 1 },
-  content:{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
+  safe:    { flex: 1, backgroundColor: neutral[50] },
+  scroll:  { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
+
+  // ── Error state ──────────────────────────────────────────────────────────
+  errorWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  errorTitle: {
+    fontFamily: fontFamily.bold,
+    fontSize:   fontSize.lg,
+    color:      neutral[800],
+  },
+  errorSub: {
+    fontFamily: fontFamily.regular,
+    fontSize:   fontSize.sm,
+    color:      neutral[500],
+    textAlign:  'center',
+    lineHeight: 20,
+  },
+  retryBtn: {
+    marginTop:        8,
+    paddingHorizontal: 32,
+    paddingVertical:  12,
+    borderRadius:     12,
+    backgroundColor:  brand.primary,
+  },
+  retryBtnText: {
+    fontFamily: fontFamily.semibold,
+    fontSize:   fontSize.sm,
+    color:      '#fff',
+  },
 
   // ── Card internals ───────────────────────────────────────────────────────
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems:    'flex-start',
+    gap:           8,
     backgroundColor: `${semantic.error}08`,
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
+    borderRadius:  10,
+    padding:       10,
+    marginBottom:  10,
   },
   infoText: {
-    flex: 1,
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: semantic.error,
-    lineHeight: 18,
+    flex:        1,
+    fontFamily:  fontFamily.regular,
+    fontSize:    fontSize.xs,
+    color:       semantic.error,
+    lineHeight:  18,
   },
   cardDesc: {
     fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: neutral[500],
+    fontSize:   fontSize.sm,
+    color:      neutral[500],
     lineHeight: 20,
     marginBottom: 12,
   },
   primaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection:  'row',
+    alignItems:     'center',
     justifyContent: 'center',
-    gap: 8,
+    gap:            8,
     backgroundColor: brand.primary,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius:   12,
   },
   btnDisabled: { opacity: 0.45 },
   primaryBtnText: {
     fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: '#fff',
+    fontSize:   fontSize.sm,
+    color:      '#fff',
   },
   placeholder: {
-    alignItems: 'center',
+    alignItems:    'center',
     paddingVertical: 20,
-    gap: 6,
+    gap:           6,
   },
   placeholderText: {
     fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[600],
+    fontSize:   fontSize.sm,
+    color:      neutral[600],
   },
   placeholderSub: {
     fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: neutral[400],
+    fontSize:   fontSize.xs,
+    color:      neutral[400],
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 10,
+    gap:           10,
   },
 });
 
 const b = StyleSheet.create({
   pill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingVertical:   4,
+    borderRadius:      20,
   },
   text: {
     fontFamily: fontFamily.semibold,
-    fontSize: fontSize.xs,
+    fontSize:   fontSize.xs,
   },
   statBox: {
-    flex: 1,
+    flex:            1,
     backgroundColor: neutral[50],
-    borderRadius: 12,
+    borderRadius:    12,
     paddingVertical: 12,
-    alignItems: 'center',
-    gap: 3,
+    alignItems:      'center',
+    gap:             3,
   },
   statVal: {
     fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
+    fontSize:   fontSize.lg,
   },
   statLbl: {
     fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: neutral[400],
+    fontSize:   fontSize.xs,
+    color:      neutral[400],
   },
 });
