@@ -53,12 +53,6 @@
           "microphonePermission": "Allow NextVibe to access your microphone to record postcard videos",
           "recordAudioAndroid": true
         }
-      ],
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
-        }
       ]
     ],
     "experiments": {
