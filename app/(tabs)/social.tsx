@@ -193,20 +193,20 @@ export default function SocialScreen() {
     isFetching: feedFetching,
     refetch: refetchFeed,
   } = useGetFollowingFeedQuery({ page: 1, limit: 20 }, { skip: mainTab !== 'feed' });
-  console.log(feedData, "feedData")
+
   // ── People API ─────────────────────────────────────────────────────────────
   const {
     data: followingData,
     isLoading: followingLoading,
     refetch: refetchFollowing,
   } = useGetMyFollowingQuery(undefined, { skip: mainTab !== 'people' || peopleTab !== 'following' });
-  console.log(followingData, "followingData")
+ 
   const {
     data: followersData,
     isLoading: followersLoading,
     refetch: refetchFollowers,
   } = useGetMyFollowersQuery(undefined, { skip: mainTab !== 'people' || peopleTab !== 'followers' });
-  console.log(followersData, "followersData")
+
 
   const {
     data: mutualsData,

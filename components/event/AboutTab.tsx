@@ -273,7 +273,6 @@ export default function AboutTab({ event }: Props) {
         userId: event.organizer.id,
         isFollowing: prev,
       }).unwrap();
-      console.log(res, "res");
       Toast.show({
         type: "success",
         text1: prev ? "Unfollowed" : "Following!",
