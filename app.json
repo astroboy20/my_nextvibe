@@ -7,9 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mynextvibe",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -18,7 +15,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.nextvibe2026.nextvibe"
+      "package": "com.nextvibe2026.nextvibe",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
+        }
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
+      }
     },
     "plugins": [
       "expo-router",
@@ -44,6 +52,12 @@
           "cameraPermission": "Allow NextVibe to access your camera to create postcards",
           "microphonePermission": "Allow NextVibe to access your microphone to record postcard videos",
           "recordAudioAndroid": true
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
         }
       ]
     ],
