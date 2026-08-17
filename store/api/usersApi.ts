@@ -120,8 +120,7 @@ export const usersApi = createApi({
 
     // GET /v1/users/:userId/activity
     getUserActivity: build.query<
-      { success: boolean; data: UserActivityData },
-      string
+      any, string
     >({
       query: (userId) => `/v1/users/${userId}/activity`,
       providesTags: ['UserActivity'],
@@ -130,9 +129,7 @@ export const usersApi = createApi({
     // ── Organizer events ─────────────────────────────────────────────────────
 
     // GET /v1/events/organizer/:organizerId
-    getOrganizerEvents: build.query<
-      { success: boolean; data: OrganizerEvent[]; meta: any },
-      { organizerId: string; page?: number; limit?: number }
+    getOrganizerEvents: build.query<any, { organizerId: string; page?: number; limit?: number }
     >({
       query: ({ organizerId, page = 1, limit = 20 }) =>
         `/v1/events/organizer/${organizerId}?page=${page}&limit=${limit}`,
@@ -148,7 +145,7 @@ export const usersApi = createApi({
     >({
       query: (params) => {
         const p = new URLSearchParams();
-        if (params?.page)  p.set('page',  String(params.page));
+        if (params?.page) p.set('page', String(params.page));
         if (params?.limit) p.set('limit', String(params.limit));
         const qs = p.toString();
         return `/v1/tickets/me${qs ? `?${qs}` : ''}`;

@@ -51,10 +51,10 @@ export interface PostcardItem {
 
 export function toCardData(e: DiscoverEvent): EventCardData {
   const builtInTags: Array<{ label: string; color: string }> = [];
-  if (e.mode === 'VIRTUAL') builtInTags.push({ label: 'Virtual',  color: tagColor('Virtual') });
-  if (e.mode === 'HYBRID')  builtInTags.push({ label: 'Hybrid',   color: tagColor('Hybrid')  });
-  if (e.hasGame)            builtInTags.push({ label: 'Games',    color: tagColor('Games')   });
-  if (e.hasVibeTag)         builtInTags.push({ label: 'VibeTag',  color: tagColor('VibeTag') });
+  if (e.mode === 'VIRTUAL') builtInTags.push({ label: 'Virtual', color: tagColor('Virtual') });
+  if (e.mode === 'HYBRID') builtInTags.push({ label: 'Hybrid', color: tagColor('Hybrid') });
+  if (e.hasGame) builtInTags.push({ label: 'Games', color: tagColor('Games') });
+  if (e.hasVibeTag) builtInTags.push({ label: 'VibeTag', color: tagColor('VibeTag') });
 
   const apiTags = (e.tags ?? []).map((t) => ({
     label: t.name,
@@ -68,20 +68,20 @@ export function toCardData(e: DiscoverEvent): EventCardData {
   }
 
   return {
-    id:        e.id,
-    title:     e.name,
-    date:      new Date(e.startsAt).toLocaleDateString('en-US', {
+    id: e.id,
+    title: e.name,
+    date: new Date(e.startsAt).toLocaleDateString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric',
     }),
-    startsAt:  e.startsAt,
-    memories:  e._count?.postcards ?? 0,
-    location:  e.locationName ?? (e.mode === 'VIRTUAL' ? 'Online Event' : 'TBD'),
-    flierUrl:  e.flierUrl,
-    isPublic:  e.isPublic,
+    startsAt: e.startsAt,
+    memories: e._count?.postcards ?? 0,
+    location: e.locationName ?? (e.mode === 'VIRTUAL' ? 'Online Event' : 'TBD'),
+    flierUrl: e.flierUrl,
+    isPublic: e.isPublic,
     eventMode: e.mode,
-    hasGames:  e.hasGame,
-    hasVibeTag:e.hasVibeTag,
-    tags:      allTags,
+    hasGames: e.hasGame,
+    hasVibeTag: e.hasVibeTag,
+    tags: allTags,
   };
 }
 
@@ -128,9 +128,9 @@ export const eventsApi = createApi({
     >({
       query: (params) => {
         const p = new URLSearchParams();
-        if (params?.page)  p.set('page',  String(params.page  ?? 1));
+        if (params?.page) p.set('page', String(params.page ?? 1));
         if (params?.limit) p.set('limit', String(params.limit ?? 20));
-        if (params?.tag)   p.set('tag',   params.tag);
+        if (params?.tag) p.set('tag', params.tag);
         const qs = p.toString();
         return `/v1/discover/events${qs ? `?${qs}` : ''}`;
       },
@@ -149,8 +149,8 @@ export const eventsApi = createApi({
     >({
       query: (params) => {
         const p = new URLSearchParams();
-        if (params?.page)               p.set('page',     String(params.page  ?? 1));
-        if (params?.limit)              p.set('limit',    String(params.limit ?? 20));
+        if (params?.page) p.set('page', String(params.page ?? 1));
+        if (params?.limit) p.set('limit', String(params.limit ?? 20));
         if (params?.isPublic !== undefined) p.set('isPublic', String(params.isPublic));
         const qs = p.toString();
         return `/v1/events${qs ? `?${qs}` : ''}`;
@@ -193,10 +193,10 @@ export const eventsApi = createApi({
     >({
       query: (params) => {
         const p = new URLSearchParams();
-        if (params?.page)    p.set('page',    String(params.page  ?? 1));
-        if (params?.limit)   p.set('limit',   String(params.limit ?? 20));
+        if (params?.page) p.set('page', String(params.page ?? 1));
+        if (params?.limit) p.set('limit', String(params.limit ?? 20));
         if (params?.eventId) p.set('eventId', params.eventId);
-        if (params?.userId)  p.set('userId',  params.userId);
+        if (params?.userId) p.set('userId', params.userId);
         const qs = p.toString();
         return `/v1/postcards${qs ? `?${qs}` : ''}`;
       },
@@ -387,11 +387,7 @@ export const eventsApi = createApi({
       query: (body) => ({ url: '/v1/events/upload-intent', method: 'POST', body }),
     }),
 
-    // GET /v1/events/:eventId/attendees
-    getEventAttendees: build.query<
-      { success: boolean; data: Array<{ userId: string; displayName?: string; username?: string; avatarUrl?: string | null; checkedIn?: boolean; rsvpStatus?: string }> ; meta?: PaginatedMeta },
-      { eventId: string; page?: number; limit?: number }
-    >({
+    getEventAttendees: build.query<any, { eventId: string; page?: number; limit?: number }>({
       query: ({ eventId, page = 1, limit = 20 }) =>
         `/v1/events/${eventId}/attendees?page=${page}&limit=${limit}`,
       providesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],

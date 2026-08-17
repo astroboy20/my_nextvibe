@@ -73,11 +73,11 @@ export const socialApi = createApi({
     // POST /v1/users/:userId/follow   DELETE /v1/users/:userId/follow
     toggleFollow: build.mutation<
       { success: boolean },
-      { userId: string; isCurrentlyFollowing: boolean }
+      { userId: string; isFollowing: boolean }
     >({
-      query: ({ userId, isCurrentlyFollowing }) => ({
+      query: ({ userId, isFollowing }) => ({
         url: `/v1/users/${userId}/follow`,
-        method: isCurrentlyFollowing ? 'DELETE' : 'POST',
+        method: isFollowing ? 'DELETE' : 'POST',
       }),
       // Invalidate people + feed, and also any cached event detail that
       // embeds organizer.isFollowing so AboutTab reads fresh state on remount

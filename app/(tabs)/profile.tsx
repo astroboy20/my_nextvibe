@@ -1,32 +1,32 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
-    EventRowSkeleton,
-    PostcardGridSkeleton,
-    ProfileHeaderSkeleton,
-    TicketRowSkeleton,
+  EventRowSkeleton,
+  PostcardGridSkeleton,
+  ProfileHeaderSkeleton,
+  TicketRowSkeleton,
 } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-    useGetMeQuery,
-    useGetOrganizerEventsQuery,
-    useGetUserActivityQuery,
-    type OrganizerEvent,
-    type PostcardItem,
-    type UserTicket
+  useGetMeQuery,
+  useGetOrganizerEventsQuery,
+  useGetUserActivityQuery,
+  type OrganizerEvent,
+  type PostcardItem,
+  type UserTicket,
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -102,9 +102,7 @@ function EventRow({ item }: { item: OrganizerEvent }) {
     <TouchableOpacity
       style={ev.row}
       activeOpacity={0.8}
-      onPress={() =>
-        router.push({ pathname: "/edit-event", params: { id: item.id } })
-      }
+      onPress={() => router.push(`/events/${item.id}` as any)}
     >
       <View style={ev.thumb}>
         {item.flierUrl ? (
@@ -299,18 +297,20 @@ export default function ProfileScreen() {
   const tickets = activityData?.data?.tickets ?? [];
 
   // Header skeleton: only on true first load (no cached data yet)
-  const headerLoading = meLoading || (activityLoading && !activityData);
+  const activityStarted = !!userId; // becomes true once fired
+  const headerLoading =
+    meLoading || (activityStarted && activityLoading && !activityData);
 
   // Per-tab skeleton: only when data has never been fetched for that tab
   const isTabLoading =
-    (activeTab === "events"    && eventsLoading    && !eventsData) ||
-    (activeTab === "postcards" && activityLoading  && !activityData) ||
-    (activeTab === "tickets"   && activityLoading  && !activityData);
+    (activeTab === "events" && eventsLoading && !eventsData) ||
+    (activeTab === "postcards" && activityLoading && !activityData) ||
+    (activeTab === "tickets" && activityLoading && !activityData);
 
   // Pull-to-refresh indicator: only when re-fetching data that already exists
   const isRefreshing =
-    (meLoading         && !!meData) ||
-    (activityLoading   && !!activityData) ||
+    (meLoading && !!meData) ||
+    (activityLoading && !!activityData) ||
     (activeTab === "events" && eventsLoading && !!eventsData);
 
   const handleRefresh = () => {
@@ -440,7 +440,7 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               [0, 1, 2, 3].map((i) => <EventRowSkeleton key={i} />)
             ) : events.length > 0 ? (
-              events?.map((e) => <EventRow key={e.id} item={e} />)
+              events?.map((e: any) => <EventRow key={e.id} item={e} />)
             ) : (
               <EmptyState icon="calendar-outline" message="No events yet" />
             ))}
@@ -460,7 +460,7 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               [0, 1, 2].map((i) => <TicketRowSkeleton key={i} />)
             ) : tickets.length > 0 ? (
-              tickets.map((t) => <TicketRow key={t.id} item={t} />)
+              tickets.map((t: any) => <TicketRow key={t.id} item={t} />)
             ) : (
               <EmptyState icon="ticket-outline" message="No tickets yet" />
             ))}

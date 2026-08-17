@@ -1,16 +1,3 @@
-/**
- * Home Screen
- *
- * Two tabs: Events and Postcards.
- * Both use the SAME events endpoint and the SAME EventCard component.
- * The only difference:
- *   Events  → tap navigates to /events/:id
- *   Postcards → tap navigates to /events/postcards/:id  (the postcard grid)
- *
- * The Postcards tab additionally filters to only show events that
- * have at least one postcard (hasVibeTag flag acts as a proxy until
- * the API returns a postcards count directly).
- */
 import EventCard, { type EventCardData } from "@/components/discover/EventCard";
 import FeedTabs, { type FeedTabDef } from "@/components/discover/FeedTabs";
 import FilterChips, { type ChipDef } from "@/components/discover/FilterChips";
@@ -28,7 +15,13 @@ import {
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -42,15 +35,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const FEED_TABS: FeedTabDef[] = [
-  { label: "For You",  icon: "sparkles-outline" },
+  { label: "For You", icon: "sparkles-outline" },
   { label: "Trending", icon: "trending-up-outline" },
   { label: "Near You", icon: "location-outline" },
 ];
 
 const FILTER_CHIPS: ChipDef[] = [
-  { label: "Has Games",     icon: "game-controller-outline" },
-  { label: "Has VibeTag",   icon: "pricetag-outline" },
-  { label: "Free",          icon: "gift-outline" },
+  { label: "Has Games", icon: "game-controller-outline" },
+  { label: "Has VibeTag", icon: "pricetag-outline" },
+  { label: "Free", icon: "gift-outline" },
   { label: "Starting Soon", icon: "time-outline" },
 ];
 
@@ -66,17 +59,21 @@ function isStartingSoon(startsAt?: string): boolean {
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const router   = useRouter();
+  const router = useRouter();
 
-  const [contentTab, setContentTab] = useState<"Events" | "Postcards">("Events");
-  const [feedTab,    setFeedTab]    = useState("For You");
-  const [search,     setSearch]     = useState("");
-  const [activeChips,   setActiveChips]   = useState<string[]>([]);
-  const [selectedVibe,  setSelectedVibe]  = useState<string | null>(null);
+  const [contentTab, setContentTab] = useState<"Events" | "Postcards">(
+    "Events"
+  );
+  const [feedTab, setFeedTab] = useState("For You");
+  const [search, setSearch] = useState("");
+  const [activeChips, setActiveChips] = useState<string[]>([]);
+  const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
 
-  const toggleChip  = (label: string) =>
-    setActiveChips((p) => p.includes(label) ? p.filter((c) => c !== label) : [...p, label]);
+  const toggleChip = (label: string) =>
+    setActiveChips((p) =>
+      p.includes(label) ? p.filter((c) => c !== label) : [...p, label]
+    );
 
   const clearFilters = () => {
     setActiveChips([]);
@@ -86,9 +83,9 @@ export default function HomeScreen() {
   };
 
   // ── Pagination (shared — both tabs use the same query) ─────────────────────
-  const [page,      setPage]      = useState(1);
-  const [allEvents, setAllEvents] = useState<DiscoverEvent[]>([]);
-  const [hasNext,   setHasNext]   = useState(true);
+  const [page, setPage] = useState(1);
+  // const [allEvents, setAllEvents] = useState<DiscoverEvent[]>([]);
+  const [hasNext, setHasNext] = useState(true);
   const loadingMore = useRef(false);
 
   const {
@@ -98,23 +95,32 @@ export default function HomeScreen() {
     refetch: refetchBase,
   } = useGetEventsQuery({ page, limit: PAGE_SIZE });
 
-  useEffect(() => {
-    if (!data) return;
+  const prevEventsRef = useRef<DiscoverEvent[]>([]);
+
+  const allEvents = useMemo(() => {
+    if (!data) return prevEventsRef.current;
+
     const incoming: DiscoverEvent[] = data?.data?.data ?? [];
-    setAllEvents((prev) => {
-      if (page === 1) return incoming;
-      const seen = new Set(prev.map((e) => e.id));
-      return [...prev, ...incoming.filter((e) => !seen.has(e.id))];
-    });
-    const meta = data?.data?.meta;
-    setHasNext(meta?.hasNext ?? incoming.length === PAGE_SIZE);
-    loadingMore.current = false;
+    let merged: DiscoverEvent[];
+
+    if (page === 1) {
+      merged = incoming;
+    } else {
+      const seen = new Set(prevEventsRef.current.map((e) => e.id));
+      merged = [
+        ...prevEventsRef.current,
+        ...incoming.filter((e) => !seen.has(e.id)),
+      ];
+    }
+
+    prevEventsRef.current = merged;
+    return merged;
   }, [data, page]);
 
   const handleRefresh = useCallback(() => {
     loadingMore.current = false;
+    prevEventsRef.current = [];
     setPage(1);
-    setAllEvents([]);
     refetchBase();
   }, [refetchBase]);
 
@@ -124,6 +130,14 @@ export default function HomeScreen() {
     setPage((p) => p + 1);
   }, [isFetching, hasNext]);
 
+  useEffect(() => {
+    if (!data) return;
+    const meta = data?.data?.meta;
+    const incoming = data?.data?.data ?? [];
+    setHasNext(meta?.hasNext ?? incoming.length === PAGE_SIZE);
+    loadingMore.current = false;
+  }, [data]);
+
   // ── Client-side filter (applied to both tabs) ──────────────────────────────
   const filtered: EventCardData[] = useMemo(() => {
     let list = allEvents.map(toCardData);
@@ -131,19 +145,24 @@ export default function HomeScreen() {
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
-        (e) => e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q),
+        (e) =>
+          e.title.toLowerCase().includes(q) ||
+          e.location.toLowerCase().includes(q)
       );
     }
-    if (activeChips.includes("Has Games"))     list = list.filter((e) => e.hasGames);
-    if (activeChips.includes("Has VibeTag"))   list = list.filter((e) => e.hasVibeTag);
-    if (activeChips.includes("Starting Soon")) list = list.filter((e) => isStartingSoon(e.startsAt));
+    if (activeChips.includes("Has Games"))
+      list = list.filter((e) => e.hasGames);
+    if (activeChips.includes("Has VibeTag"))
+      list = list.filter((e) => e.hasVibeTag);
+    if (activeChips.includes("Starting Soon"))
+      list = list.filter((e) => isStartingSoon(e.startsAt));
 
     if (selectedVibe) {
       const v = selectedVibe.toLowerCase();
       list = list.filter(
         (e) =>
           e.tags.some((t) => t.label.toLowerCase().includes(v)) ||
-          e.title.toLowerCase().includes(v),
+          e.title.toLowerCase().includes(v)
       );
     }
     if (locationLabel) {
@@ -166,8 +185,12 @@ export default function HomeScreen() {
       <View style={s.greeting}>
         <Text style={s.greetingText}>
           Hey
-          {user?.displayName ? `, ${user.displayName}`
-            : user?.username  ? `, ${user.username}` : ""} 👋
+          {user?.displayName
+            ? `, ${user.displayName}`
+            : user?.username
+            ? `, ${user.username}`
+            : ""}{" "}
+          👋
         </Text>
       </View>
 
@@ -201,7 +224,10 @@ export default function HomeScreen() {
         active={activeChips}
         onToggle={toggleChip}
         hasActiveFilters={
-          activeChips.length > 0 || !!selectedVibe || !!locationLabel || search.length > 0
+          activeChips.length > 0 ||
+          !!selectedVibe ||
+          !!locationLabel ||
+          search.length > 0
         }
         onClearAll={clearFilters}
       />
@@ -261,12 +287,18 @@ export default function HomeScreen() {
           !isFirstLoad && !isFetching ? (
             <View style={s.empty}>
               <Ionicons
-                name={contentTab === "Events" ? "calendar-outline" : "images-outline"}
+                name={
+                  contentTab === "Events"
+                    ? "calendar-outline"
+                    : "images-outline"
+                }
                 size={40}
                 color={neutral[200]}
               />
               <Text style={s.emptyText}>
-                {contentTab === "Events" ? "No events found" : "No postcards yet"}
+                {contentTab === "Events"
+                  ? "No events found"
+                  : "No postcards yet"}
               </Text>
             </View>
           ) : null
@@ -279,7 +311,7 @@ export default function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:    { flex: 1, backgroundColor: "#fff" },
+  safe: { flex: 1, backgroundColor: "#fff" },
   content: { paddingBottom: 32 },
 
   greeting: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 },
@@ -298,7 +330,7 @@ const s = StyleSheet.create({
     marginBottom: 14,
   },
 
-  row:     { paddingHorizontal: 12, gap: 12, marginBottom: 12 },
+  row: { paddingHorizontal: 12, gap: 12, marginBottom: 12 },
   cardWrap: { flex: 1 },
 
   empty: { alignItems: "center", paddingTop: 60, gap: 12 },

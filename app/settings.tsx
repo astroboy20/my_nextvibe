@@ -1,11 +1,12 @@
-import { AppHeader } from '@/components/navigation/TopNavBar';
-import { brand, neutral, semantic } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
-import { useAuth } from '@/hooks/useAuth';
-import { useGetMeQuery, useSwitchRoleMutation } from '@/store/api/usersApi';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React from 'react';
+import { AppHeader } from "@/components/navigation/TopNavBar";
+import { brand, neutral, semantic } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
+import { useAuth } from "@/hooks/useAuth";
+import { useGetMeQuery, useSwitchRoleMutation } from "@/store/api/usersApi";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Linking } from "react-native";
 import {
   ActivityIndicator,
   Alert,
@@ -13,13 +14,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 interface SettingRow {
   id: string;
@@ -47,11 +48,20 @@ function SettingsRow({ row }: { row: SettingRow }) {
       onPress={row.onPress}
       activeOpacity={0.7}
     >
-      <View style={[styles.rowIcon, { backgroundColor: row.danger ? `${semantic.error}15` : `${brand.primary}12` }]}>
+      <View
+        style={[
+          styles.rowIcon,
+          {
+            backgroundColor: row.danger
+              ? `${semantic.error}15`
+              : `${brand.primary}12`,
+          },
+        ]}
+      >
         <Ionicons
           name={row.icon}
           size={18}
-          color={row.danger ? semantic.error : (row.iconColor ?? brand.primary)}
+          color={row.danger ? semantic.error : row.iconColor ?? brand.primary}
         />
       </View>
       <View style={{ flex: 1 }}>
@@ -63,8 +73,18 @@ function SettingsRow({ row }: { row: SettingRow }) {
         ) : null}
       </View>
       {row.badge ? (
-        <View style={[styles.badge, { backgroundColor: row.badgeColor ?? `${brand.primary}18` }]}>
-          <Text style={[styles.badgeText, { color: row.badgeColor ? '#fff' : brand.primary }]}>
+        <View
+          style={[
+            styles.badge,
+            { backgroundColor: row.badgeColor ?? `${brand.primary}18` },
+          ]}
+        >
+          <Text
+            style={[
+              styles.badgeText,
+              { color: row.badgeColor ? "#fff" : brand.primary },
+            ]}
+          >
             {row.badge}
           </Text>
         </View>
@@ -78,112 +98,63 @@ function SettingsRow({ row }: { row: SettingRow }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
-  const router               = useRouter();
+  const router = useRouter();
   const { user, logout, isLoggingOut } = useAuth();
 
-  const { data: meData }                   = useGetMeQuery();
+  const { data: meData } = useGetMeQuery();
   const [switchRole, { isLoading: switching }] = useSwitchRoleMutation();
 
-  const profile    = meData?.data ?? user;
-  const isOrganizer = profile?.role === 'ORGANIZER';
-
-  // ── Role switch ────────────────────────────────────────────────────────────
-  const handleRoleSwitch = () => {
-    const targetRole = isOrganizer ? 'USER' : 'ORGANIZER';
-    const title      = isOrganizer ? 'Switch to Attendee' : 'Become an Organizer';
-    const message    = isOrganizer
-      ? 'Switch back to attendee mode? Your organizer tools will be hidden.'
-      : 'Switch to organizer mode to create and manage events.';
-
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: isOrganizer ? 'Switch' : 'Become Organizer',
-        onPress: async () => {
-          try {
-            await switchRole({ role: targetRole }).unwrap();
-          } catch (err: any) {
-            Alert.alert('Error', err?.data?.message ?? 'Could not switch role.');
-          }
-        },
-      },
-    ]);
-  };
+  const profile = meData?.data ?? user;
+  const isOrganizer = profile?.role === "ORGANIZER";
 
   // ── Sign out ───────────────────────────────────────────────────────────────
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
-      ],
-    );
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Sign Out", style: "destructive", onPress: () => logout() },
+    ]);
   };
 
   // ── Section config ─────────────────────────────────────────────────────────
   const sections: SettingSection[] = [
     {
-      title: 'Account',
+      title: "App Settings",
       rows: [
         {
-          id: 'edit-profile',
-          label: 'Edit Profile',
-          sublabel: profile?.username ? `@${profile.username}` : undefined,
-          icon: 'person-outline',
-          onPress: () => router.push('/edit-profile'),
-        },
-        {
-          id: 'role',
-          label: isOrganizer ? 'Switch to Attendee' : 'Become an Organizer',
-          sublabel: isOrganizer ? 'Currently: Organizer' : 'Currently: Attendee',
-          icon: isOrganizer ? 'person-outline' : 'megaphone-outline',
-          iconColor: isOrganizer ? neutral[500] : brand.primary,
-          badge: isOrganizer ? 'Organizer' : undefined,
-          badgeColor: isOrganizer ? brand.primary : undefined,
-          onPress: switching ? () => {} : handleRoleSwitch,
-        },
-      ],
-    },
-    {
-      title: 'App Settings',
-      rows: [
-        {
-          id: 'notifications',
-          label: 'Notifications',
-          icon: 'notifications-outline',
+          id: "notifications",
+          label: "Notifications",
+          icon: "notifications-outline",
           onPress: () => {},
         },
         {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: 'color-palette-outline',
+          id: "appearance",
+          label: "Appearance",
+          icon: "color-palette-outline",
           onPress: () => {},
         },
       ],
     },
     {
-      title: 'Support',
+      title: "Support",
       rows: [
         {
-          id: 'privacy',
-          label: 'Privacy Policy',
-          icon: 'lock-closed-outline',
-          onPress: () => router.push('/privacy' as any),
+          id: "privacy",
+          label: "Privacy Policy",
+          icon: "lock-closed-outline",
+          onPress: () => Linking.openURL("https://mynextvibe.com/privacy"),
         },
         {
-          id: 'help',
-          label: 'Help & Support',
-          icon: 'help-circle-outline',
-          onPress: () => router.push('/contact' as any),
+          id: "help",
+          label: "Help & Support",
+          icon: "help-circle-outline",
+          onPress: () => Linking.openURL("https://mynextvibe.com/cntact"),
         },
       ],
     },
   ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <AppHeader onBack={() => router.back()} />
 
       <ScrollView
@@ -194,12 +165,12 @@ export default function SettingsScreen() {
         {profile && (
           <TouchableOpacity
             style={styles.profileCard}
-            onPress={() => router.push('/edit-profile')}
+            onPress={() => router.push("/edit-profile")}
             activeOpacity={0.8}
           >
             <View style={styles.profileAvatar}>
               <Text style={styles.profileInitial}>
-                {profile.displayName?.charAt(0)?.toUpperCase() ?? 'U'}
+                {profile.displayName?.charAt(0)?.toUpperCase() ?? "U"}
               </Text>
             </View>
             <View style={{ flex: 1 }}>
@@ -220,15 +191,19 @@ export default function SettingsScreen() {
               {section.rows.map((row, index) => (
                 <View key={row.id}>
                   {/* Show spinner inline for role switch */}
-                  {row.id === 'role' && switching ? (
-                    <View style={[styles.row, { justifyContent: 'center' }]}>
+                  {row.id === "role" && switching ? (
+                    <View style={[styles.row, { justifyContent: "center" }]}>
                       <ActivityIndicator color={brand.primary} size="small" />
-                      <Text style={[styles.rowLabel, { marginLeft: 10 }]}>Switching…</Text>
+                      <Text style={[styles.rowLabel, { marginLeft: 10 }]}>
+                        Switching…
+                      </Text>
                     </View>
                   ) : (
                     <SettingsRow row={row} />
                   )}
-                  {index < section.rows.length - 1 && <View style={styles.sep} />}
+                  {index < section.rows.length - 1 && (
+                    <View style={styles.sep} />
+                  )}
                 </View>
               ))}
             </View>
@@ -264,13 +239,13 @@ export default function SettingsScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: "#fff" },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 48 },
 
   // Profile summary card
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
@@ -280,14 +255,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   profileAvatar: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: brand.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileInitial: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    color: '#fff',
+    color: "#fff",
   },
   profileName: {
     fontFamily: fontFamily.bold,
@@ -301,7 +279,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   rolePill: {
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 20,
     backgroundColor: `${brand.primary}18`,
   },
@@ -312,14 +291,14 @@ const styles = StyleSheet.create({
   },
 
   // Section
-  section:      { marginBottom: 24 },
+  section: { marginBottom: 24 },
   sectionTitle: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
     color: neutral[500],
     marginBottom: 8,
     marginLeft: 4,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
 
@@ -327,24 +306,30 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: neutral[200],
-    overflow: 'hidden',
-    backgroundColor: '#fff',
+    overflow: "hidden",
+    backgroundColor: "#fff",
   },
 
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 12,
   },
   rowIcon: {
-    width: 36, height: 36,
+    width: 36,
+    height: 36,
     borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rowLabel:        { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  rowLabelDanger:  { color: semantic.error },
+  rowLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+  },
+  rowLabelDanger: { color: semantic.error },
   rowSublabel: {
     fontFamily: fontFamily.regular,
     fontSize: 11,
@@ -353,7 +338,8 @@ const styles = StyleSheet.create({
   },
 
   badge: {
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 20,
   },
   badgeText: {
@@ -369,9 +355,9 @@ const styles = StyleSheet.create({
 
   // Sign out
   signOutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     height: 52,
     borderRadius: 14,
@@ -383,12 +369,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  signOutText: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: '#fff' },
+  signOutText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.base,
+    color: "#fff",
+  },
 
   version: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     color: neutral[400],
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

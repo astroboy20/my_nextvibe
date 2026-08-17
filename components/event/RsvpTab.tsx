@@ -94,14 +94,13 @@ export default function RsvpTab({ event }: Props) {
 
   const { data: ticketsRes, isLoading: ticketsLoading } =
     useGetEventTicketsQuery(event.id);
-  (attendeesRes, "attendeesRes");
   const attendees = attendeesRes ? attendeesRes?.data?.data : [];
   const tickets = Array.isArray(ticketsRes?.data)
     ? ticketsRes.data
     : Array.isArray((ticketsRes?.data as any)?.data)
     ? (ticketsRes?.data as any).data
     : [];
-  const hasPaidTickets = tickets.some((t) => t.price > 0);
+  const hasPaidTickets = tickets.some((t:any) => t.price > 0);
 
   // ── RSVP handler ────────────────────────────────────────────────────────────
   async function handleRsvp(status: NonNullable<RsvpStatus>) {
@@ -119,15 +118,37 @@ export default function RsvpTab({ event }: Props) {
       }).unwrap();
       setLocalStatus(nextStatus);
 
-      const messages: Record<NonNullable<RsvpStatus>, { text1: string; text2: string }> = {
-        CONFIRMED: { text1: "You're going! 🎉",       text2: "RSVP confirmed successfully" },
-        WAITLIST:  { text1: "Added to waitlist ⏳",   text2: "We'll notify you if a spot opens" },
-        CANCELLED: { text1: "RSVP cancelled",          text2: "You've been removed from the list" },
+      const messages: Record<
+        NonNullable<RsvpStatus>,
+        { text1: string; text2: string }
+      > = {
+        CONFIRMED: {
+          text1: "You're going! 🎉",
+          text2: "RSVP confirmed successfully",
+        },
+        WAITLIST: {
+          text1: "Added to waitlist ⏳",
+          text2: "We'll notify you if a spot opens",
+        },
+        CANCELLED: {
+          text1: "RSVP cancelled",
+          text2: "You've been removed from the list",
+        },
       };
-      Toast.show({ type: "success", ...messages[nextStatus], visibilityTime: 2500 });
+      Toast.show({
+        type: "success",
+        ...messages[nextStatus],
+        visibilityTime: 2500,
+      });
     } catch (err: any) {
-      const msg = err?.data?.message ?? "Could not update your RSVP. Please try again.";
-      Toast.show({ type: "error", text1: "RSVP failed", text2: msg, visibilityTime: 3000 });
+      const msg =
+        err?.data?.message ?? "Could not update your RSVP. Please try again.";
+      Toast.show({
+        type: "error",
+        text1: "RSVP failed",
+        text2: msg,
+        visibilityTime: 3000,
+      });
     } finally {
       setLoadingStatus(null);
     }
@@ -145,9 +166,11 @@ export default function RsvpTab({ event }: Props) {
     icon: React.ComponentProps<typeof Ionicons>["name"];
     color: string;
   }) {
-    const isActive   = localStatus === status;
-    const isLoading  = loadingStatus === status;
-    const isDisabled = !!loadingStatus || (!isActive && !!localStatus && localStatus !== "CANCELLED");
+    const isActive = localStatus === status;
+    const isLoading = loadingStatus === status;
+    const isDisabled =
+      !!loadingStatus ||
+      (!isActive && !!localStatus && localStatus !== "CANCELLED");
     return (
       <TouchableOpacity
         style={[
@@ -214,7 +237,9 @@ export default function RsvpTab({ event }: Props) {
             ]}
           >
             <Ionicons
-              name={localStatus === "CONFIRMED" ? "ticket-outline" : "time-outline"}
+              name={
+                localStatus === "CONFIRMED" ? "ticket-outline" : "time-outline"
+              }
               size={20}
               color="#fff"
             />
@@ -233,7 +258,9 @@ export default function RsvpTab({ event }: Props) {
                 },
               ]}
             >
-              {localStatus === "CONFIRMED" ? "You're going! 🎉" : "You're on the waitlist ⏳"}
+              {localStatus === "CONFIRMED"
+                ? "You're going! 🎉"
+                : "You're on the waitlist ⏳"}
             </Text>
             <Text style={s.bannerSub}>
               {localStatus === "CONFIRMED"
@@ -282,7 +309,7 @@ export default function RsvpTab({ event }: Props) {
           {ticketsLoading ? (
             <ActivityIndicator color={brand.primary} style={{ marginTop: 8 }} />
           ) : (
-            tickets.map((ticket) => {
+            tickets.map((ticket:any) => {
               const selected = selectedTicketId === ticket.id;
               return (
                 <TouchableOpacity
@@ -356,20 +383,25 @@ export default function RsvpTab({ event }: Props) {
 
       {/* ── Who's going ─────────────────────────────────────────────────────── */}
       <View style={s.section}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[s.sectionTitle, { color: neutral[400] }]}>
-            Who's Going
-          </Text>
-          <Text style={[s.sectionTitle, { color: neutral[400] }]}>
-            {attendeesRes?.data?.meta?.total} attending
-          </Text>
-        </View>
+        {attendeesLoading && attendees.length === 0 ? (
+          <ActivityIndicator color={brand.primary} style={{ marginTop: 8 }} />
+        ) : (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Text style={[s.sectionTitle, { color: neutral[400] }]}>
+              Who's Going
+            </Text>
+            <Text style={[s.sectionTitle, { color: neutral[400] }]}>
+              {attendeesRes?.data?.meta?.total} attending
+            </Text>
+          </View>
+        )}
+
         <View style={s.attendeesCard}>
           {attendeesLoading ? (
             <ActivityIndicator
@@ -382,7 +414,7 @@ export default function RsvpTab({ event }: Props) {
               <Text style={s.emptyText}>No attendees yet — be the first!</Text>
             </View>
           ) : (
-            attendees.map((a, idx) => {
+            attendees.map((a:any, idx:number) => {
               const name = a?.user?.displayName ?? a?.user?.username ?? "User";
               const confirmed = a?.status === "CONFIRMED" || a.checkedIn;
               return (
@@ -551,7 +583,7 @@ const s = StyleSheet.create({
 
   // Attendees
   attendeesCard: {
-   gap: 10,
+    gap: 10,
     overflow: "hidden",
   },
   emptyRow: {

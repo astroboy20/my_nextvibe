@@ -6,17 +6,19 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Linking,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import Toast from "react-native-toast-message";
 import type { EventDetail } from "./types";
+import { useGetMeQuery, useGetUserBasicQuery } from "@/store/api/usersApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Props {
   event: EventDetail;
@@ -224,14 +226,23 @@ export default function AboutTab({ event }: Props) {
   // useAuth gives us the logged-in user from Redux state — same source of truth
   // used everywhere in the app (set on login/bootstrap, never stale)
   const { user } = useAuth();
+  const token = AsyncStorage.getItem("accessToken");
 
   const showLocation = event.mode === "ONSITE" || event.mode === "HYBRID";
   const showVirtual = event.mode === "VIRTUAL" || event.mode === "HYBRID";
 
   // Compare logged-in user ID against the event organizer ID.
   // If they match, this is the user's own event — hide the follow button.
+  const { data: me, isLoading: isLoadingUser } = useGetMeQuery(undefined, {
+    // Only fetch the current user when they're logged in — avoids a noisy 401
+    // on public event pages viewed by unauthenticated users.
+    skip: !token,
+  });
+
   const isOwnEvent =
-    !!user?.id && !!event.organizer?.id && user.id === event.organizer.id;
+    me?.data?.id && event?.organizer?.id
+      ? me.data.id === event.organizer.id
+      : false;
 
   const [isFollowing, setIsFollowing] = useState(
     event.organizer?.isFollowing ?? false
@@ -239,16 +250,16 @@ export default function AboutTab({ event }: Props) {
 
   // Keep local state in sync if the event prop updates (e.g. after cache invalidation)
   const prevOrganizerIdRef = React.useRef(event.organizer?.id);
-  React.useEffect(() => {
-    // Only resync when the organizer changes or the isFollowing field changes
-    if (
-      event.organizer?.id !== prevOrganizerIdRef.current ||
-      event.organizer?.isFollowing !== undefined
-    ) {
-      prevOrganizerIdRef.current = event.organizer?.id;
-      setIsFollowing(event.organizer?.isFollowing ?? false);
-    }
-  }, [event.organizer?.id, event.organizer?.isFollowing]);
+  // React.useEffect(() => {
+  //   // Only resync when the organizer changes or the isFollowing field changes
+  //   if (
+  //     event.organizer?.id !== prevOrganizerIdRef.current ||
+  //     event.organizer?.isFollowing !== undefined
+  //   ) {
+  //     prevOrganizerIdRef.current = event.organizer?.id;
+  //     setIsFollowing(event.organizer?.isFollowing ?? false);
+  //   }
+  // }, [event.organizer?.id, event.organizer?.isFollowing]);
 
   const [toggleFollow, { isLoading: isTogglingFollow }] =
     useToggleFollowMutation();
@@ -258,10 +269,11 @@ export default function AboutTab({ event }: Props) {
     const prev = isFollowing;
     setIsFollowing(!prev); // optimistic
     try {
-      await toggleFollow({
+      const res = await toggleFollow({
         userId: event.organizer.id,
-        isCurrentlyFollowing: prev,
+        isFollowing: prev,
       }).unwrap();
+      console.log(res, "res");
       Toast.show({
         type: "success",
         text1: prev ? "Unfollowed" : "Following!",
