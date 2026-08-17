@@ -151,11 +151,8 @@ export default function HomeScreen() {
       list = list.filter((e) => e.location.toLowerCase().includes(city));
     }
 
-    // Postcards tab: only show events that have postcards (hasVibeTag is the
-    // best available signal without a dedicated postcards-count field)
-    if (contentTab === "Postcards") {
-      list = list.filter((e) => e.hasVibeTag || (e as any).memories > 0);
-    }
+    // Postcards tab shows all events — same data, different tap routing.
+    // No extra filtering needed here.
 
     return list;
   }, [allEvents, search, activeChips, selectedVibe, locationLabel, contentTab]);
@@ -198,14 +195,9 @@ export default function HomeScreen() {
 
       <FeedTabs tabs={FEED_TABS} active={feedTab} onSelect={setFeedTab} />
 
-      {/* Filter chips — shown on both tabs but VibeTag chip hidden on Postcards
-          since we already pre-filter by hasVibeTag */}
+      {/* Filter chips — same on both tabs */}
       <FilterChips
-        chips={
-          contentTab === "Postcards"
-            ? FILTER_CHIPS.filter((c) => c.label !== "Has VibeTag")
-            : FILTER_CHIPS
-        }
+        chips={FILTER_CHIPS}
         active={activeChips}
         onToggle={toggleChip}
         hasActiveFilters={

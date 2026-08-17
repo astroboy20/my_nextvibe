@@ -1,19 +1,15 @@
-import { brand, neutral } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
+import { brand, neutral } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
 import {
   useCommentOnPostcardMutation,
   useGetPostcardCommentsQuery,
+  useGetPostcardQuery,
   useToggleLikePostcardMutation,
-} from '@/store/api/eventsApi';
-import { Ionicons } from '@expo/vector-icons';
-import { ResizeMode, Video } from 'expo-av';
-import { Image } from 'expo-image';
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+} from "@/store/api/eventsApi";
+import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
+import { Image } from "expo-image";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -28,12 +24,12 @@ import {
   TouchableOpacity,
   View,
   ViewToken,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
-import type { PostcardData, PostcardMediaItem } from './types';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import type { PostcardData, PostcardMediaItem } from "./types";
 
-const { width: W, height: H } = Dimensions.get('window');
+const { width: W, height: H } = Dimensions.get("window");
 
 // ─── VideoPlayer ──────────────────────────────────────────────────────────────
 
@@ -70,7 +66,7 @@ function VideoPlayer({
         ref={videoRef}
         source={{ uri: src }}
         style={StyleSheet.absoluteFillObject}
-        resizeMode={ResizeMode.COVER}
+        resizeMode={ResizeMode.CONTAIN}
         isLooping
         isMuted={muted}
         shouldPlay={active}
@@ -91,7 +87,7 @@ function VideoPlayer({
         activeOpacity={0.8}
       >
         <Ionicons
-          name={muted ? 'volume-mute' : 'volume-high'}
+          name={muted ? "volume-mute" : "volume-high"}
           size={16}
           color="#fff"
         />
@@ -103,21 +99,21 @@ function VideoPlayer({
 const vp = StyleSheet.create({
   buffer: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
     zIndex: 5,
   },
   muteBtn: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 80,
     right: 14,
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 10,
   },
 });
@@ -131,34 +127,37 @@ function CommentSheet({
   postcardId: string;
   onClose: () => void;
 }) {
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState("");
   const [postComment, { isLoading: isPosting }] =
     useCommentOnPostcardMutation();
-  const { data: commentsData, isLoading, refetch } =
-    useGetPostcardCommentsQuery(postcardId);
+  const {
+    data: commentsData,
+    isLoading,
+    refetch,
+  } = useGetPostcardCommentsQuery(postcardId);
   const comments = commentsData?.data ?? [];
 
   const submit = async () => {
     const t = body.trim();
     if (!t) return;
-    setBody('');
+    setBody("");
     try {
       await postComment({ postcardId, content: t }).unwrap();
       refetch();
     } catch {
       setBody(t);
-      Toast.show({ type: 'error', text1: 'Could not post comment' });
+      Toast.show({ type: "error", text1: "Could not post comment" });
     }
   };
 
   return (
     <KeyboardAvoidingView
       style={cs.wrap}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={cs.header}>
         <Text style={cs.title}>
-          Comments{comments.length > 0 ? ` (${comments.length})` : ''}
+          Comments{comments.length > 0 ? ` (${comments.length})` : ""}
         </Text>
         <TouchableOpacity onPress={onClose} hitSlop={8}>
           <Ionicons name="close" size={22} color={neutral[700]} />
@@ -179,8 +178,7 @@ function CommentSheet({
           keyExtractor={(c) => c.id}
           contentContainerStyle={{ padding: 16, gap: 14 }}
           renderItem={({ item: c }) => {
-            const name =
-              c.author?.displayName ?? c.author?.username ?? 'User';
+            const name = c.author?.displayName ?? c.author?.username ?? "User";
             return (
               <View style={cs.row}>
                 {c.author?.avatarUrl ? (
@@ -191,9 +189,7 @@ function CommentSheet({
                   />
                 ) : (
                   <View style={cs.avatarFb}>
-                    <Text style={cs.avatarL}>
-                      {name[0]?.toUpperCase()}
-                    </Text>
+                    <Text style={cs.avatarL}>{name[0]?.toUpperCase()}</Text>
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
@@ -235,32 +231,52 @@ function CommentSheet({
 }
 
 const cs = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#fff' },
+  wrap: { flex: 1, backgroundColor: "#fff" },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  title: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[800] },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  empty: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
-  row: { flexDirection: 'row', gap: 10 },
+  title: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.base,
+    color: neutral[800],
+  },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  empty: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[400],
+  },
+  row: { flexDirection: "row", gap: 10 },
   avatar: { width: 34, height: 34, borderRadius: 17 },
   avatarFb: {
-    width: 34, height: 34, borderRadius: 17,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: `${brand.primary}20`,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarL: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
-  name: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  content: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[700], marginTop: 2 },
+  name: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+  },
+  content: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[700],
+    marginTop: 2,
+  },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -268,16 +284,24 @@ const cs = StyleSheet.create({
     borderTopColor: neutral[200],
   },
   input: {
-    flex: 1, height: 40, borderRadius: 20,
-    borderWidth: 1, borderColor: neutral[200],
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: neutral[200],
     backgroundColor: neutral[100],
     paddingHorizontal: 14,
-    fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800],
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[800],
   },
   send: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: brand.primary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
@@ -303,15 +327,19 @@ function PostcardCard({
   const [toggleLike] = useToggleLikePostcardMutation();
 
   const media: PostcardMediaItem[] = (postcard.media ?? []).filter(
-    (m) => !!m.mediaUrl,
+    (m) => !!m.mediaUrl
   );
+  const { data: freshPostcard, isLoading } = useGetPostcardQuery(postcard.id!, {
+    skip: !postcard.id,
+    pollingInterval: 5_000,
+    refetchOnMountOrArgChange: true,
+  });
 
-  const displayName =
-    postcard.author?.displayName?.trim() ||
-    postcard.author?.username?.trim() ||
-    'User';
+  const freshData = freshPostcard?.data ?? freshPostcard;
+  // (freshData?.author?.avatarUrl, "url")
 
-  const caption = postcard.caption ?? '';
+  const displayName = freshData?.author?.username?.trim() || "User";
+  const caption = postcard.caption ?? "";
   const MAX_CAP = 80;
   const isLong = caption.length > MAX_CAP;
   const shownCaption =
@@ -319,7 +347,7 @@ function PostcardCard({
 
   const timeAgo = postcard.createdAt
     ? getTimeAgo(new Date(postcard.createdAt))
-    : '';
+    : "";
 
   useEffect(() => {
     setMediaIdx(0);
@@ -350,7 +378,7 @@ function PostcardCard({
   if (media.length === 0) return null;
 
   return (
-    <View style={{ width: W, height: H, backgroundColor: '#000' }}>
+    <View style={{ width: W, height: H, backgroundColor: "#000" }}>
       {/* ── Full-screen media carousel ─────────────────────────────── */}
       <ScrollView
         ref={scrollRef}
@@ -365,7 +393,7 @@ function PostcardCard({
       >
         {media.map((m, i) => (
           <View key={m.id ?? i} style={{ width: W, height: H }}>
-            {m.mediaType === 'VIDEO' ? (
+            {m.mediaType === "VIDEO" ? (
               <VideoPlayer
                 src={m.mediaUrl!}
                 active={active && i === mediaIdx}
@@ -389,7 +417,6 @@ function PostcardCard({
 
       {/* ── Bottom info overlay ─────────────────────────────────────── */}
       <View style={ov.infoWrap} pointerEvents="box-none">
-
         {/* Dot indicators — right above the author row, clearly visible */}
         {media.length > 1 && (
           <View style={ov.dots} pointerEvents="none">
@@ -401,9 +428,9 @@ function PostcardCard({
 
         {/* Author */}
         <View style={ov.authorRow}>
-          {postcard.author?.avatarUrl ? (
+          {freshData?.author?.avatarUr ? (
             <Image
-              source={{ uri: postcard.author.avatarUrl }}
+              source={{ uri: freshData?.author?.avatarUrlconso }}
               style={ov.avatar}
               contentFit="cover"
             />
@@ -413,7 +440,9 @@ function PostcardCard({
             </View>
           )}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={ov.authorName} numberOfLines={1}>{displayName}</Text>
+            <Text style={ov.authorName} numberOfLines={1}>
+              {displayName}
+            </Text>
             {timeAgo ? <Text style={ov.timeAgo}>{timeAgo}</Text> : null}
           </View>
         </View>
@@ -424,7 +453,7 @@ function PostcardCard({
             {shownCaption}
             {isLong && (
               <Text style={ov.readMore} onPress={() => setExpanded((v) => !v)}>
-                {expanded ? ' less' : ' more'}
+                {expanded ? " less" : " more"}
               </Text>
             )}
           </Text>
@@ -432,16 +461,24 @@ function PostcardCard({
 
         {/* Actions row */}
         <View style={ov.actions}>
-          <TouchableOpacity onPress={handleLike} style={ov.actionBtn} activeOpacity={0.8}>
+          <TouchableOpacity
+            onPress={handleLike}
+            style={ov.actionBtn}
+            activeOpacity={0.8}
+          >
             <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
+              name={liked ? "heart" : "heart-outline"}
               size={26}
-              color={liked ? '#FF6584' : '#fff'}
+              color={liked ? "#FF6584" : "#fff"}
             />
             <Text style={ov.actionCount}>{likeCount}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setShowComments(true)} style={ov.actionBtn} activeOpacity={0.8}>
+          <TouchableOpacity
+            onPress={() => setShowComments(true)}
+            style={ov.actionBtn}
+            activeOpacity={0.8}
+          >
             <Ionicons name="chatbubble-outline" size={24} color="#fff" />
             <Text style={ov.actionCount}>{postcard.commentCount ?? 0}</Text>
           </TouchableOpacity>
@@ -469,7 +506,10 @@ function PostcardCard({
           presentationStyle="pageSheet"
           onRequestClose={() => setShowComments(false)}
         >
-          <CommentSheet postcardId={postcard.id} onClose={() => setShowComments(false)} />
+          <CommentSheet
+            postcardId={postcard.id}
+            onClose={() => setShowComments(false)}
+          />
         </Modal>
       )}
     </View>
@@ -478,89 +518,114 @@ function PostcardCard({
 
 const ov = StyleSheet.create({
   // GradientFade handles the darkening — no extra View needed here
-  gradient: { display: 'none' },  // kept to avoid ref errors but unused
+  gradient: { display: "none" }, // kept to avoid ref errors but unused
 
   // Dots — now inside infoWrap, above author row
   dots: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 5,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 10,
   },
   dot: {
-    width: 6, height: 6, borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.45)",
   },
   dotActive: {
-    width: 18, height: 6, borderRadius: 3,
-    backgroundColor: '#fff',
+    width: 18,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
   },
 
   // Multi-media badge — top right corner
   multiBadge: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 20,
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 20,
     right: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: "rgba(0,0,0,0.5)",
     borderRadius: 10,
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
-  multiText: { fontFamily: fontFamily.bold, fontSize: 11, color: '#fff' },
+  multiText: { fontFamily: fontFamily.bold, fontSize: 11, color: "#fff" },
 
   // Bottom info overlay — sits on top of the gradient
   infoWrap: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: 14,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
     paddingTop: 20,
     gap: 8,
   },
 
-  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  authorRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   avatar: {
-    width: 38, height: 38, borderRadius: 19,
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.5)",
   },
   avatarFb: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: `${brand.primary}CC`,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)',
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.5)",
   },
-  avatarL: { fontFamily: fontFamily.bold, fontSize: 15, color: '#fff' },
+  avatarL: { fontFamily: fontFamily.bold, fontSize: 15, color: "#fff" },
   authorName: {
-    fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   timeAgo: {
-    fontFamily: fontFamily.regular, fontSize: fontSize.xs,
-    color: 'rgba(255,255,255,0.7)', marginTop: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 1,
   },
   caption: {
-    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
-    color: '#fff', lineHeight: 19,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    lineHeight: 19,
+    textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   readMore: {
-    fontFamily: fontFamily.semibold, fontSize: fontSize.sm,
-    color: 'rgba(255,255,255,0.85)',
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: "rgba(255,255,255,0.85)",
   },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 2 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+    marginTop: 2,
+  },
+  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
   actionCount: {
-    fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
@@ -573,7 +638,7 @@ function GradientFade() {
   return (
     <View
       style={{
-        position: 'absolute',
+        position: "absolute",
         bottom: 0,
         left: 0,
         right: 0,
@@ -632,7 +697,7 @@ export function PostcardViewer({
       if (viewableItems.length > 0 && viewableItems[0].index != null) {
         setActiveIndex(viewableItems[0].index);
       }
-    },
+    }
   ).current;
 
   const viewabilityConfig = useRef({
@@ -647,12 +712,12 @@ export function PostcardViewer({
         active={index === activeIndex}
       />
     ),
-    [activeIndex, eventId],
+    [activeIndex, eventId]
   );
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({ length: H, offset: H * index, index }),
-    [],
+    []
   );
 
   return (
@@ -663,7 +728,7 @@ export function PostcardViewer({
       presentationStyle="fullScreen"
       statusBarTranslucent
     >
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
         <FlatList
           ref={listRef}
           data={postcards}
@@ -686,7 +751,7 @@ export function PostcardViewer({
         {/* Back button — always on top */}
         <SafeAreaView
           style={pv.overlay}
-          edges={['top']}
+          edges={["top"]}
           pointerEvents="box-none"
         >
           <TouchableOpacity
@@ -713,13 +778,13 @@ export function PostcardViewer({
 
 const pv = StyleSheet.create({
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
@@ -727,12 +792,12 @@ const pv = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   counter: {
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: "rgba(0,0,0,0.45)",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -740,7 +805,7 @@ const pv = StyleSheet.create({
   counterText: {
     fontFamily: fontFamily.semibold,
     fontSize: 12,
-    color: '#fff',
+    color: "#fff",
   },
 });
 
@@ -748,12 +813,12 @@ const pv = StyleSheet.create({
 
 function getTimeAgo(date: Date): string {
   const s = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (s < 60) return 'just now';
+  if (s < 60) return "just now";
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ago`;
   const hr = Math.floor(m / 60);
   if (hr < 24) return `${hr}h ago`;
   const d = Math.floor(hr / 24);
   if (d < 7) return `${d}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

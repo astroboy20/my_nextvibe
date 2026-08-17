@@ -28,12 +28,13 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
-const HERO_H = width * 1.1;  // fallback for no-image state
+const { height: SCREEN_H } = Dimensions.get("window");
+const HERO_H = width * (4 / 3);
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
@@ -245,6 +246,19 @@ export default function EventDetailScreen() {
   const [liked, setLiked] = useState(false);
   const [isPlayingGame, setIsPlayingGame] = useState(false);
 
+  // ── Scroll tracking — MUST be before any early returns (Rules of Hooks) ───
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const heroTranslate = scrollY.interpolate({
+    inputRange: [0, HERO_H],
+    outputRange: [0, -HERO_H],
+    extrapolate: "clamp",
+  });
+  const heroOpacity = scrollY.interpolate({
+    inputRange: [0, HERO_H * 0.5],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+
   const handleShare = async () => {
     if (!event) return;
     try {
@@ -299,11 +313,10 @@ export default function EventDetailScreen() {
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   const HeroBlock = (
-    <View style={styles.hero}>
+    <View style={[styles.hero, { height: HERO_H }]}>
       <HeroMedia flierUrl={event.flierUrl} promoVideoUrl={event.promoVideoUrl} />
       <View style={styles.heroOverlay} />
 
-      {/* Top action row */}
       <View style={styles.heroTopRow}>
         <View style={{ flexDirection: "row", gap: 8, marginLeft: "auto" }}>
           <TouchableOpacity
@@ -327,9 +340,7 @@ export default function EventDetailScreen() {
         </View>
       </View>
 
-      {/* Bottom info */}
       <View style={styles.heroBottom}>
-        {/* Built-in + API tags */}
         {(() => {
           const pills: { label: string; color: string; textColor: string }[] = [];
           if (event.mode === "VIRTUAL")     pills.push({ label: "🌐 Virtual", color: tagColor("Virtual"), textColor: getTagStyle("Virtual").text });
@@ -347,10 +358,7 @@ export default function EventDetailScreen() {
             </View>
           );
         })()}
-        <Text style={styles.heroTitle} numberOfLines={2}>
-          {event.name}
-        </Text>
-       
+        <Text style={styles.heroTitle} numberOfLines={2}>{event.name}</Text>
       </View>
     </View>
   );
@@ -391,60 +399,95 @@ export default function EventDetailScreen() {
     </View>
   );
 
+  if (activeTab === "games" && isPlayingGame) {
+    // While playing, take full screen — no hero, no outer scroll
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        {TabBar}
+        <GameTab
+          eventId={event.id}
+          eventName={event.name}
+          startsAt={event.startsAt}
+          onPlayingChange={setIsPlayingGame}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <AppHeader onBack={() => router.back()} notificationCount={0} />
 
-      {/*
-       * Tabs that manage their own scroll (chat, postcards, games) bypass
-       * the outer ScrollView entirely — hero + tabbar fixed at top, content
-       * fills the remaining flex space. This prevents the
-       * "VirtualizedLists nested inside ScrollView" warning and gives each
-       * tab its full screen height.
-       *
-       * Simple tabs (about, rsvp, qr) use the outer ScrollView so the hero
-       * scrolls naturally with their content.
-       */}
-      {(activeTab === "games" || activeTab === "chat" || activeTab === "postcards") ? (
-        <View style={styles.fullFlex}>
-          {/* Hide hero while actively playing a game round */}
-          {!(activeTab === "games" && isPlayingGame) && HeroBlock}
-          {TabBar}
-          {activeTab === "games" && (
-            <GameTab
-              eventId={event.id}
-              eventName={event.name}
-              startsAt={event.startsAt}
-              onPlayingChange={setIsPlayingGame}
-            />
-          )}
-          {activeTab === "chat" && (
-            <ChatTab eventId={event.id} />
-          )}
-          {activeTab === "postcards" && (
-            <PostcardsTab
-              eventId={event.id}
-              vibeTag={vibeTagData}
-              eventName={event.name}
-              eventStartsAt={event.startsAt}
-            />
-          )}
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          stickyHeaderIndices={[1]}
+      <View style={styles.fullFlex}>
+        {/*
+         * Hero sits as an absolute layer on top.
+         * It translates upward as scrollY increases, effectively "collapsing".
+         */}
+        <Animated.View
+          style={[
+            styles.heroAbsolute,
+            { height: HERO_H, opacity: heroOpacity, transform: [{ translateY: heroTranslate }] },
+          ]}
+          pointerEvents="none"
         >
           {HeroBlock}
+        </Animated.View>
+
+        {/*
+         * Main scroll container. Its content starts after the hero height
+         * via paddingTop, so the tab bar and content begin below the hero.
+         * As the user scrolls up, the paddingTop is effectively "used up"
+         * and the hero animates away — the tab bar becomes the new top.
+         */}
+        <Animated.ScrollView
+          style={styles.fullFlex}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          // Allow nested scrolling inside chat/postcards/games
+          nestedScrollEnabled
+          // Bounce off at top
+          bounces
+          stickyHeaderIndices={[1]}   // index 1 = TabBar inside the list
+          contentContainerStyle={{ paddingTop: HERO_H }}
+        >
+          {/* index 0 — spacer (stickyHeaderIndices counts from contentContainerStyle start) */}
+          <View style={{ height: 0 }} />
+
+          {/* index 1 — sticky TabBar */}
           {TabBar}
-          <View style={styles.tabContent}>
+
+          {/* index 2 — tab content: min height = full screen so the outer
+               scroll can always collapse the hero, but inner content
+               governs actual height so no blank space below short tabs */}
+          <View style={[styles.tabContent, { minHeight: SCREEN_H }]}>
             {activeTab === "about"     && <AboutTab event={event} />}
             {activeTab === "qr"        && <QrTab event={event} />}
             {activeTab === "rsvp"      && <RsvpTab event={event} />}
+            {activeTab === "postcards" && (
+              <PostcardsTab
+                eventId={event.id}
+                vibeTag={vibeTagData}
+                eventName={event.name}
+                eventStartsAt={event.startsAt}
+              />
+            )}
+            {activeTab === "chat"      && <ChatTab eventId={event.id} />}
+            {activeTab === "games"     && (
+              <GameTab
+                eventId={event.id}
+                eventName={event.name}
+                startsAt={event.startsAt}
+                onPlayingChange={setIsPlayingGame}
+              />
+            )}
           </View>
-        </ScrollView>
-      )}
+        </Animated.ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -454,6 +497,17 @@ export default function EventDetailScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
   scroll: { flex: 1 },
+  fullFlex: { flex: 1 },
+
+  // Hero — absolutely positioned so it slides under the content
+  heroAbsolute: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 0,
+    overflow: "hidden",
+  },
 
   // Error state
   errorWrap: {
@@ -488,12 +542,12 @@ const styles = StyleSheet.create({
   },
 
   // Hero
-  hero: { width: "100%", backgroundColor: "#000" },
-  heroMediaContainer: { width: "100%", aspectRatio: 3 / 4, overflow: "hidden" },
-  heroImg: { width: "100%", aspectRatio: 3 / 4 },
+  hero: { width: "100%", backgroundColor: "#000", overflow: "hidden" },
+  heroMediaContainer: { width: "100%", height: "100%", overflow: "hidden" },
+  heroImg: { width: "100%", height: "100%" },
   heroFallback: {
     width: "100%",
-    height: HERO_H,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: neutral[100],
@@ -502,7 +556,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.38)",
   },
-
   heroTopRow: {
     position: "absolute",
     top: 12,
@@ -543,26 +596,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     lineHeight: 28,
   },
-  heroMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroMetaText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.85)",
-  },
-  heroDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: "rgba(255,255,255,0.5)",
-  },
-  modePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  modeText: { fontFamily: fontFamily.semibold, fontSize: 10, color: "#fff" },
 
-  // Tab bar
+  // Tab bar — sticky
   tabBar: {
     backgroundColor: "#fff",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
+    zIndex: 10,
   },
   tabBarInner: { flexDirection: "row", paddingHorizontal: 8 },
   tab: {
@@ -589,6 +629,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  tabContent: { flex: 1 },
-  fullFlex:   { flex: 1 },
+  tabContent: { flex: 1, backgroundColor: "#fff" },
+
+  // Unused but kept for reference
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroMetaText: { fontFamily: fontFamily.regular, fontSize: 12, color: "rgba(255,255,255,0.85)" },
+  heroDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: "rgba(255,255,255,0.5)" },
+  modePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  modeText: { fontFamily: fontFamily.semibold, fontSize: 10, color: "#fff" },
 });

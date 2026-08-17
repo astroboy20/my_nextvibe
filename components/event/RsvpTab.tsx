@@ -1,23 +1,23 @@
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-    useGetEventAttendeesQuery,
-    useGetEventTicketsQuery,
-    useRsvpEventMutation,
+  useGetEventAttendeesQuery,
+  useGetEventTicketsQuery,
+  useRsvpEventMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import type { EventDetail } from "./types";
 import Toast from "react-native-toast-message";
+import type { EventDetail } from "./types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,7 +94,7 @@ export default function RsvpTab({ event }: Props) {
 
   const { data: ticketsRes, isLoading: ticketsLoading } =
     useGetEventTicketsQuery(event.id);
-  console.log(attendeesRes, "attendeesRes");
+  (attendeesRes, "attendeesRes");
   const attendees = attendeesRes ? attendeesRes?.data?.data : [];
   const tickets = Array.isArray(ticketsRes?.data)
     ? ticketsRes.data

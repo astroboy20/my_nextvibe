@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  // Image
+  // Image — fixed height so both columns always match
   imageWrap: {
     width: "100%",
     aspectRatio: 3 / 4,
@@ -192,8 +192,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
 
-  // Info
-  info: { gap: 2, width: "100%", paddingHorizontal: 10, paddingVertical: 8 },
+  // Info — fixed height so both grid columns are always equal
+  info: { gap: 2, width: "100%", paddingHorizontal: 10, paddingVertical: 8, height: 78, overflow: "hidden" },
   title: {
     fontFamily: fontFamily.semibold,
     fontSize: 12,

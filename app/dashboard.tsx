@@ -98,7 +98,7 @@ export default function DashboardScreen() {
   const isFirstLoad = isLoading && !eventsData;
   const isRefreshing = isFetching && !!eventsData;
 
-  console.log(events, "eventsData");
+  (events, "eventsData");
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
