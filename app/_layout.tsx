@@ -1,11 +1,13 @@
 import SplashScreenView from '@/components/SplashScreenView';
+import { registerForPush } from '@/services/pushNotifications';
+import { tokenStore } from '@/store/baseQuery';
 import { bootstrapAuth } from '@/store/slices/authSlice';
 import type { RootState } from '@/store/store';
 import { store } from '@/store/store';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import { Provider, useSelector } from 'react-redux';
@@ -21,24 +23,51 @@ SplashScreen.preventAutoHideAsync();
 // ── Auth gate — redirects between (auth) and (tabs) based on token state ──────
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const router         = useRouter();
-  const segments       = useSegments();
+  const router          = useRouter();
+  const segments        = useSegments();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const isBootstrapped  = useSelector((s: RootState) => s.auth.isBootstrapped);
 
+  // Track previous auth state so we only register push on sign-in transitions,
+  // not on every render. We still register on every app start (isAuthenticated
+  // already true after bootstrap) per the integration guide.
+  const prevAuthenticated = useRef<boolean | null>(null);
+
   useEffect(() => {
-    if (!isBootstrapped) return; // wait for bootstrap to finish
+    if (!isBootstrapped) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (isAuthenticated && inAuthGroup) {
-      // Logged in but still on an auth screen → push to app
       router.replace('/(tabs)');
     } else if (!isAuthenticated && !inAuthGroup) {
-      // Not logged in but trying to access a protected screen → push to login
       router.replace('/(auth)/login');
     }
   }, [isAuthenticated, isBootstrapped, segments]);
+
+  // Register push token whenever the user is authenticated.
+  // Called on every app start (upsert is free) and on fresh sign-in.
+  useEffect(() => {
+    if (!isBootstrapped) return;
+    if (!isAuthenticated) {
+      prevAuthenticated.current = false;
+      return;
+    }
+
+    // Register on first mount-with-auth and on sign-in transitions
+    if (prevAuthenticated.current === isAuthenticated) return;
+    prevAuthenticated.current = isAuthenticated;
+
+    (async () => {
+      try {
+        const accessToken = await tokenStore.get('accessToken');
+        if (!accessToken) return;
+        await registerForPush(accessToken);
+      } catch {
+        // Push registration failure must never crash the app
+      }
+    })();
+  }, [isAuthenticated, isBootstrapped]);
 
   return <>{children}</>;
 }

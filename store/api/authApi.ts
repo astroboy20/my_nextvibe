@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { API_URL, baseQueryWithReauth } from '../baseQuery';
+import { API_URL, baseQueryWithReauth, tokenStore } from '../baseQuery';
 import { clearAuth, setUser } from '../slices/authSlice';
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -29,8 +28,8 @@ async function persistSession(
   data: AuthResponse,
   dispatch: (action: any) => void,
 ) {
-  await AsyncStorage.setItem('accessToken',  data.data.accessToken);
-  await AsyncStorage.setItem('refreshToken', data.data.refreshToken);
+  await tokenStore.set('accessToken',  data.data.accessToken);
+  await tokenStore.set('refreshToken', data.data.refreshToken);
   dispatch(setUser(data.data.user));
 }
 
@@ -97,8 +96,22 @@ export const authApi = createApi({
     logout: build.mutation<void, void>({
       queryFn: async (_, { dispatch }) => {
         try {
-          const accessToken  = await AsyncStorage.getItem('accessToken');
-          const refreshToken = await AsyncStorage.getItem('refreshToken');
+          const accessToken  = await tokenStore.get('accessToken');
+          const refreshToken = await tokenStore.get('refreshToken');
+          // Unregister push token before dropping the access token
+          const pushToken = await tokenStore.get('expoPushToken');
+          if (pushToken && accessToken) {
+            try {
+              await fetch(`${API_URL}/v1/notifications/devices`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${accessToken}`,
+                },
+                body: JSON.stringify({ token: pushToken }),
+              });
+            } catch { /* best-effort — don't block logout */ }
+          }
           await fetch(`${API_URL}/v1/auth/logout`, {
             method: 'POST',
             headers: {
@@ -108,8 +121,7 @@ export const authApi = createApi({
             body: JSON.stringify({ refreshToken }),
           });
         } finally {
-          await AsyncStorage.removeItem('accessToken');
-          await AsyncStorage.removeItem('refreshToken');
+          await tokenStore.removeMany(['accessToken', 'refreshToken', 'expoPushToken']);
           dispatch(clearAuth());
         }
         return { data: null as unknown as void };

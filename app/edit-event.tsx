@@ -12,7 +12,7 @@
  */
 
 import ConfirmModal, {
-  type ConfirmAction,
+    type ConfirmAction,
 } from "@/components/edit-event/ConfirmModal";
 import DashboardCard from "@/components/edit-event/DashboardCard";
 import EditEventForm from "@/components/edit-event/EditEventForm";
@@ -29,24 +29,23 @@ import { EditEventDashboardSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useAddEventTagsMutation,
-  useGetEventByIdQuery,
-  useRemoveEventTagsMutation,
-  useUpdateEventMutation,
-  useUpdateEventStatusMutation,
+    useAddEventTagsMutation,
+    useGetEventByIdQuery,
+    useRemoveEventTagsMutation,
+    useUpdateEventMutation,
+    useUpdateEventStatusMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Linking,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -368,6 +367,7 @@ export default function EditEventScreen() {
           badge={<InlineBadge label="2 Active" />}
         >
           <EventReminders
+            eventId={eventId}
             eventStartsAt={event.startsAt}
             eventStatus={event.status}
           />

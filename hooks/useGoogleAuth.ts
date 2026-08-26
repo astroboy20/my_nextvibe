@@ -8,25 +8,28 @@
  *   1. Create a project at https://console.cloud.google.com
  *   2. Enable the "Google Sign-In" API
  *   3. Create OAuth 2.0 credentials:
- *      - Web client ID  → paste as webClientId below (required for idToken)
- *      - Android client ID → add your SHA-1 fingerprint in Google Cloud / Firebase
- *      - iOS client ID  → replace com.googleusercontent.apps.YOUR_IOS_CLIENT_ID in app.json
+ *      - Web client ID       → set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env
+ *      - Android client ID   → add SHA-1 fingerprint in Google Cloud Console
+ *      - iOS client ID       → set EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in .env
+ *                              and update iosUrlScheme in app.json plugins
  *   4. Get SHA-1 for EAS builds:
- *        eas credentials  (then select Android → Keystore → View)
+ *        eas credentials  (select Android → Keystore → View)
  *   5. Run a new EAS build after updating credentials.
  *
- * Requirement 1 §1: Google OAuth supported on Android and iOS.
- * Requirement 1 §3: OAuth handshake completes and returns JWT.
+ * Token flow per MOBILE-INTEGRATION.md §1:
+ *   - webClientId is used so Google mints an ID token the backend can verify
+ *   - offlineAccess: false — no server-side code exchange in this backend
+ *   - The ID token is sent to POST /v1/auth/oauth/google to get NextVibe tokens
+ *   - NextVibe tokens are stored in expo-secure-store (not AsyncStorage)
  */
 
 import { authApi } from '@/store/api/authApi';
 import { store } from '@/store/store';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Platform } from 'react-native';
+import Toast from 'react-native-toast-message';
 
-// @react-native-google-signin/google-signin is native-only and requires a
-// dev/production build — it is NOT available in Expo Go.
-// We guard with try/catch so missing native modules don't crash the app.
+// @react-native-google-signin/google-signin is native-only; not available in Expo Go.
 const isNative = Platform.OS !== 'web';
 
 let GoogleSignin: any = null;
@@ -36,23 +39,31 @@ let statusCodes: any = {};
 if (isNative) {
   try {
     const pkg = require('@react-native-google-signin/google-signin');
-    GoogleSignin      = pkg.GoogleSignin;
-    isErrorWithCode   = pkg.isErrorWithCode;
-    statusCodes       = pkg.statusCodes;
+    GoogleSignin    = pkg.GoogleSignin;
+    isErrorWithCode = pkg.isErrorWithCode;
+    statusCodes     = pkg.statusCodes;
   } catch {
     // Running in Expo Go — native module not available, Google Sign-In disabled
   }
 }
 
-// ── Replace with your Google Cloud Console Web Client ID ─────────────────────
-const GOOGLE_WEB_CLIENT_ID = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
+// ── Client IDs from environment ───────────────────────────────────────────────
+// Set these in your .env file:
+//   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=xxxx.apps.googleusercontent.com
+//   EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com  (iOS only)
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
-// Configure once when the module loads (native only)
+// Configure once when the module loads (native only).
+// Per the integration guide, webClientId is the Web client ID — this is what
+// makes Google mint an ID token the backend can verify, rather than an
+// Android/iOS-only token. offlineAccess must be false (no code exchange).
 if (isNative && GoogleSignin) {
   GoogleSignin.configure({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    offlineAccess: true,
-    scopes: ['profile', 'email'],
+    webClientId:   GOOGLE_WEB_CLIENT_ID,
+    iosClientId:   GOOGLE_IOS_CLIENT_ID,   // required on iOS
+    offlineAccess: false,
+    scopes:        ['profile', 'email'],
   });
 }
 
@@ -68,74 +79,91 @@ export interface GoogleUser {
 interface UseGoogleAuthReturn {
   /** Trigger the Google sign-in flow */
   signInWithGoogle: () => Promise<void>;
-  loading:  boolean;
-  user:     GoogleUser | null;
-  error:    string | null;
-  /** Sign out and clear state */
-  signOut:  () => Promise<void>;
+  loading: boolean;
+  error:   string | null;
   /** Clear error state */
-  reset:    () => void;
+  reset:   () => void;
 }
 
 export function useGoogleAuth(): UseGoogleAuthReturn {
   const [loading, setLoading] = useState(false);
-  const [user,    setUser]    = useState<GoogleUser | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
-  // Check if a previous session exists on mount
-  useEffect(() => {
-    if (!isNative || !GoogleSignin) return;
-    (async () => {
-      try {
-        const isSignedIn = await GoogleSignin.hasPreviousSignIn();
-        if (isSignedIn) {
-          const currentUser = await GoogleSignin.getCurrentUser();
-          if (currentUser) {
-            setUser(mapUser(currentUser.data));
-          }
-        }
-      } catch {
-        // Silently ignore — user will just sign in manually
-      }
-    })();
-  }, []);
-
   async function signInWithGoogle() {
-    if (!isNative || !GoogleSignin) return;
+    if (!isNative || !GoogleSignin) {
+      setError('Google Sign-In is not available in Expo Go. Use a dev/production build.');
+      return;
+    }
+
     setError(null);
     setLoading(true);
+
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       const response = await GoogleSignin.signIn();
 
-      if (response.type === 'success') {
-        setUser(mapUser(response.data));
-        const idToken = response.data?.idToken;
-        if (idToken) {
-          // Exchange Google idToken for a NextVibe JWT
-          try {
-            await store.dispatch(
-              authApi.endpoints.googleLogin.initiate({ idToken }),
-            ).unwrap();
-          } catch {
-            // token exchange failed — user stays logged in to Google only
-            // the calling screen should check for this state
-          }
+      if (response.type === 'cancelled') {
+        // User dismissed — not an error, just stop loading
+        return;
+      }
+
+      if (response.type !== 'success') return;
+
+      const idToken = response.data?.idToken;
+      if (!idToken) {
+        setError('Google did not return a token. Please try again.');
+        return;
+      }
+
+      // Exchange Google ID token for NextVibe access + refresh tokens.
+      // persistSession inside onQueryStarted stores them in SecureStore.
+      try {
+        const result = await store.dispatch(
+          authApi.endpoints.googleLogin.initiate({ idToken }),
+        ).unwrap();
+
+        // isNewUser → route to onboarding (AuthGate handles /(tabs) redirect,
+        // caller can check this flag if onboarding routing is needed)
+        if ((result as any)?.data?.isNewUser) {
+          // TODO: route to onboarding when that screen exists
         }
-      } else if (response.type === 'cancelled') {
-        // User dismissed the sign-in dialog — not an error
+      } catch (err: any) {
+        const status  = err?.status;
+        const message = err?.data?.message ?? '';
+
+        if (status === 401) {
+          if (message.includes('not verified')) {
+            setError('Your Google email is not verified. Please verify it with Google first.');
+          } else if (message.includes('email')) {
+            setError('Could not retrieve your email from Google. Please try again.');
+          } else {
+            // aud mismatch or expired token — surface a clear message
+            setError('Google sign-in failed: invalid token. Try signing in again.');
+          }
+        } else if (status === 429) {
+          setError('Too many sign-in attempts. Please wait a moment and try again.');
+        } else {
+          setError('Could not sign in with Google. Please try again.');
+        }
+
+        Toast.show({
+          type:            'error',
+          text1:           'Google Sign-In failed',
+          text2:           error ?? 'Please try again.',
+          visibilityTime:  3500,
+        });
       }
     } catch (err: unknown) {
       if (isErrorWithCode(err)) {
         const code = (err as any).code;
         switch (code) {
           case statusCodes.SIGN_IN_CANCELLED:
-            break;
+            break; // user cancelled — not an error
           case statusCodes.IN_PROGRESS:
-            setError('Sign-in already in progress');
+            setError('Sign-in already in progress.');
             break;
           case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
-            setError('Google Play Services not available');
+            setError('Google Play Services is not available on this device.');
             break;
           default:
             setError('Google sign-in failed. Please try again.');
@@ -148,32 +176,21 @@ export function useGoogleAuth(): UseGoogleAuthReturn {
     }
   }
 
-  async function signOut() {
-    if (!isNative || !GoogleSignin) return;
-    try {
-      await GoogleSignin.signOut();
-      setUser(null);
-    } catch {
-      // Ignore sign-out errors
-    }
-  }
-
   function reset() {
-    setUser(null);
     setError(null);
   }
 
-  return { signInWithGoogle, loading, user, error, signOut, reset };
+  return { signInWithGoogle, loading, error, reset };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function mapUser(data: any): GoogleUser {
+export function mapGoogleUser(data: any): GoogleUser {
   const u = data?.user ?? data;
   return {
-    id:         u.id    ?? '',
-    email:      u.email ?? '',
-    name:       u.name  ?? '',
+    id:         u.id         ?? '',
+    email:      u.email      ?? '',
+    name:       u.name       ?? '',
     givenName:  u.givenName  ?? '',
     familyName: u.familyName ?? '',
     picture:    u.photo      ?? null,

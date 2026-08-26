@@ -4,22 +4,21 @@
  * Single source of truth for authentication state in memory.
  *
  * Flow:
- *   App launch → bootstrapAuth() thunk reads AsyncStorage
+ *   App launch → bootstrapAuth() thunk reads SecureStore
  *              → if accessToken exists, hits GET /v1/users/me
  *              → sets user + isAuthenticated
  *              → sets isBootstrapped = true  (hides splash)
  *
- *   Login / Register / Google → authApi mutations store tokens in AsyncStorage
+ *   Login / Register / Google → authApi mutations store tokens in SecureStore
  *                             → dispatch setUser(user) to update Redux
  *
- *   Logout → authApi mutation removes tokens from AsyncStorage
+ *   Logout → authApi mutation removes tokens from SecureStore
  *          → dispatch clearAuth() to wipe Redux state
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { AuthUser } from '../api/authApi';
-import { API_URL } from '../baseQuery';
+import { API_URL, tokenStore } from '../baseQuery';
 
 // ── State shape ───────────────────────────────────────────────────────────────
 
@@ -42,14 +41,14 @@ const initialState: AuthState = {
 
 /**
  * Run once on app launch inside _layout.tsx.
- * Reads AsyncStorage for an access token; if found, calls /v1/users/me
+ * Reads SecureStore for an access token; if found, calls /v1/users/me
  * to get the current user. Always resolves so the app can proceed.
  */
 export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
   'auth/bootstrap',
   async () => {
     try {
-      const token = await AsyncStorage.getItem('accessToken');
+      const token = await tokenStore.get('accessToken');
       if (!token) return null;
 
       const res = await fetch(`${API_URL}/v1/users/me`, {
@@ -58,8 +57,7 @@ export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
 
       if (!res.ok) {
         // Token expired / invalid — wipe storage and treat as logged out
-        await AsyncStorage.removeItem('accessToken');
-        await AsyncStorage.removeItem('refreshToken');
+        await tokenStore.removeMany(['accessToken', 'refreshToken']);
         return null;
       }
 
