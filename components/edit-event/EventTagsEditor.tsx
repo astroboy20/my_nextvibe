@@ -103,15 +103,22 @@ export default function EventTagsEditor({ event }: Props) {
   const [removeTags, { isLoading: isRemoving }] = useRemoveEventTagsMutation();
   const [createTag, { isLoading: isCreating }] = useCreateTagMutation();
 
-  // ── Own selected-ids set (source of truth, seeded from event.tags) ─────────
+  // ── Own selected-ids set (source of truth, seeded ONCE from event.tags) ──
+  // We do NOT re-seed from event.tags after mount because the parent's
+  // localTags state doesn't reflect server removals until a full refetch.
+  // This component owns the tag state completely after initial seed.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set((event?.tags ?? []).map((t) => t.id))
   );
 
-  // Re-seed if the parent prop refreshes (e.g. after refetch)
-  useEffect(() => {
-    if (event?.tags && event.tags.length > 0) {
-      setSelectedIds(new Set(event.tags.map((t) => t.id)));
+  // Only re-seed if the event ID itself changes (navigating to a different event)
+  const prevEventIdRef = React.useRef(event?.id);
+  React.useEffect(() => {
+    if (event?.id && event.id !== prevEventIdRef.current) {
+      prevEventIdRef.current = event.id;
+      setSelectedIds(new Set((event?.tags ?? []).map((t) => t.id)));
+      setInput("");
+      setToast(null);
     }
   }, [event?.id]);
 

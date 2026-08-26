@@ -2,7 +2,7 @@ import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -19,34 +19,38 @@ interface Props {
 
 export default function FeedTabs({ tabs, active, onSelect }: Props) {
   return (
-    <FlatList
-      horizontal
-      data={tabs}
-      keyExtractor={(item) => item.label}
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      renderItem={({ item: { label, icon } }) => {
-        const isActive = active === label;
-        return (
-          <TouchableOpacity
-            style={[styles.tab, isActive && styles.tabActive]}
-            onPress={() => onSelect(label)}
-            activeOpacity={0.75}
-          >
-            <Ionicons name={icon} size={14} color={isActive ? '#fff' : neutral[600]} />
-            <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
-          </TouchableOpacity>
-        );
-      }}
-    />
+    <View style={styles.container}>
+      <FlatList
+        horizontal
+        data={tabs}
+        keyExtractor={(item) => item.label}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        renderItem={({ item: { label, icon } }) => {
+          const isActive = active === label;
+          return (
+            <TouchableOpacity
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => onSelect(label)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name={icon} size={14} color={isActive ? '#fff' : neutral[600]} />
+              <Text style={[styles.label, isActive && styles.labelActive]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { height: 46 },
   row: {
     paddingHorizontal: 16,
     paddingVertical: 4,
     gap: 8,
+    alignItems: 'center',
   },
   tab: {
     flexDirection: 'row',
@@ -55,6 +59,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 9,
     borderRadius: 24,
+    height: 38,
   },
   tabActive:   { backgroundColor: brand.primaryDark },
   label:       { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[600] },
