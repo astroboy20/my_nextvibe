@@ -121,6 +121,7 @@ export default function RootLayout() {
           <Stack.Screen name="settings" />
           <Stack.Screen name="events/[id]" />
           <Stack.Screen name="edit-event" />
+          <Stack.Screen name="analytics" />
         </Stack>
       </AuthGate>
       <Toast />

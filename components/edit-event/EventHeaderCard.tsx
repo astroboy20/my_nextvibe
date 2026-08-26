@@ -3,12 +3,12 @@ import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import type { EventDraft } from './types';
 
@@ -19,6 +19,7 @@ interface Props {
     attendingCount?: number;
     rsvpCount?: number;
     locationName?: string;
+    virtualLink?: string;
     startsAt?: string;
   };
   eventId: string;
@@ -65,6 +66,26 @@ export default function EventHeaderCard({ event, eventId, onQRPress, isSharing, 
       })
     : null;
 
+  // Location / mode meta line — per Virtual Events guide
+  const isVirtual = event.mode === 'VIRTUAL';
+  const isHybrid  = event.mode === 'HYBRID';
+  const isOnsite  = !event.mode || event.mode === 'ONSITE';
+
+  // What to show as the location/mode row
+  let locationMeta: string | null = null;
+  if (isVirtual) {
+    locationMeta = '🌐 Online Event';
+  } else if (isHybrid) {
+    locationMeta = event.locationName
+      ? `🔀 Hybrid · ${event.locationName}`
+      : '🔀 Hybrid Event';
+  } else if (isOnsite && event.locationName) {
+    locationMeta = event.locationName;
+  }
+
+  // Mode pill label
+  const modePillLabel = isVirtual ? 'Virtual' : isHybrid ? 'Hybrid' : null;
+
   return (
     <View style={s.card}>
       {/* Flier thumbnail */}
@@ -83,7 +104,20 @@ export default function EventHeaderCard({ event, eventId, onQRPress, isSharing, 
       <View style={s.info}>
         <Text style={s.name} numberOfLines={2}>{event.name}</Text>
         {startsAtLabel && <Text style={s.meta}>{startsAtLabel}</Text>}
-        {event.locationName ? <Text style={s.meta} numberOfLines={1}>{event.locationName}</Text> : null}
+        {locationMeta ? (
+          <Text style={s.meta} numberOfLines={1}>{locationMeta}</Text>
+        ) : null}
+        {/* Mode pill for Virtual / Hybrid */}
+        {modePillLabel && (
+          <View style={s.modePill}>
+            <Ionicons
+              name={isVirtual ? 'videocam-outline' : 'git-merge-outline'}
+              size={10}
+              color={brand.primary}
+            />
+            <Text style={s.modePillText}>{modePillLabel}</Text>
+          </View>
+        )}
 
         {/* Action buttons */}
         <View style={s.actions}>
@@ -191,6 +225,25 @@ const s = StyleSheet.create({
   actionBtnText: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
+    color: brand.primary,
+  },
+  // Mode pill for Virtual / Hybrid
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: `${brand.primary}12`,
+    borderWidth: 1,
+    borderColor: `${brand.primary}30`,
+  },
+  modePillText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 10,
     color: brand.primary,
   },
 });

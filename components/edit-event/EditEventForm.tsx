@@ -1,24 +1,34 @@
+/**
+ * EditEventForm.tsx — React Native
+ *
+ * Virtual event support (per Virtual Events Frontend Guide):
+ *  • Mode selector: ONSITE | VIRTUAL | HYBRID pills
+ *    - ONSITE  → show Location,     hide Meeting Link
+ *    - VIRTUAL → show Meeting Link, hide Location
+ *    - HYBRID  → show both
+ *  • Meeting link validated to start with https://
+ *  • Mode change clears the irrelevant field
+ */
+
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from 'react-native';
 import FieldInput from './FieldInput';
 import LockedBanner from './LockedBanner';
 import { FlierPicker, VideoPicker } from './MediaPicker';
 import type { EventDraft, MediaState } from './types';
 import { IDLE_MEDIA, isEventStarted, toLocalInput } from './types';
-
-// ── Upload helpers ────────────────────────────────────────────────────────────
 
 let ImagePicker: typeof import('expo-image-picker') | null = null;
 let DocumentPicker: typeof import('expo-document-picker') | null = null;
@@ -28,40 +38,55 @@ try { DocumentPicker = require('expo-document-picker'); } catch {}
 const MAX_FLIER_MB = 10;
 const MAX_VIDEO_MB = 350;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type EventMode = 'ONSITE' | 'VIRTUAL' | 'HYBRID';
+
+const EVENT_MODES: {
+  id: EventMode;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
+  { id: 'ONSITE',  label: 'Onsite',  icon: 'location-outline' },
+  { id: 'VIRTUAL', label: 'Virtual', icon: 'videocam-outline'  },
+  { id: 'HYBRID',  label: 'Hybrid',  icon: 'git-merge-outline' },
+];
 
 interface FormState {
   name: string;
   description: string;
+  mode: EventMode;
   locationName: string;
   virtualLink: string;
   capacity: string;
-  startsAt: string;   // "YYYY-MM-DD HH:MM"
-  endsAt: string;     // "YYYY-MM-DD HH:MM"
+  startsAt: string;
+  endsAt: string;
+}
+
+interface FormErrors {
+  name?: string;
+  locationName?: string;
+  virtualLink?: string;
 }
 
 interface Props {
   event: EventDraft & { flierUrl?: string | null; promoVideoUrl?: string | null };
   visible: boolean;
   onDismiss: () => void;
-  /** Called with the patch payload when user saves */
   onSave: (payload: Record<string, any>) => Promise<void>;
   isSaving?: boolean;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export default function EditEventForm({ event, visible, onDismiss, onSave, isSaving }: Props) {
   const locked = isEventStarted(event?.startsAt);
 
-  const [form, setForm] = useState<FormState>(buildForm(event));
-  const [flier, setFlier] = useState<MediaState>(mediaFromUrl(event?.flierUrl));
-  const [video, setVideo] = useState<MediaState>(mediaFromUrl(event?.promoVideoUrl));
+  const [form, setForm]     = useState<FormState>(buildForm(event));
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [flier, setFlier]   = useState<MediaState>(mediaFromUrl(event?.flierUrl));
+  const [video, setVideo]   = useState<MediaState>(mediaFromUrl(event?.promoVideoUrl));
 
-  // Reset state each time the modal opens
   useEffect(() => {
     if (visible) {
       setForm(buildForm(event));
+      setErrors({});
       setFlier(mediaFromUrl(event?.flierUrl));
       setVideo(mediaFromUrl(event?.promoVideoUrl));
     }
@@ -69,23 +94,29 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
 
   const anyUploading = flier.status === 'uploading' || video.status === 'uploading';
 
-  // ── Media pickers ─────────────────────────────────────────────────────────
+  // Visibility rules per the guide
+  const showLocation    = form.mode === 'ONSITE'  || form.mode === 'HYBRID';
+  const showVirtualLink = form.mode === 'VIRTUAL' || form.mode === 'HYBRID';
+
+  const handleModeChange = (mode: EventMode) => {
+    setForm((f) => ({
+      ...f,
+      mode,
+      locationName: mode === 'VIRTUAL' ? '' : f.locationName,
+      virtualLink:  mode === 'ONSITE'  ? '' : f.virtualLink,
+    }));
+    setErrors({});
+  };
 
   const pickFlier = async () => {
     if (!ImagePicker) return;
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 0.85,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > MAX_FLIER_MB * 1024 * 1024) {
-        alert(`Flyer must be ${MAX_FLIER_MB} MB or less.`);
-        return;
-      }
+      if (asset.fileSize && asset.fileSize > MAX_FLIER_MB * 1024 * 1024) { return; }
       setFlier({ status: 'picked', uri: asset.uri, fileName: asset.fileName ?? 'flyer.jpg', remoteUrl: null });
-    } catch { /* ignore */ }
+    } catch {}
   };
 
   const pickVideo = async () => {
@@ -97,36 +128,52 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (asset.size && asset.size > MAX_VIDEO_MB * 1024 * 1024) {
-        alert(`Video must be ${MAX_VIDEO_MB} MB or less.`);
-        return;
-      }
+      if (asset.size && asset.size > MAX_VIDEO_MB * 1024 * 1024) { return; }
       setVideo({ status: 'picked', uri: asset.uri, fileName: asset.name ?? 'video.mp4', remoteUrl: null });
-    } catch { /* ignore */ }
+    } catch {}
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  const validate = (): boolean => {
+    const e: FormErrors = {};
+    if (!form.name.trim()) {
+      e.name = 'Event name is required.';
+    }
+    if (showLocation && !form.locationName.trim()) {
+      e.locationName = 'Location is required for onsite / hybrid events.';
+    }
+    if (showVirtualLink) {
+      if (!form.virtualLink.trim()) {
+        e.virtualLink = 'Meeting link is required for virtual / hybrid events.';
+      } else if (!form.virtualLink.trim().startsWith('https://')) {
+        e.virtualLink = 'Meeting link must start with https://';
+      }
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleSave = async () => {
     if (anyUploading) return;
-    const payload: Record<string, any> = {};
+    if (!validate()) return;
+
+    const payload: Record<string, any> = { mode: form.mode };
     if (form.name)        payload.name        = form.name;
     if (form.description) payload.description = form.description;
-    if (form.locationName) payload.locationName = form.locationName;
-    if (form.virtualLink)  payload.virtualLink  = form.virtualLink;
-    if (form.capacity)     payload.capacity     = Number(form.capacity);
-    if (form.startsAt)     payload.startsAt     = form.startsAt;
-    if (form.endsAt)       payload.endsAt       = form.endsAt;
-    // local media URIs are passed through so the parent can upload them
-    payload.flierUri      = flier.uri ?? null;
+    if (form.capacity)    payload.capacity    = Number(form.capacity);
+    if (form.startsAt)    payload.startsAt    = form.startsAt;
+    if (form.endsAt)      payload.endsAt      = form.endsAt;
+
+    // Send field only if relevant; clear the other
+    payload.locationName = showLocation    ? form.locationName : '';
+    payload.virtualLink  = showVirtualLink ? form.virtualLink  : '';
+
+    payload.flierUri      = flier.uri       ?? null;
     payload.flierUrl      = flier.remoteUrl ?? null;
-    payload.promoVideoUri = video.uri ?? null;
+    payload.promoVideoUri = video.uri       ?? null;
     payload.promoVideoUrl = video.remoteUrl ?? null;
+
     await onSave(payload);
   };
-
-  const showLocation     = !event?.mode || event.mode === 'ONSITE'  || event.mode === 'HYBRID';
-  const showVirtualLink  = event?.mode === 'VIRTUAL' || event?.mode === 'HYBRID';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onDismiss}>
@@ -135,7 +182,6 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
       </TouchableWithoutFeedback>
 
       <View style={s.sheet}>
-        {/* Header */}
         <View style={s.sheetHeader}>
           <Ionicons name="create-outline" size={18} color={brand.primary} />
           <Text style={s.sheetTitle}>Edit Event</Text>
@@ -158,6 +204,7 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
             placeholder="Event name"
             disabled={locked}
+            error={errors.name}
           />
 
           <FieldInput
@@ -185,6 +232,38 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             disabled={locked}
           />
 
+          {/* ── Event Mode selector ─────────────────────────────── */}
+          <View style={s.modeGroup}>
+            <Text style={s.sectionLabel}>Event Mode</Text>
+            <View style={s.modeRow}>
+              {EVENT_MODES.map((m) => {
+                const active = form.mode === m.id;
+                return (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[
+                      s.modePill,
+                      active && s.modePillActive,
+                      locked && s.modePillDisabled,
+                    ]}
+                    onPress={() => !locked && handleModeChange(m.id)}
+                    activeOpacity={locked ? 1 : 0.7}
+                  >
+                    <Ionicons
+                      name={m.icon}
+                      size={14}
+                      color={active ? '#fff' : neutral[500]}
+                    />
+                    <Text style={[s.modePillText, active && s.modePillTextActive]}>
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ── Location — ONSITE & HYBRID only ─────────────────── */}
           {showLocation && (
             <FieldInput
               label="Location"
@@ -192,16 +271,20 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
               onChangeText={(v) => setForm((f) => ({ ...f, locationName: v }))}
               placeholder="Venue name or address"
               disabled={locked}
+              error={errors.locationName}
             />
           )}
 
+          {/* ── Meeting link — VIRTUAL & HYBRID only ─────────────── */}
           {showVirtualLink && (
             <FieldInput
               label="Meeting Link"
               value={form.virtualLink}
               onChangeText={(v) => setForm((f) => ({ ...f, virtualLink: v }))}
-              placeholder="https://meet.example.com/..."
+              placeholder="https://zoom.us/j/..."
               disabled={locked}
+              error={errors.virtualLink}
+              hint="Supports Zoom, Google Meet, Teams, or any https:// URL"
             />
           )}
 
@@ -214,7 +297,7 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             disabled={locked}
           />
 
-          {/* Flier */}
+          {/* ── Flier ───────────────────────────────────────────── */}
           <Text style={s.sectionLabel}>Event Flyer</Text>
           <FlierPicker
             state={flier}
@@ -223,7 +306,7 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             onRemove={() => setFlier(IDLE_MEDIA)}
           />
 
-          {/* Promo video */}
+          {/* ── Promo video ──────────────────────────────────────── */}
           <Text style={[s.sectionLabel, { marginTop: 16 }]}>Promotional Video</Text>
           <VideoPicker
             state={video}
@@ -232,7 +315,7 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             onRemove={() => setVideo(IDLE_MEDIA)}
           />
 
-          {/* Actions */}
+          {/* ── Actions ─────────────────────────────────────────── */}
           <View style={s.btnRow}>
             <TouchableOpacity style={s.cancelBtn} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={s.cancelText}>Cancel</Text>
@@ -262,6 +345,7 @@ function buildForm(event: any): FormState {
   return {
     name:         event?.name          ?? '',
     description:  event?.description   ?? '',
+    mode:         (event?.mode as EventMode) ?? 'ONSITE',
     locationName: event?.locationName  ?? '',
     virtualLink:  event?.virtualLink   ?? '',
     capacity:     event?.capacity != null ? String(event.capacity) : '',
@@ -284,10 +368,7 @@ const s = StyleSheet.create({
   },
   sheet: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    top: '10%',
+    bottom: 0, left: 0, right: 0, top: '8%',
     backgroundColor: neutral[0],
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -319,6 +400,27 @@ const s = StyleSheet.create({
     color: neutral[700],
     marginBottom: 8,
   },
+
+  // Mode selector
+  modeGroup: { marginBottom: 16 },
+  modeRow:   { flexDirection: 'row', gap: 8 },
+  modePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: neutral[200],
+    backgroundColor: neutral[50],
+  },
+  modePillActive:   { backgroundColor: brand.primary, borderColor: brand.primary },
+  modePillDisabled: { opacity: 0.5 },
+  modePillText:     { fontFamily: fontFamily.semibold, fontSize: 12, color: neutral[500] },
+  modePillTextActive: { color: '#fff' },
+
   btnRow: {
     flexDirection: 'row',
     gap: 10,

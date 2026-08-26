@@ -1,104 +1,103 @@
 ﻿/**
- * Edit Event / Organizer Dashboard
+ * edit-event.tsx — Organiser Dashboard (React Native)
  *
- * Sections:
- *   EventHeaderCard   → flier + event info + QR / Share / View
- *   RsvpTracker       → Going / Maybe / Can't Go counts
- *   EditEventForm     → bottom-sheet modal for editing event fields + media
- *   EventReminders    → push notification reminder toggles
- *   EventTagsEditor   → attach / remove / create tags
- *   GamificationHub   → games list + create
- *   StatusUpdater     → publish / end / cancel actions
+ * Sections
+ * ─────────
+ * 1. EventHeaderCard   — flier, event info, QR / Share / View buttons
+ * 2. RsvpTrackerSection
+ * 3. EditEventSection
+ * 4. EventRemindersSection
+ * 5. EventTagsSection      — real tag add/create via tagsApi
+ * 6. TicketSection         — full ticket tier management via ticketsApi
+ * 7. GamificationSection
+ * 8. AnalyticsSection
+ * 9. StatusSection
  */
 
 import ConfirmModal, {
-    type ConfirmAction,
-} from "@/components/edit-event/ConfirmModal";
-import DashboardCard from "@/components/edit-event/DashboardCard";
-import EditEventForm from "@/components/edit-event/EditEventForm";
-import EventHeaderCard from "@/components/edit-event/EventHeaderCard";
-import EventReminders from "@/components/edit-event/EventReminders";
-import EventTagsEditor from "@/components/edit-event/EventTagsEditor";
-import GamificationHub from "@/components/edit-event/GamificationHub";
-import QRModal from "@/components/edit-event/QRModal";
-import RsvpTracker from "@/components/edit-event/RsvpTracker";
-import StatusUpdater from "@/components/edit-event/StatusUpdater";
-import { isEventStarted } from "@/components/edit-event/types";
-import { AppHeader } from "@/components/navigation/TopNavBar";
-import { EditEventDashboardSkeleton } from "@/components/ui/Skeleton";
-import { brand, neutral, semantic } from "@/constants/Colors";
-import { fontFamily, fontSize } from "@/constants/Typography";
+  type ConfirmAction,
+} from '@/components/edit-event/ConfirmModal';
+import DashboardCard from '@/components/edit-event/DashboardCard';
+import EditEventForm from '@/components/edit-event/EditEventForm';
+import EventHeaderCard from '@/components/edit-event/EventHeaderCard';
+import EventReminders from '@/components/edit-event/EventReminders';
+import EventTagsEditor from '@/components/edit-event/EventTagsEditor';
+import GamificationHub from '@/components/edit-event/GamificationHub';
+import QRModal from '@/components/edit-event/QRModal';
+import RsvpTracker from '@/components/edit-event/RsvpTracker';
+import StatusUpdater from '@/components/edit-event/StatusUpdater';
+import TicketManager from '@/components/edit-event/TicketManager';
+import { isEventStarted } from '@/components/edit-event/types';
+import { AppHeader } from '@/components/navigation/TopNavBar';
+import { EditEventDashboardSkeleton } from '@/components/ui/Skeleton';
+import { brand, neutral, semantic } from '@/constants/Colors';
+import { fontFamily, fontSize } from '@/constants/Typography';
 import {
-    useAddEventTagsMutation,
-    useGetEventByIdQuery,
-    useRemoveEventTagsMutation,
-    useUpdateEventMutation,
-    useUpdateEventStatusMutation,
-} from "@/store/api/eventsApi";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+  useGetEventByIdQuery,
+  useUpdateEventMutation,
+  useUpdateEventStatusMutation,
+} from '@/store/api/eventsApi';
+import { useGetRemindersQuery } from '@/store/api/reminderApi';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+  Alert,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// ── Screen ────────────────────────────────────────────────────────────────────
+// ─── Screen ─────────────────────────────────────────────────────────────────────
 
 export default function EditEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const eventId = id ?? "";
-  const router = useRouter();
+  const eventId = id ?? '';
+  const router  = useRouter();
 
-  // ── Fetch event ────────────────────────────────────────────────────────────
+  // ── Data ───────────────────────────────────────────────────────────────────
   const {
     data: eventData,
-    isLoading: isLoadingEvent,
-    isError: isErrorEvent,
-    refetch: refetchEvent,
+    isLoading,
+    isError,
+    refetch,
   } = useGetEventByIdQuery(eventId, { skip: !eventId });
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
-  const [updateEvent] = useUpdateEventMutation();
+  const { data: reminderTemplates = [] } = useGetRemindersQuery(eventId, {
+    skip: !eventId,
+  });
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+  const [updateEvent]       = useUpdateEventMutation();
   const [updateEventStatus] = useUpdateEventStatusMutation();
-  const [addEventTags] = useAddEventTagsMutation();
-  const [removeEventTags] = useRemoveEventTagsMutation();
 
-  // ── Local UI state ─────────────────────────────────────────────────────────
-  const [showQR, setShowQR] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
-    null
-  );
+  // ── UI state ────────────────────────────────────────────────────────────────
+  const [showQR,           setShowQR]           = useState(false);
+  const [showEdit,         setShowEdit]         = useState(false);
+  const [isSharing,        setIsSharing]        = useState(false);
+  const [confirmAction,    setConfirmAction]    = useState<ConfirmAction | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
-  const [isAddingTag, setIsAddingTag] = useState(false);
-  const [isCreatingTag, setIsCreatingTag] = useState(false);
+  const [isSaving,         setIsSaving]         = useState(false);
+  // local tags for optimistic header display; real management lives in EventTagsEditor
+  const [localTags, setLocalTags] = useState<{ id: string; name: string }[]>([]);
 
-  // Optimistic local tags list — seeded from API, updated on add/remove
-  const [localTags, setLocalTags] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
+  const event    = eventData?.data;
+  const eventUrl = `https://mynextvibe.app/events/${eventId}`;
 
-  const event = eventData?.data;
-
-  // Sync local tags when event data arrives
+  // Seed local tags once server data arrives
   useEffect(() => {
     if (event?.tags) {
-      setLocalTags(event.tags.map((t: any) => ({ id: t.id, name: t.name })));
+      setLocalTags(
+        (event.tags as any[]).map((t) => ({ id: t.id, name: t.name })),
+      );
     }
   }, [event?.tags]);
 
-  const eventUrl = `https://mynextvibe.app/events/${eventId}`;
-  const liveGameCount = 1; // TODO: derive from games API
+  const activeReminderCount = reminderTemplates.filter((t) => t.enabled).length;
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -115,19 +114,15 @@ export default function EditEventScreen() {
     }
   };
 
-  const handleViewEvent = () => {
-    router.push(`/events/${eventId}` as any);
-  };
-
   const handleSave = async (payload: Record<string, any>) => {
     if (!eventId) return;
     setIsSaving(true);
     try {
       await updateEvent({ eventId, data: payload }).unwrap();
       setShowEdit(false);
-      Alert.alert("Saved", "Event updated successfully.");
+      Alert.alert('Saved', 'Event updated successfully.');
     } catch {
-      Alert.alert("Error", "Failed to update event. Please try again.");
+      Alert.alert('Error', 'Failed to update event. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -139,138 +134,70 @@ export default function EditEventScreen() {
     try {
       await updateEventStatus({
         eventId,
-        status: action as "PUBLISHED" | "CANCELLED" | "ENDED",
+        status: action as 'PUBLISHED' | 'CANCELLED' | 'ENDED',
       }).unwrap();
       const msg =
-        action === "PUBLISHED"
-          ? "Event published! It's now live."
-          : action === "ENDED"
-          ? "Event marked as ended."
-          : "Event cancelled.";
-      Alert.alert("Updated", msg);
+        action === 'PUBLISHED' ? "Event published! It's now live." :
+        action === 'ENDED'     ? 'Event marked as ended.'          :
+                                 'Event cancelled.';
+      Alert.alert('Updated', msg);
       setConfirmAction(null);
     } catch {
-      Alert.alert("Error", "Failed to update status. Please try again.");
+      Alert.alert('Error', 'Failed to update status. Please try again.');
     } finally {
       setIsUpdatingStatus(false);
     }
   };
 
-  const handleAddTag = async (tagId: string) => {
-    if (!eventId) return;
-    setIsAddingTag(true);
-    try {
-      await addEventTags({ eventId, tagIds: [tagId] }).unwrap();
-      // Optimistically update local tags — full sync happens via cache invalidation
-      const allTags: Array<{ id: string; name: string }> =
-        (event as any)?._allTags ?? [];
-      const tag = allTags.find((t) => t.id === tagId);
-      if (tag) setLocalTags((prev) => [...prev, tag]);
-    } catch {
-      Alert.alert("Error", "Failed to add tag.");
-    } finally {
-      setIsAddingTag(false);
-    }
-  };
+  // ── Loading ─────────────────────────────────────────────────────────────────
 
-  const handleRemoveTag = async (tagId: string) => {
-    if (!eventId) return;
-    setRemovingTagId(tagId);
-    try {
-      await removeEventTags({ eventId, tagIds: [tagId] }).unwrap();
-      setLocalTags((prev) => prev.filter((t) => t.id !== tagId));
-    } catch {
-      Alert.alert("Error", "Failed to remove tag.");
-    } finally {
-      setRemovingTagId(null);
-    }
-  };
-
-  const handleCreateAndAddTag = async (name: string) => {
-    // Tag creation requires a separate vibe-tags endpoint — for now add optimistically
-    setIsCreatingTag(true);
-    try {
-      const tempTag = { id: `temp-${Date.now()}`, name };
-      setLocalTags((prev) => [...prev, tempTag]);
-    } finally {
-      setIsCreatingTag(false);
-    }
-  };
-
-  // ── Loading ────────────────────────────────────────────────────────────────
-
-  if (isLoadingEvent) {
+  if (isLoading) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={['top']}>
         <AppHeader onBack={() => router.back()} notificationCount={2} />
-        <ScrollView
-          style={s.scroll}
-          contentContainerStyle={s.content}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={s.scroll} contentContainerStyle={s.content}>
           <EditEventDashboardSkeleton />
         </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // ── Error ──────────────────────────────────────────────────────────────────
+  // ── Error ───────────────────────────────────────────────────────────────────
 
-  if (isErrorEvent || !event) {
+  if (isError || !event) {
     return (
-      <SafeAreaView style={s.safe} edges={["top"]}>
+      <SafeAreaView style={s.safe} edges={['top']}>
         <AppHeader onBack={() => router.back()} notificationCount={2} />
-        <View style={s.errorWrap}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={48}
-            color={neutral[300]}
-          />
-          <Text style={s.errorTitle}>Event not found</Text>
-          <Text style={s.errorSub}>
-            We couldn't load this event. Please try again.
-          </Text>
-          <TouchableOpacity
-            style={s.retryBtn}
-            onPress={() => refetchEvent()}
-            activeOpacity={0.8}
-          >
-            <Text style={s.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+        <ErrorState onRetry={refetch} />
       </SafeAreaView>
     );
   }
 
-  // ── Derived values ─────────────────────────────────────────────────────────
+  // ── Normalise event shape ────────────────────────────────────────────────────
 
   const eventForCard = {
-    id: event.id,
-    name: event.name,
-    description: event.description ?? "",
-    mode: (event.mode ?? "ONSITE") as "ONSITE" | "VIRTUAL" | "HYBRID",
-    locationName: event.locationName ?? "",
-    virtualLink: event.virtualLink ?? "",
-    capacity: String((event as any).capacity ?? ""),
-    startsAt: event.startsAt ?? "",
-    endsAt: String((event as any).endsAt ?? ""),
-    flierUrl: event.flierUrl ?? null,
-    promoVideoUrl: event.promoVideoUrl ?? null,
-    status: event.status ?? "DRAFT",
-    attendingCount:
-      (event as any).attendingCount ?? (event as any)._count?.attendees ?? 0,
-    maybeCount: (event as any).maybeCount ?? 0,
-    cantGoCount: (event as any).cantGoCount ?? 0,
-    tags: localTags,
+    id:            event.id,
+    name:          event.name,
+    description:   event.description         ?? '',
+    mode:          (event.mode ?? 'ONSITE')  as 'ONSITE' | 'VIRTUAL' | 'HYBRID',
+    locationName:  event.locationName        ?? '',
+    virtualLink:   event.virtualLink         ?? '',
+    capacity:      String((event as any).capacity ?? ''),
+    startsAt:      event.startsAt            ?? '',
+    endsAt:        String((event as any).endsAt ?? ''),
+    flierUrl:      event.flierUrl            ?? null,
+    promoVideoUrl: event.promoVideoUrl       ?? null,
+    status:        event.status              ?? 'DRAFT',
+    attendingCount: (event as any).attendingCount ?? (event as any)._count?.attendees ?? 0,
+    maybeCount:    (event as any).maybeCount ?? 0,
+    cantGoCount:   (event as any).cantGoCount ?? 0,
+    tags:          localTags,
   };
 
-  const allTags: Array<{ id: string; name: string }> =
-    (event as any).tags ?? [];
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
+    <SafeAreaView style={s.safe} edges={['top']}>
       <AppHeader onBack={() => router.back()} notificationCount={2} />
 
       <ScrollView
@@ -279,209 +206,64 @@ export default function EditEventScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Event summary card */}
+        {/* 1 ── Header */}
         <EventHeaderCard
           event={eventForCard}
           eventId={eventId}
           onQRPress={() => setShowQR(true)}
           isSharing={isSharing}
           onShare={handleShare}
-          onViewPress={handleViewEvent}
+          onViewPress={() => router.push(`/events/${eventId}` as any)}
         />
 
-        {/* ── RSVP Tracker ───────────────────────────────────── */}
-        <DashboardCard
-          title="RSVP Tracker"
-          icon={
-            <Ionicons name="people-outline" size={16} color={brand.primary} />
-          }
-          badge={<InlineBadge label={`${eventForCard.attendingCount} Going`} />}
-          defaultOpen
-        >
-          <RsvpTracker
-            counts={{
-              going: eventForCard.attendingCount,
-              maybe: eventForCard.maybeCount,
-              cantGo: eventForCard.cantGoCount,
-            }}
-          />
-        </DashboardCard>
+        {/* 2 ── RSVP */}
+        <RsvpTrackerSection
+          going={eventForCard.attendingCount}
+          maybe={eventForCard.maybeCount}
+          cantGo={eventForCard.cantGoCount}
+        />
 
-        {/* ── Edit Event ─────────────────────────────────────── */}
-        <DashboardCard
-          title="Edit Event"
-          icon={
-            <Ionicons name="create-outline" size={16} color={brand.primary} />
-          }
-          badge={
-            isEventStarted(event.startsAt) ? (
-              <InlineBadge label="Locked" danger />
-            ) : (
-              <InlineBadge label="Editable" success />
-            )
-          }
-        >
-          {isEventStarted(event.startsAt) ? (
-            <View style={s.infoRow}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={14}
-                color={semantic.error}
-              />
-              <Text style={s.infoText}>
-                This event has already started. All editing is now locked.
-              </Text>
-            </View>
-          ) : (
-            <Text style={s.cardDesc}>
-              Update name, description, date & time, flyer, promo video,
-              location, or capacity. Editing locks the moment the event starts.
-            </Text>
-          )}
-          <TouchableOpacity
-            style={[
-              s.primaryBtn,
-              isEventStarted(event.startsAt) && s.btnDisabled,
-            ]}
-            onPress={() => setShowEdit(true)}
-            disabled={isEventStarted(event.startsAt)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="create-outline" size={15} color="#fff" />
-            <Text style={s.primaryBtnText}>
-              {isEventStarted(event.startsAt) ? "Editing Locked" : "Edit Event"}
-            </Text>
-          </TouchableOpacity>
-        </DashboardCard>
+        {/* 3 ── Edit */}
+        <EditEventSection
+          event={eventForCard}
+          isLocked={isEventStarted(event.startsAt)}
+          onOpenEdit={() => setShowEdit(true)}
+        />
 
-        {/* ── Event Reminders ────────────────────────────────── */}
-        <DashboardCard
-          title="Event Reminders"
-          icon={
-            <Ionicons
-              name="notifications-outline"
-              size={16}
-              color={brand.primary}
-            />
-          }
-          badge={<InlineBadge label="2 Active" />}
-        >
-          <EventReminders
-            eventId={eventId}
-            eventStartsAt={event.startsAt}
-            eventStatus={event.status}
-          />
-        </DashboardCard>
+        {/* 4 ── Reminders */}
+        <EventRemindersSection
+          eventId={eventId}
+          eventStartsAt={event.startsAt}
+          eventStatus={event.status}
+          activeCount={activeReminderCount}
+        />
 
-        {/* ── Event Tags ─────────────────────────────────────── */}
-        <DashboardCard
-          title="Event Tags"
-          icon={
-            <Ionicons name="pricetag-outline" size={16} color={brand.primary} />
-          }
-          badge={
-            isEventStarted(event.startsAt) ? (
-              <InlineBadge label="Locked" danger />
-            ) : (
-              <InlineBadge label={`${localTags.length} Tags`} />
-            )
-          }
-        >
-          <EventTagsEditor
-            event={{ ...eventForCard }}
-            allTags={allTags}
-            isAdding={isAddingTag}
-            isCreating={isCreatingTag}
-            removingTagId={removingTagId}
-            onAdd={handleAddTag}
-            onRemove={handleRemoveTag}
-            onCreateAndAdd={handleCreateAndAddTag}
-          />
-        </DashboardCard>
+        {/* 5 ── Tags */}
+        <EventTagsSection
+          event={eventForCard}
+          isLocked={isEventStarted(event.startsAt)}
+        />
 
-        {/* ── Ticket Management ──────────────────────────────── */}
-        <DashboardCard
-          title="Ticket Management"
-          icon={
-            <Ionicons name="ticket-outline" size={16} color={brand.primary} />
-          }
-          badge={<InlineBadge label="0 Sold" success />}
-        >
-          <View style={s.placeholder}>
-            <Ionicons name="ticket-outline" size={28} color={neutral[300]} />
-            <Text style={s.placeholderText}>No tickets created yet</Text>
-            <Text style={s.placeholderSub}>Ticket creator coming soon</Text>
-          </View>
-        </DashboardCard>
+        {/* 6 ── Tickets */}
+        <TicketSection eventId={eventId} eventStatus={event.status} />
 
-        {/* ── Gamification Hub ───────────────────────────────── */}
-        <DashboardCard
-          title="Gamification Hub"
-          icon={
-            <Ionicons
-              name="game-controller-outline"
-              size={16}
-              color={brand.primary}
-            />
-          }
-          badge={<InlineBadge label={`${liveGameCount} Live`} success />}
-        >
-          <GamificationHub
-            eventId={eventId}
-            eventStatus={event.status}
-            liveCount={liveGameCount}
-            onCreateGame={() =>
-              Alert.alert("Coming soon", "Game creator is on the way!")
-            }
-          />
-        </DashboardCard>
+        {/* 7 ── Games */}
+        <GamificationSection eventId={eventId} eventStatus={event.status} />
 
-        {/* ── Analytics ──────────────────────────────────────── */}
-        <DashboardCard
-          title="Analytics"
-          icon={
-            <Ionicons
-              name="bar-chart-outline"
-              size={16}
-              color={brand.primary}
-            />
-          }
-          badge={<InlineBadge label="Insights" />}
-        >
-          <View style={s.statsGrid}>
-            <StatBox
-              value={eventForCard.attendingCount}
-              label="RSVPs"
-              color={brand.primary}
-            />
-            <StatBox value={0} label="Tickets" color={semantic.success} />
-            <StatBox value={liveGameCount} label="Games" color="#9B59B6" />
-          </View>
-          <Text style={[s.cardDesc, { marginTop: 10 }]}>
-            Revenue, vibe-tags, postcards, social velocity & audience
-            demographics on the full page.
-          </Text>
-        </DashboardCard>
+        {/* 8 ── Analytics */}
+        <AnalyticsSection
+          eventId={eventId}
+          rsvps={eventForCard.attendingCount}
+          activeReminders={activeReminderCount}
+        />
 
-        {/* ── Update Status ──────────────────────────────────── */}
-        <DashboardCard
-          title="Update Event Status"
-          icon={
-            <Ionicons
-              name="ellipsis-horizontal-circle-outline"
-              size={16}
-              color={brand.primary}
-            />
-          }
-          badge={<StatusPill status={event.status} />}
-        >
-          <StatusUpdater
-            status={event.status}
-            isLoading={isUpdatingStatus}
-            onEnd={() => setConfirmAction("ENDED")}
-            onCancel={() => setConfirmAction("CANCELLED")}
-          />
-        </DashboardCard>
+        {/* 9 ── Status */}
+        <StatusSection
+          status={event.status}
+          isLoading={isUpdatingStatus}
+          onEnd={() => setConfirmAction('ENDED')}
+          onCancel={() => setConfirmAction('CANCELLED')}
+        />
       </ScrollView>
 
       {/* ── Modals ── */}
@@ -510,190 +292,375 @@ export default function EditEventScreen() {
   );
 }
 
-// ── Tiny local helpers ────────────────────────────────────────────────────────
+// ─── Section components ────────────────────────────────────────────────────────
 
-function InlineBadge({
-  label,
-  danger,
-  success,
-}: {
-  label: string;
-  danger?: boolean;
-  success?: boolean;
-}) {
-  const bg = danger
-    ? `${semantic.error}15`
-    : success
-    ? `${semantic.success}15`
-    : `${brand.primary}12`;
-  const color = danger
-    ? semantic.error
-    : success
-    ? semantic.success
-    : brand.primary;
+// ── 2. RSVP ────────────────────────────────────────────────────────────────────
+
+function RsvpTrackerSection({
+  going, maybe, cantGo,
+}: { going: number; maybe: number; cantGo: number }) {
   return (
-    <View style={[b.pill, { backgroundColor: bg }]}>
-      <Text style={[b.text, { color }]}>{label}</Text>
-    </View>
+    <DashboardCard
+      title="RSVP Tracker"
+      icon={<Ionicons name="people-outline" size={16} color={brand.primary} />}
+      badge={<CountBadge label={`${going} Going`} />}
+      defaultOpen
+    >
+      <RsvpTracker counts={{ going, maybe, cantGo }} />
+    </DashboardCard>
   );
 }
 
-function StatusPill({ status }: { status?: string }) {
+// ── 3. Edit Event ───────────────────────────────────────────────────────────────
+
+function EditEventSection({
+  event,
+  isLocked,
+  onOpenEdit,
+}: {
+  event: any;
+  isLocked: boolean;
+  onOpenEdit: () => void;
+}) {
+  return (
+    <DashboardCard
+      title="Edit Event"
+      icon={<Ionicons name="create-outline" size={16} color={brand.primary} />}
+      badge={
+        isLocked
+          ? <StatusBadge label="Locked"    color={semantic.error}   />
+          : <StatusBadge label="Editable"  color={semantic.success} />
+      }
+    >
+      {isLocked ? (
+        <View style={sec.lockedRow}>
+          <Ionicons name="lock-closed-outline" size={14} color={semantic.error} />
+          <Text style={sec.lockedText}>
+            This event has already started. All editing is now locked.
+          </Text>
+        </View>
+      ) : (
+        <Text style={sec.desc}>
+          Update name, description, date & time, flyer, promo video, location,
+          or capacity. Editing locks the moment the event starts.
+        </Text>
+      )}
+      <PrimaryButton
+        label={isLocked ? 'Editing Locked' : 'Edit Event'}
+        icon="create-outline"
+        onPress={onOpenEdit}
+        disabled={isLocked}
+      />
+    </DashboardCard>
+  );
+}
+
+// ── 4. Reminders ────────────────────────────────────────────────────────────────
+
+function EventRemindersSection({
+  eventId,
+  eventStartsAt,
+  eventStatus,
+  activeCount,
+}: {
+  eventId: string;
+  eventStartsAt?: string;
+  eventStatus?: string;
+  activeCount: number;
+}) {
+  return (
+    <DashboardCard
+      title="Event Reminders"
+      icon={<Ionicons name="notifications-outline" size={16} color={brand.primary} />}
+      badge={<CountBadge label={`${activeCount} Active`} />}
+    >
+      <EventReminders
+        eventId={eventId}
+        eventStartsAt={eventStartsAt}
+        eventStatus={eventStatus}
+      />
+    </DashboardCard>
+  );
+}
+
+// ── 5. Tags ─────────────────────────────────────────────────────────────────────
+
+function EventTagsSection({
+  event,
+  isLocked,
+}: {
+  event: any;
+  isLocked: boolean;
+}) {
+  return (
+    <DashboardCard
+      title="Event Tags"
+      icon={<Ionicons name="pricetag-outline" size={16} color={brand.primary} />}
+      badge={
+        isLocked
+          ? <StatusBadge label="Locked" color={semantic.error} />
+          : <CountBadge label={`${event.tags?.length ?? 0} Tags`} />
+      }
+    >
+      <EventTagsEditor event={event} />
+    </DashboardCard>
+  );
+}
+
+// ── 6. Tickets ──────────────────────────────────────────────────────────────────
+
+function TicketSection({
+  eventId,
+  eventStatus,
+}: {
+  eventId: string;
+  eventStatus?: string;
+}) {
+  return (
+    <DashboardCard
+      title="Ticket Management"
+      icon={<Ionicons name="ticket-outline" size={16} color={brand.primary} />}
+      badge={<CountBadge label="Tickets" />}
+    >
+      <TicketManager eventId={eventId} eventStatus={eventStatus} />
+    </DashboardCard>
+  );
+}
+
+// ── 7. Gamification ─────────────────────────────────────────────────────────────
+
+function GamificationSection({
+  eventId,
+  eventStatus,
+}: {
+  eventId: string;
+  eventStatus?: string;
+}) {
+  return (
+    <DashboardCard
+      title="Gamification Hub"
+      icon={<Ionicons name="game-controller-outline" size={16} color={brand.primary} />}
+      badge={<CountBadge label="1 Live" color={semantic.success} />}
+    >
+      <GamificationHub
+        eventId={eventId}
+        eventStatus={eventStatus}
+        liveCount={1}
+        onCreateGame={() => Alert.alert('Coming soon', 'Game creator is on the way!')}
+      />
+    </DashboardCard>
+  );
+}
+
+// ── 8. Analytics ────────────────────────────────────────────────────────────────
+
+function AnalyticsSection({
+  eventId,
+  rsvps,
+  activeReminders,
+}: {
+  eventId: string;
+  rsvps: number;
+  activeReminders: number;
+}) {
+  const router = useRouter();
+  return (
+    <DashboardCard
+      title="Analytics"
+      icon={<Ionicons name="bar-chart-outline" size={16} color={brand.primary} />}
+      badge={<CountBadge label="Insights" />}
+    >
+      <View style={sec.statsGrid}>
+        <StatBox value={rsvps}           label="RSVPs"     color={brand.primary}    />
+        <StatBox value={0}               label="Tickets"   color={semantic.success} />
+        <StatBox value={activeReminders} label="Reminders" color="#9B59B6"          />
+      </View>
+      <Text style={[sec.desc, { marginTop: 10 }]}>
+        Revenue, vibe-tags, postcards, social velocity & audience demographics
+        available on the full analytics page.
+      </Text>
+      <TouchableOpacity
+        style={sec.analyticsBtn}
+        onPress={() => router.push({ pathname: '/analytics', params: { id: eventId } } as any)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="analytics-outline" size={15} color={brand.primary} />
+        <Text style={sec.analyticsBtnText}>View Full Analytics</Text>
+        <Ionicons name="chevron-forward" size={14} color={brand.primary} />
+      </TouchableOpacity>
+    </DashboardCard>
+  );
+}
+
+// ── 9. Status ───────────────────────────────────────────────────────────────────
+
+function StatusSection({
+  status,
+  isLoading,
+  onEnd,
+  onCancel,
+}: {
+  status?: string;
+  isLoading: boolean;
+  onEnd: () => void;
+  onCancel: () => void;
+}) {
   const color =
-    status === "PUBLISHED" || status === "LIVE"
-      ? semantic.success
-      : status === "ENDED" || status === "CANCELLED"
-      ? neutral[400]
-      : semantic.warning;
+    status === 'PUBLISHED' || status === 'LIVE'         ? semantic.success :
+    status === 'ENDED'     || status === 'CANCELLED'    ? neutral[400]     :
+    semantic.warning;
+
   return (
-    <View style={[b.pill, { backgroundColor: `${color}18` }]}>
-      <Text style={[b.text, { color }]}>{status ?? "DRAFT"}</Text>
-    </View>
+    <DashboardCard
+      title="Update Event Status"
+      icon={
+        <Ionicons
+          name="ellipsis-horizontal-circle-outline"
+          size={16}
+          color={brand.primary}
+        />
+      }
+      badge={
+        <View style={[sec.statusPill, { backgroundColor: `${color}18` }]}>
+          <Text style={[sec.statusPillText, { color }]}>{status ?? 'DRAFT'}</Text>
+        </View>
+      }
+    >
+      <StatusUpdater
+        status={status}
+        isLoading={isLoading}
+        onEnd={onEnd}
+        onCancel={onCancel}
+      />
+    </DashboardCard>
   );
 }
 
-function StatBox({
-  value,
-  label,
-  color,
+// ─── Shared micro-components ───────────────────────────────────────────────────
+
+function PrimaryButton({
+  label, icon, onPress, disabled,
 }: {
-  value: number;
   label: string;
-  color: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <View style={b.statBox}>
-      <Text style={[b.statVal, { color }]}>{value}</Text>
-      <Text style={b.statLbl}>{label}</Text>
+    <TouchableOpacity
+      style={[sec.primaryBtn, disabled && sec.primaryBtnDisabled]}
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.8}
+    >
+      <Ionicons name={icon} size={15} color="#fff" />
+      <Text style={sec.primaryBtnText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function CountBadge({ label, color }: { label: string; color?: string }) {
+  const c = color ?? brand.primary;
+  return (
+    <View style={[sec.badge, { backgroundColor: `${c}15` }]}>
+      <Text style={[sec.badgeText, { color: c }]}>{label}</Text>
     </View>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+function StatusBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={[sec.badge, { backgroundColor: `${color}15` }]}>
+      <Text style={[sec.badgeText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+function StatBox({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={sec.statBox}>
+      <Text style={[sec.statValue, { color }]}>{value}</Text>
+      <Text style={sec.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <View style={s.errorWrap}>
+      <Ionicons name="alert-circle-outline" size={48} color={neutral[300]} />
+      <Text style={s.errorTitle}>Event not found</Text>
+      <Text style={s.errorSub}>We couldn't load this event. Please try again.</Text>
+      <TouchableOpacity style={s.retryBtn} onPress={onRetry} activeOpacity={0.8}>
+        <Text style={s.retryBtnText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: neutral[50] },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 48 },
-
-  // ── Error state ──────────────────────────────────────────────────────────
+  safe:    { flex: 1, backgroundColor: neutral[50] },
+  scroll:  { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 52 },
   errorWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 10,
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 32, gap: 10,
   },
-  errorTitle: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-    color: neutral[800],
-  },
-  errorSub: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: neutral[500],
-    textAlign: "center",
-    lineHeight: 20,
+  errorTitle: { fontFamily: fontFamily.bold, fontSize: fontSize.lg, color: neutral[800] },
+  errorSub:   {
+    fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500],
+    textAlign: 'center', lineHeight: 20,
   },
   retryBtn: {
-    marginTop: 8,
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: brand.primary,
+    marginTop: 8, paddingHorizontal: 32, paddingVertical: 12,
+    borderRadius: 12, backgroundColor: brand.primary,
   },
-  retryBtnText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: "#fff",
-  },
-
-  // ── Card internals ───────────────────────────────────────────────────────
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: `${semantic.error}08`,
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-  },
-  infoText: {
-    flex: 1,
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: semantic.error,
-    lineHeight: 18,
-  },
-  cardDesc: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: neutral[500],
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: brand.primary,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  btnDisabled: { opacity: 0.45 },
-  primaryBtnText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: "#fff",
-  },
-  placeholder: {
-    alignItems: "center",
-    paddingVertical: 20,
-    gap: 6,
-  },
-  placeholderText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[600],
-  },
-  placeholderSub: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: neutral[400],
-  },
-  statsGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  retryBtnText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
 });
 
-const b = StyleSheet.create({
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+const sec = StyleSheet.create({
+  desc: {
+    fontFamily: fontFamily.regular, fontSize: fontSize.sm,
+    color: neutral[500], lineHeight: 20, marginBottom: 12,
   },
-  text: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.xs,
+  lockedRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    backgroundColor: `${semantic.error}08`, borderRadius: 10,
+    padding: 10, marginBottom: 10,
   },
+  lockedText: {
+    flex: 1, fontFamily: fontFamily.regular, fontSize: fontSize.xs,
+    color: semantic.error, lineHeight: 18,
+  },
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: brand.primary, paddingVertical: 12, borderRadius: 12,
+  },
+  primaryBtnDisabled: { opacity: 0.45 },
+  primaryBtnText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
+  badge:    { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  badgeText:{ fontFamily: fontFamily.semibold, fontSize: fontSize.xs },
+  statusPill:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statusPillText: { fontFamily: fontFamily.semibold, fontSize: fontSize.xs },
+  statsGrid: { flexDirection: 'row', gap: 10 },
   statBox: {
+    flex: 1, backgroundColor: neutral[50], borderRadius: 12,
+    paddingVertical: 12, alignItems: 'center', gap: 3,
+  },
+  statValue: { fontFamily: fontFamily.bold,    fontSize: fontSize.lg },
+  statLabel: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400] },
+  // Analytics button
+  analyticsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginTop: 4, paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 12, borderWidth: 1,
+    borderColor: `${brand.primary}40`,
+    backgroundColor: `${brand.primary}06`,
+  },
+  analyticsBtnText: {
     flex: 1,
-    backgroundColor: neutral[50],
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    gap: 3,
-  },
-  statVal: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.lg,
-  },
-  statLbl: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: neutral[400],
+    fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: brand.primary,
   },
 });
