@@ -28,7 +28,7 @@ import FieldInput from './FieldInput';
 import LockedBanner from './LockedBanner';
 import { FlierPicker, VideoPicker } from './MediaPicker';
 import type { EventDraft, MediaState } from './types';
-import { IDLE_MEDIA, isEventStarted, toLocalInput } from './types';
+import { IDLE_MEDIA, isEventStarted } from './types';
 
 let ImagePicker: typeof import('expo-image-picker') | null = null;
 let DocumentPicker: typeof import('expo-document-picker') | null = null;
@@ -216,20 +216,20 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             disabled={locked}
           />
 
-          <FieldInput
-            label="Start (YYYY-MM-DD HH:MM)"
+          <DateTimeTrigger
+            label="Start Date & Time"
             value={form.startsAt}
-            onChangeText={(v) => setForm((f) => ({ ...f, startsAt: v }))}
-            placeholder="2026-09-15 20:00"
+            onChange={(v) => setForm((f) => ({ ...f, startsAt: v }))}
             disabled={locked}
+            required
           />
 
-          <FieldInput
-            label="End (YYYY-MM-DD HH:MM)"
+          <DateTimeTrigger
+            label="End Date & Time"
             value={form.endsAt}
-            onChangeText={(v) => setForm((f) => ({ ...f, endsAt: v }))}
-            placeholder="2026-09-15 23:00"
+            onChange={(v) => setForm((f) => ({ ...f, endsAt: v }))}
             disabled={locked}
+            minimumDate={form.startsAt ? new Date(form.startsAt) : undefined}
           />
 
           {/* ── Event Mode selector ─────────────────────────────── */}
@@ -349,8 +349,8 @@ function buildForm(event: any): FormState {
     locationName: event?.locationName  ?? '',
     virtualLink:  event?.virtualLink   ?? '',
     capacity:     event?.capacity != null ? String(event.capacity) : '',
-    startsAt:     toLocalInput(event?.startsAt),
-    endsAt:       toLocalInput(event?.endsAt),
+    startsAt:     event?.startsAt ?? '',
+    endsAt:       event?.endsAt   ?? '',
   };
 }
 

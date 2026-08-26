@@ -11,6 +11,7 @@
  * • Payout strip when event ENDED
  */
 
+import DateTimeTrigger from "@/components/ui/DateTimeTrigger";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useUploadIntentMutation } from "@/store/api/eventsApi";
@@ -29,12 +30,11 @@ import {
   Alert,
   Image,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import FieldInput from "./FieldInput";
 
@@ -60,21 +60,6 @@ function formatPrice(price: number, currency = "NGN") {
 
 function isSoldOut(tier: TicketTier) {
   return (tier.quantity ?? 0) > 0 && tier.quantitySold >= (tier.quantity ?? 0);
-}
-
-function formatDateLabel(d: Date) {
-  return (
-    d.toLocaleDateString("en-NG", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }) +
-    "  " +
-    d.toLocaleTimeString("en-NG", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  );
 }
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────────
@@ -131,236 +116,6 @@ const sk = StyleSheet.create({
     width: "30%",
     borderRadius: 6,
     backgroundColor: neutral[100],
-  },
-});
-
-// ─── DateTimePicker (pure RN, no extra package) ─────────────────────────────────
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-interface DateTimePickerProps {
-  visible: boolean;
-  value: Date;
-  onChange: (d: Date) => void;
-  onDismiss: () => void;
-}
-
-function DateTimePickerModal({
-  visible,
-  value,
-  onChange,
-  onDismiss,
-}: DateTimePickerProps) {
-  const [day, setDay] = useState(value.getDate());
-  const [month, setMonth] = useState(value.getMonth());
-  const [year, setYear] = useState(value.getFullYear());
-  const [hour, setHour] = useState(value.getHours());
-  const [minute, setMinute] = useState(value.getMinutes());
-
-  const now = new Date();
-  const years = Array.from({ length: 5 }, (_, i) => now.getFullYear() + i);
-  const days = Array.from({ length: 31 }, (_, i) => i + 1);
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-
-  const confirm = () => {
-    const d = new Date(year, month, day, hour, minute);
-    onChange(d);
-    onDismiss();
-  };
-
-  type WheelItem = number | string;
-
-  function Wheel<T extends WheelItem>({
-    items,
-    selected,
-    onSelect,
-    label,
-  }: {
-    items: T[];
-    selected: T;
-    onSelect: (v: T) => void;
-    label: string;
-  }) {
-    return (
-      <View style={dtp.wheelWrap}>
-        <Text style={dtp.wheelLabel}>{label}</Text>
-        <ScrollView
-          style={dtp.scroll}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled
-        >
-          {items.map((item) => {
-            const active = item === selected;
-            return (
-              <TouchableOpacity
-                key={String(item)}
-                style={[dtp.item, active && dtp.itemActive]}
-                onPress={() => onSelect(item)}
-                activeOpacity={0.7}
-              >
-                <Text style={[dtp.itemText, active && dtp.itemTextActive]}>
-                  {typeof item === "number" && label !== "Month"
-                    ? pad(item)
-                    : String(item)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onDismiss}
-    >
-      <View style={dtp.backdrop} />
-      <View style={dtp.sheet}>
-        {/* Header */}
-        <View style={dtp.header}>
-          <Text style={dtp.title}>Select Date & Time</Text>
-          <TouchableOpacity onPress={onDismiss} hitSlop={10}>
-            <Ionicons name="close" size={20} color={neutral[500]} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Wheels */}
-        <View style={dtp.wheels}>
-          <Wheel
-            items={days}
-            selected={day}
-            onSelect={(v) => setDay(v as number)}
-            label="Day"
-          />
-          <Wheel
-            items={MONTHS}
-            selected={MONTHS[month]}
-            onSelect={(v) => setMonth(MONTHS.indexOf(v as string))}
-            label="Month"
-          />
-          <Wheel
-            items={years}
-            selected={year}
-            onSelect={(v) => setYear(v as number)}
-            label="Year"
-          />
-          <Wheel
-            items={hours}
-            selected={hour}
-            onSelect={(v) => setHour(v as number)}
-            label="Hour"
-          />
-          <Wheel
-            items={minutes}
-            selected={minute}
-            onSelect={(v) => setMinute(v as number)}
-            label="Min"
-          />
-        </View>
-
-        {/* Preview */}
-        <Text style={dtp.preview}>
-          {formatDateLabel(new Date(year, month, day, hour, minute))}
-        </Text>
-
-        {/* Confirm */}
-        <TouchableOpacity
-          style={dtp.confirmBtn}
-          onPress={confirm}
-          activeOpacity={0.8}
-        >
-          <Text style={dtp.confirmText}>Confirm</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
-  );
-}
-
-const dtp = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  sheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: neutral[0],
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 36 : 24,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.base,
-    color: neutral[800],
-  },
-  wheels: { flexDirection: "row", gap: 8, height: 180 },
-  wheelWrap: { flex: 1, alignItems: "center" },
-  wheelLabel: {
-    fontFamily: fontFamily.bold,
-    fontSize: 10,
-    color: neutral[400],
-    letterSpacing: 0.6,
-    marginBottom: 6,
-    textTransform: "uppercase",
-  },
-  scroll: { flex: 1, width: "100%" },
-  item: { paddingVertical: 8, alignItems: "center", borderRadius: 8 },
-  itemActive: { backgroundColor: `${brand.primary}15` },
-  itemText: {
-    fontFamily: fontFamily.regular,
-    fontSize: 14,
-    color: neutral[600],
-  },
-  itemTextActive: { fontFamily: fontFamily.bold, color: brand.primary },
-  preview: {
-    textAlign: "center",
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[600],
-    marginVertical: 14,
-  },
-  confirmBtn: {
-    backgroundColor: brand.primary,
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: "center",
-  },
-  confirmText: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.base,
-    color: "#fff",
   },
 });
 
@@ -613,8 +368,7 @@ function CreateSheet({
 }) {
   const [form, setForm] = useState({ ...BLANK });
   const [image, setImage] = useState<ImageUploadState>(IDLE_UPLOAD);
-  const [saleEndDate, setSaleEndDate] = useState<Date | null>(null);
-  const [showDTP, setShowDTP] = useState(false);
+  const [saleEndDate, setSaleEndDate] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
   const [createTicket, { isLoading }] = useCreateTicketTierMutation();
@@ -622,7 +376,7 @@ function CreateSheet({
   const reset = () => {
     setForm({ ...BLANK });
     setImage(IDLE_UPLOAD);
-    setSaleEndDate(null);
+    setSaleEndDate("");
     setError(null);
   };
   const handleDismiss = () => {
@@ -656,7 +410,7 @@ function CreateSheet({
         payload.description = form.description.trim();
       if (form.perks.trim()) payload.perks = form.perks.trim();
       if (form.quantity.trim()) payload.quantity = Number(form.quantity);
-      if (saleEndDate) payload.ticketEndDate = saleEndDate.toISOString();
+      if (saleEndDate) payload.ticketEndDate = saleEndDate;
       if (image.remoteUrl) payload.imageUrl = image.remoteUrl;
 
       const res = await createTicket({ eventId, ticketData: payload }).unwrap();
@@ -772,33 +526,14 @@ function CreateSheet({
             keyboardType="numeric"
           />
 
-          {/* Sale End Date — native picker */}
-          <Text style={sh.fieldLabel}>Sale End Date</Text>
-          <TouchableOpacity
-            style={sh.datePicker}
-            onPress={() => setShowDTP(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="calendar-outline" size={16} color={brand.primary} />
-            <Text
-              style={[
-                sh.datePickerText,
-                !saleEndDate && sh.datePickerPlaceholder,
-              ]}
-            >
-              {saleEndDate
-                ? formatDateLabel(saleEndDate)
-                : "Tap to select date & time"}
-            </Text>
-            {saleEndDate && (
-              <TouchableOpacity
-                onPress={() => setSaleEndDate(null)}
-                hitSlop={8}
-              >
-                <Ionicons name="close-circle" size={16} color={neutral[400]} />
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
+          {/* Sale End Date */}
+          <DateTimeTrigger
+            label="Sale End Date"
+            value={saleEndDate}
+            onChange={setSaleEndDate}
+            hint="Leave blank for no end date"
+            minimumDate={new Date()}
+          />
 
           {/* Image */}
           <Text style={[sh.fieldLabel, { marginTop: 8 }]}>Ticket Image</Text>
@@ -835,14 +570,6 @@ function CreateSheet({
           </View>
         </ScrollView>
       </View>
-
-      {/* Date/time picker */}
-      <DateTimePickerModal
-        visible={showDTP}
-        value={saleEndDate ?? new Date()}
-        onChange={(d) => setSaleEndDate(d)}
-        onDismiss={() => setShowDTP(false)}
-      />
     </Modal>
   );
 }
@@ -1343,29 +1070,6 @@ const sh = StyleSheet.create({
     color: neutral[600],
   },
   currencyTextActive: { color: brand.primary },
-  // Date picker button
-  datePicker: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderWidth: 1,
-    borderColor: neutral[200],
-    borderRadius: 12,
-    backgroundColor: neutral[50],
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    marginBottom: 16,
-  },
-  datePickerText: {
-    flex: 1,
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[800],
-  },
-  datePickerPlaceholder: {
-    color: neutral[400],
-    fontFamily: fontFamily.regular,
-  },
   soldBox: {
     padding: 10,
     borderRadius: 10,

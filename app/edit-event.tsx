@@ -1,20 +1,4 @@
-﻿/**
- * edit-event.tsx — Organiser Dashboard (React Native)
- *
- * Sections
- * ─────────
- * 1. EventHeaderCard   — flier, event info, QR / Share / View buttons
- * 2. RsvpTrackerSection
- * 3. EditEventSection
- * 4. EventRemindersSection
- * 5. EventTagsSection      — real tag add/create via tagsApi
- * 6. TicketSection         — full ticket tier management via ticketsApi
- * 7. GamificationSection
- * 8. AnalyticsSection
- * 9. StatusSection
- */
-
-import ConfirmModal, {
+﻿import ConfirmModal, {
   type ConfirmAction,
 } from "@/components/edit-event/ConfirmModal";
 import DashboardCard from "@/components/edit-event/DashboardCard";
