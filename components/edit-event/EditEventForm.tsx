@@ -10,19 +10,20 @@
  *  • Mode change clears the irrelevant field
  */
 
+import DateTimeTrigger from '@/components/ui/DateTimeTrigger';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from 'react-native';
 import FieldInput from './FieldInput';
 import LockedBanner from './LockedBanner';

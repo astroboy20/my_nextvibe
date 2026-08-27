@@ -27,6 +27,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const segments        = useSegments();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const isBootstrapped  = useSelector((s: RootState) => s.auth.isBootstrapped);
+  const isNewUser       = useSelector((s: RootState) => s.auth.isNewUser);
 
   // Track previous auth state so we only register push on sign-in transitions,
   // not on every render. We still register on every app start (isAuthenticated
@@ -36,14 +37,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isBootstrapped) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuthGroup      = segments[0] === '(auth)';
+    const inOnboarding     = segments[0] === '(auth)' && segments[1] === 'onboarding';
 
-    if (isAuthenticated && inAuthGroup) {
+    if (isAuthenticated && isNewUser && !inOnboarding) {
+      // Freshly registered user — send to vibe onboarding
+      router.replace('/(auth)/onboarding');
+    } else if (isAuthenticated && !isNewUser && inAuthGroup) {
       router.replace('/(tabs)');
     } else if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/login');
     }
-  }, [isAuthenticated, isBootstrapped, segments]);
+  }, [isAuthenticated, isBootstrapped, isNewUser, segments]);
 
   // Register push token whenever the user is authenticated.
   // Called on every app start (upsert is free) and on fresh sign-in.
@@ -122,8 +127,7 @@ export default function RootLayout() {
           <Stack.Screen name="events/[id]" />
           <Stack.Screen name="edit-event" />
           <Stack.Screen name="analytics" />
-        </Stack>
-      </AuthGate>
+        </Stack>      </AuthGate>
       <Toast />
     </Provider>
   );

@@ -45,6 +45,8 @@ interface Props {
     startsAt?: string | null;
     tags?: Tag[];
   };
+  /** Called whenever the selected-tag count changes so the parent badge stays live */
+  onCountChange?: (count: number) => void;
 }
 
 // ─── Skeleton chip ──────────────────────────────────────────────────────────────
@@ -94,7 +96,7 @@ function ToastBanner({ message, type, onDismiss }: ToastProps) {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function EventTagsEditor({ event }: Props) {
+export default function EventTagsEditor({ event, onCountChange }: Props) {
   const locked = isEventStarted(event?.startsAt);
 
   // ── Remote data ────────────────────────────────────────────────────────────
@@ -133,6 +135,11 @@ export default function EventTagsEditor({ event }: Props) {
 
   const showToast = (msg: string, type: "success" | "error" = "success") =>
     setToast({ msg, type });
+
+  // Notify parent whenever the live count changes
+  useEffect(() => {
+    onCountChange?.(selectedIds.size);
+  }, [selectedIds.size]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const selectedTags = useMemo(

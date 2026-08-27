@@ -1,6 +1,8 @@
+import AuthModal from '@/components/auth/AuthModal';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthModal } from '@/hooks/useAuthModal';
 import {
     useGetEventPostcardsQuery,
 } from '@/store/api/eventsApi';
@@ -217,11 +219,15 @@ export default function PostcardsTab({
     eventName = 'Event',
     eventStartsAt,
 }: Props) {
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
+    const { visible: authModalVisible, showAuthModal, hideAuthModal } = useAuthModal();
 
     const [activeTiming, setActiveTiming] = useState<ActivityTiming>('PRE_EVENT');
     const [postcardPhase, setPostcardPhase] = useState<PostcardPhase>('all');
     const [showCreator, setShowCreator] = useState(false);
+
+    // Pending action to retry after auth
+    const [pendingCreate, setPendingCreate] = useState(false);
 
     // Viewer state: list + starting index
     const [viewerPostcards, setViewerPostcards] = useState<PostcardData[]>([]);
@@ -267,6 +273,23 @@ export default function PostcardsTab({
         setViewerPostcards(postcards);
         setViewerIndex(index);
         setShowViewer(true);
+    };
+
+    const openCreator = () => {
+        if (!isAuthenticated) {
+            setPendingCreate(true);
+            showAuthModal();
+            return;
+        }
+        setShowCreator(true);
+    };
+
+    const handleAuthSuccess = () => {
+        hideAuthModal();
+        if (pendingCreate) {
+            setPendingCreate(false);
+            setShowCreator(true);
+        }
     };
 
     const POSTCARD_PHASE_TABS: { value: PostcardPhase; label: string }[] = [
@@ -371,7 +394,7 @@ export default function PostcardsTab({
                                 (activeTiming === 'DURING_EVENT' && !eventHasStarted)) &&
                             s.createBtnDisabled,
                         ]}
-                        onPress={() => setShowCreator(true)}
+                        onPress={openCreator}
                         disabled={
                             !activeTag ||
                             (activeTiming === 'DURING_EVENT' && !eventHasStarted)
@@ -450,6 +473,14 @@ export default function PostcardsTab({
                     onClose={() => setShowViewer(false)}
                 />
             )}
+
+            {/* Auth modal — shown when session expired or user is not logged in */}
+            <AuthModal
+                visible={authModalVisible}
+                onDismiss={() => { hideAuthModal(); setPendingCreate(false); }}
+                onSuccess={handleAuthSuccess}
+                message="Sign in to create a postcard for this event"
+            />
         </View>
     );
 }

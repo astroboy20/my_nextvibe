@@ -2,21 +2,21 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import {
-  useGetActiveGameStatusQuery,
-  useGetGameSessionQuery,
-  useGetGameSessionsQuery,
-  useJoinGameSessionMutation,
-  useSubmitRoundAnswersMutation,
+    useGetActiveGameStatusQuery,
+    useGetGameSessionQuery,
+    useGetGameSessionsQuery,
+    useJoinGameSessionMutation,
+    useSubmitRoundAnswersMutation,
 } from "@/store/api/gamesApi";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { RoundPlayer } from "./RoundPlayer";
@@ -65,6 +65,10 @@ interface Props {
 
 export default function GameTab({ eventId, eventName, startsAt, onPlayingChange }: Props) {
   const { isAuthenticated } = useAuth();
+  const { visible: authModalVisible, showAuthModal, hideAuthModal } = useAuthModal();
+
+  // Remember the pending action type so we can retry after auth
+  const [pendingJoinId, setPendingJoinId] = useState<string | null>(null);
 
   // ── API ───────────────────────────────────────────────────────────────────
   const {
@@ -145,13 +149,14 @@ export default function GameTab({ eventId, eventName, startsAt, onPlayingChange 
 
   const handleJoin = async (sessionId: string) => {
     if (!isAuthenticated) {
-      Toast.show({
-        type: "info",
-        text1: "Sign in required",
-        text2: "Please log in to join.",
-      });
+      setPendingJoinId(sessionId);
+      showAuthModal();
       return;
     }
+    await _doJoin(sessionId);
+  };
+
+  const _doJoin = async (sessionId: string) => {
     try {
       await joinSession(sessionId).unwrap();
       setJoinedSessions((prev) => new Set([...prev, sessionId]));
@@ -315,100 +320,117 @@ export default function GameTab({ eventId, eventName, startsAt, onPlayingChange 
 
   // ── Sessions list ─────────────────────────────────────────────────────────
   return (
-    <ScrollView
-      style={s.scroll}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={s.scrollContent}
-    >
-      {/* Fetch per-session detail — only rendered in list view */}
-      {allSessions.map((sess: any) => (
-        <SessionFetcher
-          key={sess.id}
-          sessionId={sess.id}
-          onData={(id, data) =>
-            setSessionDataMap((prev) =>
-              prev[id] === data ? prev : { ...prev, [id]: data }
-            )
-          }
-        />
-      ))}
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={s.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={s.scrollContent}
+      >
+        {/* Fetch per-session detail — only rendered in list view */}
+        {allSessions.map((sess: any) => (
+          <SessionFetcher
+            key={sess.id}
+            sessionId={sess.id}
+            onData={(id, data) =>
+              setSessionDataMap((prev) =>
+                prev[id] === data ? prev : { ...prev, [id]: data }
+              )
+            }
+          />
+        ))}
 
-      {/* Phase tabs */}
-      {tabsWithSessions.length > 1 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.phaseBar}
-          contentContainerStyle={s.phaseBarContent}
-        >
-          {tabsWithSessions.map((tab) => {
-            const count = allSessions.filter(
-              (ss: any) => ss.mappedPhase === tab.value
-            ).length;
-            const active = activePhase === tab.value;
-            return (
-              <TouchableOpacity
-                key={tab.value}
-                style={[s.phaseBtn, active && s.phaseBtnActive]}
-                onPress={() => setActivePhase(tab.value)}
-                activeOpacity={0.8}
-              >
-                <Text style={[s.phaseBtnText, active && s.phaseBtnTextActive]}>
-                  {tab.label}
-                </Text>
-                <View
-                  style={[s.phaseBtnCount, active && s.phaseBtnCountActive]}
+        {/* Phase tabs */}
+        {tabsWithSessions.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={s.phaseBar}
+            contentContainerStyle={s.phaseBarContent}
+          >
+            {tabsWithSessions.map((tab) => {
+              const count = allSessions.filter(
+                (ss: any) => ss.mappedPhase === tab.value
+              ).length;
+              const active = activePhase === tab.value;
+              return (
+                <TouchableOpacity
+                  key={tab.value}
+                  style={[s.phaseBtn, active && s.phaseBtnActive]}
+                  onPress={() => setActivePhase(tab.value)}
+                  activeOpacity={0.8}
                 >
-                  <Text
-                    style={[
-                      s.phaseBtnCountText,
-                      active && s.phaseBtnCountTextActive,
-                    ]}
-                  >
-                    {count}
+                  <Text style={[s.phaseBtnText, active && s.phaseBtnTextActive]}>
+                    {tab.label}
                   </Text>
-                </View>
-              </TouchableOpacity>
+                  <View
+                    style={[s.phaseBtnCount, active && s.phaseBtnCountActive]}
+                  >
+                    <Text
+                      style={[
+                        s.phaseBtnCountText,
+                        active && s.phaseBtnCountTextActive,
+                      ]}
+                    >
+                      {count}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {sessions.length === 0 && (
+          <View style={s.center}>
+            <Text style={s.emptySub}>No games for this phase.</Text>
+          </View>
+        )}
+
+        <View style={s.list}>
+          {sessions.map((session: any) => {
+            const isActive = session.mappedStatus === "live";
+            const isEnded = session.mappedStatus === "ended";
+            const isJoined =
+              joinedSessions.has(session.id) ||
+              (isJoinedFromStatus && session.id === activeSessionFromApi);
+            return (
+              <SessionCard
+                key={session.id}
+                session={session}
+                isActive={isActive}
+                isEnded={isEnded}
+                isJoined={isJoined}
+                isJoining={isJoining}
+                eventHasStarted={eventHasStarted}
+                sessionData={sessionDataMap[session.id] ?? null}
+                playedRounds={playedRounds}
+                onJoin={() => handleJoin(session.id)}
+                onPlay={(roundId) => {
+                  setActiveSessionId(session.id);
+                  setPlayingRoundId(roundId);
+                  onPlayingChange?.(true);
+                }}
+              />
             );
           })}
-        </ScrollView>
-      )}
-
-      {sessions.length === 0 && (
-        <View style={s.center}>
-          <Text style={s.emptySub}>No games for this phase.</Text>
         </View>
-      )}
+      </ScrollView>
 
-      <View style={s.list}>
-        {sessions.map((session: any) => {
-          const isActive = session.mappedStatus === "live";
-          const isEnded = session.mappedStatus === "ended";
-          const isJoined =
-            joinedSessions.has(session.id) ||
-            (isJoinedFromStatus && session.id === activeSessionFromApi);
-          return (
-            <SessionCard
-              key={session.id}
-              session={session}
-              isActive={isActive}
-              isEnded={isEnded}
-              isJoined={isJoined}
-              isJoining={isJoining}
-              eventHasStarted={eventHasStarted}
-              sessionData={sessionDataMap[session.id] ?? null}
-              playedRounds={playedRounds}
-              onJoin={() => handleJoin(session.id)}
-              onPlay={(roundId) => {
-                setActiveSessionId(session.id);
-                setPlayingRoundId(roundId);
-                onPlayingChange?.(true);
-              }}
-            />
-          );
-        })}
-      </View>
-    </ScrollView>
+      {/* Auth modal — shown when user is not logged in and tries to join a game */}
+      <AuthModal
+        visible={authModalVisible}
+        onDismiss={() => { hideAuthModal(); setPendingJoinId(null); }}
+        onSuccess={() => {
+          hideAuthModal();
+          if (pendingJoinId) {
+            const id = pendingJoinId;
+            setPendingJoinId(null);
+            _doJoin(id);
+          }
+        }}
+        message="Sign in to join this game"
+      />
+    </View>
   );
 }
 

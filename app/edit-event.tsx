@@ -7,20 +7,24 @@ import EventHeaderCard from "@/components/edit-event/EventHeaderCard";
 import EventReminders from "@/components/edit-event/EventReminders";
 import EventTagsEditor from "@/components/edit-event/EventTagsEditor";
 import GamificationHub from "@/components/edit-event/GamificationHub/GamificationHub";
+import PaymentModule from "@/components/edit-event/PaymentModule";
 import QRModal from "@/components/edit-event/QRModal";
 import RsvpTracker from "@/components/edit-event/RsvpTracker";
 import StatusUpdater from "@/components/edit-event/StatusUpdater";
 import TicketManager from "@/components/edit-event/TicketManager";
 import { isEventStarted } from "@/components/edit-event/types";
+import VibeTagSection from "@/components/edit-event/VibeTagSection";
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import { EditEventDashboardSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
   useGetEventByIdQuery,
+  useGetEventVibeTagsQuery,
   useUpdateEventMutation,
   useUpdateEventStatusMutation,
 } from "@/store/api/eventsApi";
+import { useGetGamesQuery } from "@/store/api/gamesApi";
 import { useGetRemindersQuery } from "@/store/api/reminderApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -68,20 +72,17 @@ export default function EditEventScreen() {
   );
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  // local tags for optimistic header display; real management lives in EventTagsEditor
-  const [localTags, setLocalTags] = useState<{ id: string; name: string }[]>(
-    []
-  );
+  // live tag count — kept in sync by EventTagsEditor via onCountChange
+  const [liveTagCount, setLiveTagCount] = useState(0);
 
   const event = eventData?.data;
   const eventUrl = `https://mynextvibe.app/events/${eventId}`;
+  const eventPlan = (event as any)?.eventPlan ?? null;
 
-  // Seed local tags once server data arrives
+  // Seed local tag count once server data arrives
   useEffect(() => {
     if (event?.tags) {
-      setLocalTags(
-        (event.tags as any[]).map((t) => ({ id: t.id, name: t.name }))
-      );
+      setLiveTagCount((event.tags as any[]).length);
     }
   }, [event?.tags]);
 
@@ -182,7 +183,8 @@ export default function EditEventScreen() {
       (event as any).attendingCount ?? (event as any)._count?.attendees ?? 0,
     maybeCount: (event as any).maybeCount ?? 0,
     cantGoCount: (event as any).cantGoCount ?? 0,
-    tags: localTags,
+    tags: (event.tags as any[]) ?? [],
+    eventPlan,
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -233,6 +235,14 @@ export default function EditEventScreen() {
         <EventTagsSection
           event={eventForCard}
           isLocked={isEventStarted(event.startsAt)}
+          liveTagCount={liveTagCount}
+          onTagCountChange={setLiveTagCount}
+        />
+
+        {/* 5b ── VibeTag Studio */}
+        <VibeTagStudioSection
+          eventId={eventId}
+          eventPlan={eventPlan}
         />
 
         {/* 6 ── Tickets */}
@@ -259,6 +269,13 @@ export default function EditEventScreen() {
           isLoading={isUpdatingStatus}
           onEnd={() => setConfirmAction("ENDED")}
           onCancel={() => setConfirmAction("CANCELLED")}
+        />
+
+        {/* 10 ── Publish / Payment */}
+        <PublishSection
+          eventId={eventId}
+          eventStatus={event.status}
+          onPublished={refetch}
         />
       </ScrollView>
 
@@ -402,9 +419,13 @@ function EventRemindersSection({
 function EventTagsSection({
   event,
   isLocked,
+  liveTagCount,
+  onTagCountChange,
 }: {
   event: any;
   isLocked: boolean;
+  liveTagCount: number;
+  onTagCountChange: (count: number) => void;
 }) {
   return (
     <DashboardCard
@@ -416,11 +437,11 @@ function EventTagsSection({
         isLocked ? (
           <StatusBadge label="Locked" color={semantic.error} />
         ) : (
-          <CountBadge label={`${event.tags?.length ?? 0} Tags`} />
+          <CountBadge label={`${liveTagCount} ${liveTagCount === 1 ? "Tag" : "Tags"}`} />
         )
       }
     >
-      <EventTagsEditor event={event} />
+      <EventTagsEditor event={event} onCountChange={onTagCountChange} />
     </DashboardCard>
   );
 }
@@ -458,6 +479,11 @@ function GamificationSection({
   eventName?: string;
   eventStartsAt?: string;
 }) {
+  const { data: gamesData } = useGetGamesQuery(eventId);
+  const liveGameCount = ((gamesData as any)?.data ?? []).filter(
+    (g: any) => g.status === "ACTIVE"
+  ).length;
+
   return (
     <DashboardCard
       title="Gamification Hub"
@@ -468,7 +494,13 @@ function GamificationSection({
           color={brand.primary}
         />
       }
-      badge={<CountBadge label="Games" color={brand.primary} />}
+      badge={
+        liveGameCount > 0 ? (
+          <StatusBadge label={`${liveGameCount} Live`} color="#22c55e" />
+        ) : (
+          <CountBadge label="Games" color={brand.primary} />
+        )
+      }
     >
       <GamificationHub
         eventId={eventId}
@@ -523,6 +555,69 @@ function AnalyticsSection({
         <Text style={sec.analyticsBtnText}>View Full Analytics</Text>
         <Ionicons name="chevron-forward" size={14} color={brand.primary} />
       </TouchableOpacity>
+    </DashboardCard>
+  );
+}
+
+// ── 5b. VibeTag Studio ──────────────────────────────────────────────────────
+
+function VibeTagStudioSection({
+  eventId,
+  eventPlan,
+}: {
+  eventId: string;
+  eventPlan: any;
+}) {
+  const { data: vibeTagData } = useGetEventVibeTagsQuery(eventId, {
+    skip: !eventId,
+  });
+  const vibeTagCount = (vibeTagData?.data ?? []).length;
+
+  return (
+    <DashboardCard
+      title="VibeTag Studio"
+      icon={
+        <Ionicons name="color-palette-outline" size={16} color={brand.primary} />
+      }
+      badge={
+        <CountBadge
+          label={`${vibeTagCount} ${vibeTagCount === 1 ? "Tag" : "Tags"}`}
+        />
+      }
+    >
+      <VibeTagSection eventId={eventId} eventPlan={eventPlan} />
+    </DashboardCard>
+  );
+}
+
+// ── 10. Publish / Payment ───────────────────────────────────────────────────
+
+function PublishSection({
+  eventId,
+  eventStatus,
+  onPublished,
+}: {
+  eventId: string;
+  eventStatus?: string;
+  onPublished?: () => void;
+}) {
+  // Only render for DRAFT events
+  if (eventStatus && eventStatus !== "DRAFT") return null;
+
+  return (
+    <DashboardCard
+      title="Publish Your Event"
+      icon={
+        <Ionicons name="rocket-outline" size={16} color={brand.primary} />
+      }
+      badge={<StatusBadge label="DRAFT" color="#b45309" />}
+      defaultOpen
+    >
+      <PaymentModule
+        eventId={eventId}
+        eventStatus={eventStatus}
+        onPublished={onPublished}
+      />
     </DashboardCard>
   );
 }

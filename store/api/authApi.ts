@@ -1,6 +1,6 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_URL, baseQueryWithReauth, tokenStore } from '../baseQuery';
-import { clearAuth, setUser } from '../slices/authSlice';
+import { clearAuth, setNewUser, setUser } from '../slices/authSlice';
 
 // ── Response types ────────────────────────────────────────────────────────────
 
@@ -19,6 +19,8 @@ export interface AuthResponse {
     accessToken: string;
     refreshToken: string;
     user: AuthUser;
+    /** Present on registration / first Google sign-in */
+    isNewUser?: boolean;
   };
 }
 
@@ -27,10 +29,15 @@ export interface AuthResponse {
 async function persistSession(
   data: AuthResponse,
   dispatch: (action: any) => void,
+  forceNewUser = false,
 ) {
   await tokenStore.set('accessToken',  data.data.accessToken);
   await tokenStore.set('refreshToken', data.data.refreshToken);
-  dispatch(setUser(data.data.user));
+  if (forceNewUser || data.data.isNewUser) {
+    dispatch(setNewUser(data.data.user));
+  } else {
+    dispatch(setUser(data.data.user));
+  }
 }
 
 // ── API slice ─────────────────────────────────────────────────────────────────
@@ -49,7 +56,8 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
           const { data } = await queryFulfilled;
-          await persistSession(data, dispatch);
+          // Registration always routes to onboarding
+          await persistSession(data, dispatch, true);
         } catch { /* handled by caller */ }
       },
     }),
@@ -71,6 +79,7 @@ export const authApi = createApi({
       async onQueryStarted(_, { queryFulfilled, dispatch }) {
         try {
           const { data } = await queryFulfilled;
+          // Use isNewUser flag from backend for Google sign-ins
           await persistSession(data, dispatch);
         } catch { /* handled by caller */ }
       },

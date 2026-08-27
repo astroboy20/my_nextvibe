@@ -7,33 +7,34 @@
  *
  * Design: clean Instagram-style with the VibeTag always visibly applied.
  */
+import AuthModal from '@/components/auth/AuthModal';
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useAuthModal } from '@/hooks/useAuthModal';
 import {
-  useCreatePostcardsMutation,
-  useGetEventPostcardsQuery,
-  useSwapPostcardMutation,
+    useCreatePostcardsMutation,
+    useGetEventPostcardsQuery,
+    useSwapPostcardMutation,
 } from '@/store/api/eventsApi';
-import { API_URL } from '@/store/baseQuery';
+import { API_URL, tokenStore } from '@/store/baseQuery';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -277,6 +278,11 @@ export function PostcardCreator({
   const [showSwapConfirm, setShowSwapConfirm] = useState(false);
   const [pendingSwap, setPendingSwap] = useState<any>(null);
 
+  // Auth modal — shown when token has expired mid-submit
+  const { visible: authModalVisible, showAuthModal, hideAuthModal } = useAuthModal();
+  // Keep a ref to the pending swap target so we can retry after re-auth
+  const pendingSubmitSwapRef = useRef<string | undefined>(undefined);
+
   // Slide-up animation for review stage
   const slideAnim = useRef(new Animated.Value(H)).current;
 
@@ -359,7 +365,9 @@ export function PostcardCreator({
     setUploadProgress(0);
     setUploadStage('uploading');
     try {
-      const token = await AsyncStorage.getItem('accessToken');
+      // Use SecureStore (same as the rest of the app) — NOT AsyncStorage
+      const token = await tokenStore.get('accessToken');
+
       const formData = new FormData();
       for (const item of items) {
         const uri = Platform.OS === 'ios' ? item.uri.replace('file://', '') : item.uri;
@@ -368,6 +376,8 @@ export function PostcardCreator({
         const name = item.fileName ?? `postcard-${Date.now()}.${ext}`;
         (formData as any).append('files', { uri, name, type: mime } as any);
       }
+
+      // ── XHR upload (supports progress) ────────────────────────────────
       const uploadResult = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_URL}/v1/storage/upload-multiple`);
@@ -377,6 +387,11 @@ export function PostcardCreator({
             setUploadProgress(Math.round((e.loaded / e.total) * 85));
         };
         xhr.onload = () => {
+          if (xhr.status === 401) {
+            // Token expired — signal it with a typed error
+            reject(Object.assign(new Error('Unauthorized'), { status: 401 }));
+            return;
+          }
           if (xhr.status >= 200 && xhr.status < 300) {
             try { resolve(JSON.parse(xhr.responseText)); }
             catch { reject(new Error('Invalid response')); }
@@ -388,6 +403,7 @@ export function PostcardCreator({
         xhr.onerror = () => reject(new Error('Network error'));
         xhr.send(formData);
       });
+
       const uploaded = (uploadResult?.data ?? []).map((f: any) => ({
         fileKey: f.fileKey, mediaType: f.mediaType, mediaUrl: f.url,
       }));
@@ -395,6 +411,8 @@ export function PostcardCreator({
         Toast.show({ type: 'error', text1: 'Upload failed' });
         return;
       }
+
+      // ── Save postcard via RTK Query mutation ───────────────────────────
       setUploadStage('saving');
       setUploadProgress(90);
       if (targetSwapId) {
@@ -402,6 +420,7 @@ export function PostcardCreator({
       } else {
         await createPostcards({ eventId, vibeTagId, media: uploaded, caption }).unwrap();
       }
+
       setUploadProgress(100);
       Toast.show({
         type: 'success',
@@ -410,9 +429,19 @@ export function PostcardCreator({
       onSubmit?.();
       onClose();
     } catch (err: any) {
-      if (targetSwapId && err?.status === 403) {
+      const status = err?.status ?? err?.data?.statusCode;
+
+      // ── Expired / missing token — show re-auth modal ───────────────────
+      if (status === 401) {
+        pendingSubmitSwapRef.current = targetSwapId;
+        showAuthModal();
+        return; // keep isSubmitting=false via finally, modal takes over
+      }
+
+      // ── Domain errors ──────────────────────────────────────────────────
+      if (targetSwapId && status === 403) {
         Toast.show({ type: 'error', text1: 'You can only replace your own postcards.' });
-      } else if (targetSwapId && err?.status === 404) {
+      } else if (targetSwapId && status === 404) {
         Toast.show({ type: 'error', text1: 'That postcard no longer exists.' });
       } else {
         Toast.show({ type: 'error', text1: err?.data?.message ?? err?.message ?? 'Post failed.' });
@@ -796,6 +825,23 @@ export function PostcardCreator({
           onCancel={() => setShowSwapPicker(false)}
         />
       )}
+
+      {/* Auth modal — shown when the token expired during upload/save */}
+      <AuthModal
+        visible={authModalVisible}
+        onDismiss={() => {
+          hideAuthModal();
+          pendingSubmitSwapRef.current = undefined;
+        }}
+        onSuccess={() => {
+          hideAuthModal();
+          // Retry the submit with the fresh token — capture pending swap before clearing
+          const swapTarget = pendingSubmitSwapRef.current;
+          pendingSubmitSwapRef.current = undefined;
+          doSubmit(swapTarget);
+        }}
+        message="Your session expired. Sign in to post your postcard."
+      />
     </View>
   );
 }

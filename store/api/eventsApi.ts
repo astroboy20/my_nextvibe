@@ -402,6 +402,19 @@ export const eventsApi = createApi({
       providesTags: (_, __, id) => [{ type: 'Event', id }],
     }),
 
+    // POST /v1/events/:eventId/vibetags  (create a vibeTag for an event)
+    createVibeTag: build.mutation<
+      { success: boolean; data: { id: string; name: string; imageUrl: string; activityTiming: string; paymentRequired?: boolean } },
+      { eventId: string; name?: string | null; imageKey: string; activityTiming: string }
+    >({
+      query: ({ eventId, ...body }) => ({
+        url: `/v1/events/${eventId}/vibetags`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: 'Event', id: eventId }],
+    }),
+
   }),
 });
 
@@ -429,4 +442,5 @@ export const {
   useUploadPostcardMediaMutation,
   useGetEventVibeTagsQuery,
   useSwapPostcardMutation,
+  useCreateVibeTagMutation,
 } = eventsApi;

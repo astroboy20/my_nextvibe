@@ -29,12 +29,15 @@ interface AuthState {
   isBootstrapped: boolean;
   /** Derived convenience flag */
   isAuthenticated: boolean;
+  /** True when the user just registered — routes them to vibe onboarding */
+  isNewUser: boolean;
 }
 
 const initialState: AuthState = {
   user:            null,
   isBootstrapped:  false,
   isAuthenticated: false,
+  isNewUser:       false,
 };
 
 // ── Bootstrap thunk ───────────────────────────────────────────────────────────
@@ -81,10 +84,21 @@ const authSlice = createSlice({
       state.user            = action.payload;
       state.isAuthenticated = true;
     },
+    /** Call after a successful registration — marks user as new for onboarding */
+    setNewUser(state, action: PayloadAction<AuthUser>) {
+      state.user            = action.payload;
+      state.isAuthenticated = true;
+      state.isNewUser       = true;
+    },
+    /** Clear the new-user flag once onboarding is complete */
+    clearNewUser(state) {
+      state.isNewUser = false;
+    },
     /** Call after logout */
     clearAuth(state) {
       state.user            = null;
       state.isAuthenticated = false;
+      state.isNewUser       = false;
     },
   },
   extraReducers: (builder) => {
@@ -101,5 +115,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setUser, clearAuth } = authSlice.actions;
+export const { setUser, setNewUser, clearNewUser, clearAuth } = authSlice.actions;
 export default authSlice.reducer;

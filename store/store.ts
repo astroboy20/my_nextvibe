@@ -3,6 +3,7 @@ import { analyticsApi } from './api/analyticsApi';
 import { authApi } from './api/authApi';
 import { eventsApi } from './api/eventsApi';
 import { gamesApi } from './api/gamesApi';
+import { paymentApi } from './api/paymentApi';
 import { reminderApi } from './api/reminderApi';
 import { socialApi } from './api/socialApi';
 import { tagsApi } from './api/tagsApi';
@@ -22,6 +23,7 @@ export const store = configureStore({
     [tagsApi.reducerPath]:      tagsApi.reducer,
     [ticketsApi.reducerPath]:   ticketsApi.reducer,
     [analyticsApi.reducerPath]: analyticsApi.reducer,
+    [paymentApi.reducerPath]:   paymentApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -34,6 +36,7 @@ export const store = configureStore({
       tagsApi.middleware,
       ticketsApi.middleware,
       analyticsApi.middleware,
+      paymentApi.middleware,
     ),
 });
 
