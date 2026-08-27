@@ -1,6 +1,6 @@
-import { Template } from "@/types/canvas";
 
-export const VibeTags: Template[] = [
+
+export const VibeTags = [
   {
     name: "Example Convocation",
     mock: "https://res.cloudinary.com/dfllpht1m/image/upload/v1781983300/Convocation_1_q1ypxf.png",
@@ -244,6 +244,6 @@ const shuffleArray = <T>(array: T[]): T[] => {
   return shuffled;
 };
 
-export const allTemplates: Template[] = shuffleArray([
+export const allTemplates = shuffleArray([
   ...VibeTags,
 ]);

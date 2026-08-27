@@ -1,32 +1,32 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
-  EventRowSkeleton,
-  PostcardGridSkeleton,
-  ProfileHeaderSkeleton,
-  TicketRowSkeleton,
+    EventRowSkeleton,
+    PostcardGridSkeleton,
+    ProfileHeaderSkeleton,
+    TicketRowSkeleton,
 } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useGetMeQuery,
-  useGetOrganizerEventsQuery,
-  useGetUserActivityQuery,
-  type OrganizerEvent,
-  type PostcardItem,
-  type UserTicket,
+    useGetMeQuery,
+    useGetOrganizerEventsQuery,
+    useGetUserActivityQuery,
+    type OrganizerEvent,
+    type PostcardItem,
+    type UserTicket,
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -318,6 +318,14 @@ export default function ProfileScreen() {
     refetchActivity();
     refetchEvents();
   };
+
+  // Re-fetch every time this tab comes into focus — ensures fresh data after
+  // login, logout+login with a different account, or returning from another screen.
+  useFocusEffect(
+    useCallback(() => {
+      refetchMe();
+    }, [refetchMe])
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>

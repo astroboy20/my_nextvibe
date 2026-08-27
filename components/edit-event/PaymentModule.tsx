@@ -1,16 +1,18 @@
-import { brand, neutral, semantic } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
-import { useUpdateEventStatusMutation } from '@/store/api/eventsApi';
+import { brand, neutral, semantic } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
+import {
+    useUpdateEventStatusMutation
+} from "@/store/api/eventsApi";
 import {
     useGetPublishPreviewQuery,
     useGetQuoteMutation,
     useInitiatePlanPaymentMutation,
     type PlanQuote,
     type PlanType,
-} from '@/store/api/paymentApi';
-import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
-import React, { useEffect, useState } from 'react';
+} from "@/store/api/paymentApi";
+import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
+import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -19,26 +21,26 @@ import {
     TextInput,
     TouchableOpacity,
     View,
-} from 'react-native';
+} from "react-native";
 
 // ── Plan labels ───────────────────────────────────────────────────────────────
 
 const PLAN_LABELS: Record<PlanType, string> = {
-  VIBETAGS_SINGLE: 'VibeTags — Single Phase',
-  VIBETAGS_BUNDLE: 'VibeTags — Full Bundle',
-  GAMIFICATION_SINGLE: 'Gamification — Single Phase',
-  GAMIFICATION_BUNDLE: 'Gamification — Full Bundle',
-  MEGA_BUNDLE_SINGLE: 'Mega Bundle — Single Phase',
-  MEGA_BUNDLE_FULL: 'Mega Bundle — Full Event',
+  VIBETAGS_SINGLE: "VibeTags — Single Phase",
+  VIBETAGS_BUNDLE: "VibeTags — Full Bundle",
+  GAMIFICATION_SINGLE: "Gamification — Single Phase",
+  GAMIFICATION_BUNDLE: "Gamification — Full Bundle",
+  MEGA_BUNDLE_SINGLE: "Mega Bundle — Single Phase",
+  MEGA_BUNDLE_FULL: "Mega Bundle — Full Event",
 };
 
 const PLAN_DESCRIPTIONS: Record<PlanType, string> = {
-  VIBETAGS_SINGLE: 'VibeTags for one event phase',
-  VIBETAGS_BUNDLE: 'VibeTags across all phases',
-  GAMIFICATION_SINGLE: 'Games for one event phase',
-  GAMIFICATION_BUNDLE: 'Games across all phases',
-  MEGA_BUNDLE_SINGLE: 'Games + VibeTags for one phase',
-  MEGA_BUNDLE_FULL: 'Games + VibeTags for the full event',
+  VIBETAGS_SINGLE: "VibeTags for one event phase",
+  VIBETAGS_BUNDLE: "VibeTags across all phases",
+  GAMIFICATION_SINGLE: "Games for one event phase",
+  GAMIFICATION_BUNDLE: "Games across all phases",
+  MEGA_BUNDLE_SINGLE: "Games + VibeTags for one phase",
+  MEGA_BUNDLE_FULL: "Games + VibeTags for the full event",
 };
 
 // ── Plan card ─────────────────────────────────────────────────────────────────
@@ -70,7 +72,7 @@ function PlanCard({
           {plan.gamesIncluded != null && plan.gamesIncluded > 0 && (
             <Text style={s.planDesc}>
               Includes {plan.gamesIncluded} game session
-              {plan.gamesIncluded !== 1 ? 's' : ''}
+              {plan.gamesIncluded !== 1 ? "s" : ""}
             </Text>
           )}
         </View>
@@ -110,9 +112,13 @@ interface Props {
   onPublished?: () => void;
 }
 
-export default function PaymentModule({ eventId, eventStatus, onPublished }: Props) {
+export default function PaymentModule({
+  eventId,
+  eventStatus,
+  onPublished,
+}: Props) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
-  const [couponInput, setCouponInput] = useState('');
+  const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<string | undefined>();
   const [quotedPlan, setQuotedPlan] = useState<PlanQuote | null>(null);
 
@@ -122,7 +128,7 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
     isError,
     refetch,
   } = useGetPublishPreviewQuery(eventId, {
-    skip: !eventId || (!!eventStatus && eventStatus !== 'DRAFT'),
+    skip: !eventId || (!!eventStatus && eventStatus !== "DRAFT"),
   });
 
   const [getQuote, { isLoading: isQuoting }] = useGetQuoteMutation();
@@ -141,7 +147,7 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
   }, [preview, selectedPlan]);
 
   // Don't render for non-DRAFT events
-  if (eventStatus && eventStatus !== 'DRAFT') return null;
+  if (eventStatus && eventStatus !== "DRAFT") return null;
 
   if (isLoading) {
     return (
@@ -155,26 +161,42 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
   if (isError) {
     return (
       <View style={s.errorBox}>
-        <Ionicons name="alert-circle-outline" size={24} color={semantic.error} />
+        <Ionicons
+          name="alert-circle-outline"
+          size={24}
+          color={semantic.error}
+        />
         <Text style={s.errorText}>Could not load publish options.</Text>
         <View style={s.errorActions}>
-          <TouchableOpacity style={s.retryBtn} onPress={() => refetch()} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.retryBtn}
+            onPress={() => refetch()}
+            activeOpacity={0.8}
+          >
             <Text style={s.retryBtnText}>Retry</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.retryBtn, { borderColor: brand.primary }]}
             onPress={async () => {
               try {
-                await updateEventStatus({ eventId, status: 'PUBLISHED' }).unwrap();
-                Alert.alert('Published!', 'Your event is now live.');
+                await updateEventStatus({
+                  eventId,
+                  status: "PUBLISHED",
+                }).unwrap();
+                Alert.alert("Published!", "Your event is now live.");
                 onPublished?.();
               } catch (err: any) {
-                Alert.alert('Error', err?.data?.message ?? 'Failed to publish event.');
+                Alert.alert(
+                  "Error",
+                  err?.data?.message ?? "Failed to publish event."
+                );
               }
             }}
             activeOpacity={0.8}
           >
-            <Text style={[s.retryBtnText, { color: brand.primary }]}>Publish for Free</Text>
+            <Text style={[s.retryBtnText, { color: brand.primary }]}>
+              Publish for Free
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -187,23 +209,31 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
   if (preview.isFreePublish) {
     return (
       <View style={s.freeBox}>
-        <Ionicons name="checkmark-circle" size={28} color={semantic.success} />
-        <View style={s.freeTextWrap}>
-          <Text style={s.freeTitle}>Free Publish Available</Text>
-          <Text style={s.freeDesc}>
-            No games or VibeTags — your event publishes for free.
-          </Text>
+        <View style={s.freeTopRow}>
+          <Ionicons name="checkmark-circle" size={28} color={semantic.success} />
+          <View style={s.freeTextWrap}>
+            <Text style={s.freeTitle}>Free Publish Available</Text>
+            <Text style={s.freeDesc}>
+              No games or VibeTags — your event publishes for free.
+            </Text>
+          </View>
         </View>
         <TouchableOpacity
           style={[s.ctaBtn, isPublishing && s.ctaBtnDisabled]}
           disabled={isPublishing}
           onPress={async () => {
             try {
-              await updateEventStatus({ eventId, status: 'PUBLISHED' }).unwrap();
-              Alert.alert('Published!', 'Your event is now live.');
+              await updateEventStatus({
+                eventId,
+                status: "PUBLISHED",
+              }).unwrap();
+              Alert.alert("Published!", "Your event is now live.");
               onPublished?.();
             } catch (err: any) {
-              Alert.alert('Error', err?.data?.message ?? 'Failed to publish event.');
+              Alert.alert(
+                "Error",
+                err?.data?.message ?? "Failed to publish event."
+              );
             }
           }}
           activeOpacity={0.8}
@@ -240,7 +270,10 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
       setQuotedPlan(res.data);
       setAppliedCoupon(couponInput.trim());
     } catch (err: any) {
-      Alert.alert('Invalid Coupon', err?.data?.message ?? 'Invalid or expired coupon.');
+      Alert.alert(
+        "Invalid Coupon",
+        err?.data?.message ?? "Invalid or expired coupon."
+      );
     }
   };
 
@@ -253,7 +286,7 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
         .then((res) => setQuotedPlan(res.data))
         .catch(() => {
           setAppliedCoupon(undefined);
-          setCouponInput('');
+          setCouponInput("");
         });
     }
   };
@@ -269,8 +302,8 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
 
       const { status, checkoutUrl } = res.data;
 
-      if (status === 'COMPLETED' || !checkoutUrl) {
-        Alert.alert('Published!', 'Your event is now live.');
+      if (status === "COMPLETED" || !checkoutUrl) {
+        Alert.alert("Published!", "Your event is now live.");
         refetch();
         onPublished?.();
         return;
@@ -279,7 +312,7 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
       // Open checkout in browser
       await Linking.openURL(checkoutUrl);
     } catch (err: any) {
-      Alert.alert('Error', err?.data?.message ?? 'Failed to initiate payment.');
+      Alert.alert("Error", err?.data?.message ?? "Failed to initiate payment.");
     }
   };
 
@@ -341,7 +374,10 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
           onSubmitEditing={handleApplyCoupon}
         />
         <TouchableOpacity
-          style={[s.couponBtn, (!couponInput.trim() || isQuoting) && s.couponBtnDisabled]}
+          style={[
+            s.couponBtn,
+            (!couponInput.trim() || isQuoting) && s.couponBtnDisabled,
+          ]}
           onPress={handleApplyCoupon}
           disabled={!couponInput.trim() || isQuoting}
           activeOpacity={0.8}
@@ -375,7 +411,10 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
 
       {/* CTA */}
       <TouchableOpacity
-        style={[s.ctaBtn, (!selectedPlan || isInitiating || isPublishing) && s.ctaBtnDisabled]}
+        style={[
+          s.ctaBtn,
+          (!selectedPlan || isInitiating || isPublishing) && s.ctaBtnDisabled,
+        ]}
         disabled={!selectedPlan || isInitiating || isPublishing}
         onPress={handleActivate}
         activeOpacity={0.8}
@@ -387,8 +426,8 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
             <Ionicons name="sparkles" size={16} color="#fff" />
             <Text style={s.ctaBtnText}>
               {activePlan?.finalAmount === 0
-                ? 'Publish Event (Free)'
-                : 'Pay & Publish Event'}
+                ? "Publish Event (Free)"
+                : "Pay & Publish Event"}
             </Text>
           </>
         )}
@@ -396,7 +435,7 @@ export default function PaymentModule({ eventId, eventStatus, onPublished }: Pro
 
       <Text style={s.ctaHint}>
         {activePlan?.finalAmount === 0
-          ? 'Your coupon covers the full cost. Tap to publish immediately.'
+          ? "Your coupon covers the full cost. Tap to publish immediately."
           : "You'll be redirected to a secure payment page."}
       </Text>
     </View>
@@ -410,8 +449,8 @@ const s = StyleSheet.create({
     gap: 12,
   },
   loadingBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     padding: 16,
     borderRadius: 14,
@@ -425,7 +464,7 @@ const s = StyleSheet.create({
     color: neutral[500],
   },
   errorBox: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
     padding: 16,
     borderRadius: 14,
@@ -437,10 +476,10 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     color: neutral[500],
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
   retryBtn: {
@@ -456,7 +495,6 @@ const s = StyleSheet.create({
     color: neutral[600],
   },
   freeBox: {
-    alignItems: 'center',
     gap: 10,
     padding: 18,
     borderRadius: 14,
@@ -464,7 +502,12 @@ const s = StyleSheet.create({
     borderColor: `${semantic.success}30`,
     backgroundColor: `${semantic.success}06`,
   },
-  freeTextWrap: { alignItems: 'center', gap: 3 },
+  freeTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  freeTextWrap: { flex: 1, gap: 3 },
   freeTitle: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.base,
@@ -474,11 +517,11 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     color: neutral[500],
-    textAlign: 'center',
+    textAlign: "center",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   headerTitle: {
@@ -488,18 +531,18 @@ const s = StyleSheet.create({
     color: neutral[800],
   },
   paymentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 20,
-    backgroundColor: '#fef3c7',
+    backgroundColor: "#fef3c7",
   },
   paymentBadgeText: {
     fontFamily: fontFamily.semibold,
     fontSize: 10,
-    color: '#b45309',
+    color: "#b45309",
   },
   summaryBox: {
     gap: 6,
@@ -510,8 +553,8 @@ const s = StyleSheet.create({
     backgroundColor: neutral[50],
   },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   summaryLabel: {
     fontFamily: fontFamily.regular,
@@ -522,13 +565,13 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
     color: neutral[700],
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   sectionLabel: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
     color: neutral[500],
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   planList: { gap: 8 },
@@ -537,19 +580,19 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: neutral[200],
     padding: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   planCardSelected: {
     borderColor: brand.primary,
     backgroundColor: `${brand.primary}08`,
   },
   planCardInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
   },
   planCardLeft: { flex: 1, gap: 2 },
-  planCardRight: { alignItems: 'flex-end', gap: 2 },
+  planCardRight: { alignItems: "flex-end", gap: 2 },
   planName: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
@@ -564,7 +607,7 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     color: neutral[400],
-    textDecorationLine: 'line-through',
+    textDecorationLine: "line-through",
   },
   planPrice: {
     fontFamily: fontFamily.bold,
@@ -583,12 +626,12 @@ const s = StyleSheet.create({
     color: semantic.success,
   },
   selectedCheck: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
   },
   couponRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   couponInput: {
@@ -601,7 +644,7 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     color: neutral[800],
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   couponBtn: {
     height: 42,
@@ -609,8 +652,8 @@ const s = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     minWidth: 70,
   },
   couponBtnDisabled: { borderColor: neutral[300] },
@@ -620,9 +663,9 @@ const s = StyleSheet.create({
     color: brand.primary,
   },
   couponAppliedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -639,9 +682,9 @@ const s = StyleSheet.create({
     color: semantic.success,
   },
   totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: neutral[200],
@@ -657,9 +700,9 @@ const s = StyleSheet.create({
     color: brand.primary,
   },
   ctaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     backgroundColor: brand.primary,
     paddingVertical: 14,
@@ -669,13 +712,13 @@ const s = StyleSheet.create({
   ctaBtnText: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
-    color: '#fff',
+    color: "#fff",
   },
   ctaHint: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     color: neutral[400],
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 16,
   },
 });

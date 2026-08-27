@@ -1,165 +1,91 @@
-/**
- * analyticsApi.ts
- *
- * Analytics endpoints — all read-only (GET only).
- * Prefix: /analytics  (no /v1 prefix per Analytics Frontend Guide)
- *
- * Endpoints
- * ──────────
- * GET /analytics/overview                     → getOrganizerOverview
- * GET /analytics/events/:id                   → getEventAnalytics
- * GET /analytics/events/:id/vibetags          → getEventVibeTagAnalytics
- * GET /analytics/events/:id/postcards         → getEventPostcardAnalytics
- * GET /analytics/events/:id/revenue           → getEventRevenueAnalytics
- * GET /analytics/events/:id/social            → getEventSocialAnalytics
- * GET /analytics/events/:id/games             → getEventGameAnalytics
- */
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQuery";
 
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { baseQueryWithReauth } from '../baseQuery';
-
-// ── Response types ────────────────────────────────────────────────────────────
-
-export interface AnalyticsOverview {
-  totalEvents: number;
-  eventsByStatus: Record<string, number>;
-  totalRsvps: number;
-  totalCheckIns: number;
-  checkInRate: number;
-  totalPostcards: number;
-  totalGameSessions: number;
-  totalRevenue: number;
-  totalEventLikes: number;
-}
-
-export interface EventAnalytics {
-  event: { id: string; name: string; startsAt: string; endsAt: string; capacity: number };
-  rsvps: { total: number; byTier: Array<{ tierId: string; tierName: string; count: number }> };
-  checkIns: { total: number; rate: number };
-  postcards: { total: number };
-  gameSessions: Array<{ id: string; title: string; status: string; participantCount: number }>;
-  revenue: { total: number };
-  ticketsSold: number;
-  social: { likes: number; shares: number; comments: number };
-}
-
-export interface VibeTagAnalytics {
-  eventId: string;
-  vibeTags: Array<{
-    id: string;
-    name: string;
-    imageUrl?: string | null;
-    activityTiming?: string;
-    totalPostcards: number;
-    totalLikes: number;
-  }>;
-}
-
-export interface PostcardAnalytics {
-  eventId: string;
-  total: number;
-  byVisibility: Record<string, number>;
-  byVibeTag: Array<{ tagName: string; count: number }>;
-  topPostcards: Array<{
-    id: string;
-    caption?: string | null;
-    likeCount: number;
-    author?: { displayName?: string; username?: string; avatarUrl?: string | null };
-  }>;
-}
-
-export interface RevenueAnalytics {
-  eventId: string;
-  totalRevenue: number;
-  completedPurchases: number;
-  refundCount: number;
-  byStatus: Array<{ status: string; count: number; revenue: number }>;
-  byTier: Array<{ tierName: string; sold: number; revenue: number }>;
-}
-
-export interface SocialAnalytics {
-  eventId: string;
-  event: { likes: number; shares: number; comments: number };
-  postcards: {
-    totalPostcards: number;
-    totalLikes: number;
-    totalShares: number;
-    totalComments: number;
-    avgLikesPerPostcard: number;
-  };
-  combined: { totalLikes: number; totalShares: number; totalComments: number };
-}
-
-export interface GameAnalytics {
-  eventId: string;
-  totalSessions: number;
-  totalPlayers: number;
-  totalWinners: number;
-  engagementRate: number;
-  sessions: Array<{ id: string; title: string; status: string; startsAt: string; playerCount: number }>;
-  winners: Array<{
-    rewardId: string;
-    user: { id: string; username: string; displayName: string; avatarUrl?: string | null };
-    session: { id: string; title: string };
-    reward: { rank: number; type: string; title: string; value: string };
-    status: string;
-    claimedAt?: string | null;
-    fulfilledAt?: string | null;
-    awardedAt?: string | null;
-  }>;
-}
-
-// ── API slice ─────────────────────────────────────────────────────────────────
+// ── Analytics API ─────────────────────────────────────────────────────────────
+// All endpoints are read-only consumer models per the Analytics Frontend Guide.
+// Spatial/location data is never submitted here — it flows via PATCH /users/me.
 
 export const analyticsApi = createApi({
-  reducerPath: 'analyticsApi',
-  baseQuery: baseQueryWithReauth,
-  tagTypes: ['Analytics'],
-  endpoints: (build) => ({
+    reducerPath: "analyticsApi",
+    baseQuery: baseQueryWithReauth,
+    tagTypes: ["Analytics"],
+    keepUnusedDataFor: 120, // 2-minute cache
 
-    // GET /analytics/overview
-    getOrganizerOverview: build.query<{ data: AnalyticsOverview }, void>({
-      query: () => '/analytics/overview',
-    }),
+    endpoints: (builder) => ({
+        /** GET /analytics/overview — cross-event summary for the organizer */
+        getAnalyticsOverview: builder.query<any, void>({
+            query: () => "/v1/analytics/overview",
+            providesTags: ["Analytics"],
+        }),
 
-    // GET /analytics/events/:id
-    getEventAnalytics: build.query<{ data: EventAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}`,
-    }),
+        /** GET /analytics/events/:id — full telemetry bundle for a single event */
+        getEventAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id }],
+        }),
 
-    // GET /analytics/events/:id/vibetags
-    getEventVibeTagAnalytics: build.query<{ data: VibeTagAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}/vibetags`,
-    }),
+        /** GET /analytics/events/:id/vibetags — vibe-tag engagement metrics */
+        getEventVibeTagAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/vibetags`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `vibetags-${id}` }],
+        }),
 
-    // GET /analytics/events/:id/postcards
-    getEventPostcardAnalytics: build.query<{ data: PostcardAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}/postcards`,
-    }),
+        /** GET /analytics/events/:id/postcards — postcard asset performance */
+        getEventPostcardAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/postcards`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `postcards-${id}` }],
+        }),
 
-    // GET /analytics/events/:id/revenue
-    getEventRevenueAnalytics: build.query<{ data: RevenueAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}/revenue`,
-    }),
+        /** GET /analytics/events/:id/revenue — financial revenue metrics */
+        getEventRevenueAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/revenue`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `revenue-${id}` }],
+        }),
 
-    // GET /analytics/events/:id/social
-    getEventSocialAnalytics: build.query<{ data: SocialAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}/social`,
-    }),
+        /** GET /analytics/events/:id/social — social velocity & engagement */
+        getEventSocialAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/social`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `social-${id}` }],
+        }),
 
-    // GET /analytics/events/:id/games
-    getEventGameAnalytics: build.query<{ data: GameAnalytics }, string>({
-      query: (id) => `/analytics/events/${id}/games`,
+        /** GET /analytics/events/:id/games — gamification session & winner analytics */
+        getEventGameAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/games`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `games-${id}` }],
+        }),
+
+        // ── Location analytics ───────────────────────────────────────────────
+
+        /**
+         * GET /v1/analytics/overview/locations
+         * Overview location clustering across all organizer events.
+         * Response: { totalAttendees, byCity[{city, count, percentage}], byCountry[...] }
+         */
+        getOverviewLocationAnalytics: builder.query<any, void>({
+            query: () => "/v1/analytics/overview/locations",
+            providesTags: [{ type: "Analytics", id: "overview-locations" }],
+        }),
+
+        /**
+         * GET /v1/analytics/events/:id/locations
+         * Per-event location breakdown for the individual event analytics page.
+         * Response: { eventId, totalAttendees, byCity[{city, count, percentage}], byCountry[...] }
+         */
+        getEventLocationAnalytics: builder.query<any, string>({
+            query: (eventId) => `/v1/analytics/events/${eventId}/locations`,
+            providesTags: (_, __, id) => [{ type: "Analytics", id: `locations-${id}` }],
+        }),
     }),
-  }),
 });
 
 export const {
-  useGetOrganizerOverviewQuery,
-  useGetEventAnalyticsQuery,
-  useGetEventVibeTagAnalyticsQuery,
-  useGetEventPostcardAnalyticsQuery,
-  useGetEventRevenueAnalyticsQuery,
-  useGetEventSocialAnalyticsQuery,
-  useGetEventGameAnalyticsQuery,
+    useGetAnalyticsOverviewQuery,
+    useGetEventAnalyticsQuery,
+    useGetEventVibeTagAnalyticsQuery,
+    useGetEventPostcardAnalyticsQuery,
+    useGetEventRevenueAnalyticsQuery,
+    useGetEventSocialAnalyticsQuery,
+    useGetEventGameAnalyticsQuery,
+    useGetOverviewLocationAnalyticsQuery,
+    useGetEventLocationAnalyticsQuery,
 } = analyticsApi;

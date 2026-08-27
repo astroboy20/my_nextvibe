@@ -14,20 +14,22 @@
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useAddEventTagsMutation,
-  useCreateTagMutation,
-  useGetAllTagsQuery,
-  useRemoveEventTagsMutation,
+    useAddEventTagsMutation,
+    useRemoveEventTagsMutation,
+} from "@/store/api/eventsApi";
+import {
+    useCreateTagMutation,
+    useGetAllTagsQuery,
 } from "@/store/api/tagsApi";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import LockedBanner from "./LockedBanner";
 import { isEventStarted } from "./types";

@@ -1,64 +1,65 @@
-/**
- * reminderApi.ts
- *
- * RTK Query slice for event reminder templates and delivery logs.
- *
- * Endpoints:
- *   GET    /v1/events/:eventId/reminders               → getReminders
- *   PUT    /v1/events/:eventId/reminders               → upsertReminder
- *   PATCH  /v1/events/:eventId/reminders/:templateId   → toggleReminder
- *   DELETE /v1/events/:eventId/reminders/:templateId   → deleteReminder
- *   GET    /v1/events/:eventId/reminders/logs          → getReminderLogs
- *   POST   /v1/events/:eventId/reminders/import-csv    → importCsvReminders
- */
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQuery";
 
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { baseQueryWithReauth } from '../baseQuery';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ReminderTiming =
-  | 'SEVEN_DAYS'
-  | 'FIVE_DAYS'
-  | 'THREE_DAYS'
-  | 'ONE_DAY';
+  | "ONE_DAY"
+  | "THREE_DAYS"
+  | "FIVE_DAYS"
+  | "SEVEN_DAYS";
 
-export type RsvpStatus = 'CONFIRMED' | 'WAITLISTED';
+export type RsvpStatus = "CONFIRMED" | "WAITLISTED";
 
 export interface ReminderTemplate {
   id: string;
+  eventId: string;
   timing: ReminderTiming;
   rsvpStatus: RsvpStatus;
   subject: string;
   message: string;
   enabled: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface ReminderLogEntry {
+export interface ReminderLog {
   id: string;
   timing: ReminderTiming;
   rsvpStatus: RsvpStatus;
   sent: boolean;
-  sentAt?: string | null;
-  error?: string | null;
+  sentAt: string | null;
+  error: string | null;
   user: {
-    displayName?: string;
-    username?: string;
-    avatarUrl?: string | null;
+    id: string;
+    username: string;
+    displayName: string;
+    email: string;
+  };
+  template: {
+    timing: ReminderTiming;
+    rsvpStatus: RsvpStatus;
+    subject: string;
   };
 }
 
-export interface ReminderLogSummaryEntry {
+export interface ReminderLogSummaryItem {
   sent: number;
   failed: number;
   pending: number;
 }
 
 export interface ReminderLogsResponse {
-  logs: ReminderLogEntry[];
-  summary: Record<ReminderTiming, ReminderLogSummaryEntry>;
+  summary: Record<ReminderTiming, ReminderLogSummaryItem>;
+  logs: ReminderLog[];
+}
+
+export interface UpsertReminderPayload {
+  timing: ReminderTiming;
+  rsvpStatus: RsvpStatus;
+  subject: string;
+  message: string;
+  enabled?: boolean;
 }
 
 export interface CsvImportResponse {
@@ -67,104 +68,97 @@ export interface CsvImportResponse {
   added: number;
   skipped: number;
   unmatched: number;
-  inviteSent: number;
   unmatchedEmails: string[];
+  inviteSent: number;
 }
 
-// ── API slice ─────────────────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────────────────────
 
 export const reminderApi = createApi({
-  reducerPath: 'reminderApi',
+  reducerPath: "reminderApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Reminders', 'ReminderLogs'],
-  endpoints: (build) => ({
+  tagTypes: ["Reminders", "ReminderLogs"],
+  keepUnusedDataFor: 300,
 
-    // GET /v1/events/:eventId/reminders
-    getReminders: build.query<ReminderTemplate[], string>({
+  endpoints: (builder) => ({
+    /** GET /v1/events/:eventId/reminders */
+    getReminders: builder.query<ReminderTemplate[], string>({
       query: (eventId) => `/v1/events/${eventId}/reminders`,
-      transformResponse: (res: any) =>
-        Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [],
-      providesTags: (_, __, eventId) => [{ type: 'Reminders', id: eventId }],
+      transformResponse: (res: any) => res?.data ?? res ?? [],
+      providesTags: (_, __, eventId) => [{ type: "Reminders", id: eventId }],
     }),
 
-    // PUT /v1/events/:eventId/reminders
-    upsertReminder: build.mutation<
-      { success: boolean; data: ReminderTemplate },
-      {
-        eventId: string;
-        timing: ReminderTiming;
-        rsvpStatus: RsvpStatus;
-        subject: string;
-        message: string;
-      }
+    /** POST /v1/events/:eventId/reminders — upsert */
+    upsertReminder: builder.mutation<
+      ReminderTemplate,
+      { eventId: string } & UpsertReminderPayload
     >({
       query: ({ eventId, ...body }) => ({
         url: `/v1/events/${eventId}/reminders`,
-        method: 'PUT',
+        method: "POST",
         body,
       }),
-      invalidatesTags: (_, __, { eventId }) => [{ type: 'Reminders', id: eventId }],
+      transformResponse: (res: any) => res?.data ?? res,
+      invalidatesTags: (_, __, { eventId }) => [
+        { type: "Reminders", id: eventId },
+      ],
     }),
 
-    // PATCH /v1/events/:eventId/reminders/:templateId
-    toggleReminder: build.mutation<
-      { success: boolean; data: ReminderTemplate },
+    /** PATCH /v1/events/:eventId/reminders/:templateId/toggle */
+    toggleReminder: builder.mutation<
+      ReminderTemplate,
       { eventId: string; templateId: string; enabled: boolean }
     >({
       query: ({ eventId, templateId, enabled }) => ({
-        url: `/v1/events/${eventId}/reminders/${templateId}`,
-        method: 'PATCH',
+        url: `/v1/events/${eventId}/reminders/${templateId}/toggle`,
+        method: "PATCH",
         body: { enabled },
       }),
-      invalidatesTags: (_, __, { eventId }) => [{ type: 'Reminders', id: eventId }],
+      transformResponse: (res: any) => res?.data ?? res,
+      invalidatesTags: (_, __, { eventId }) => [
+        { type: "Reminders", id: eventId },
+      ],
     }),
 
-    // DELETE /v1/events/:eventId/reminders/:templateId
-    deleteReminder: build.mutation<
-      { success: boolean },
+    /** DELETE /v1/events/:eventId/reminders/:templateId */
+    deleteReminder: builder.mutation<
+      { message: string },
       { eventId: string; templateId: string }
     >({
       query: ({ eventId, templateId }) => ({
         url: `/v1/events/${eventId}/reminders/${templateId}`,
-        method: 'DELETE',
+        method: "DELETE",
       }),
-      invalidatesTags: (_, __, { eventId }) => [{ type: 'Reminders', id: eventId }],
+      invalidatesTags: (_, __, { eventId }) => [
+        { type: "Reminders", id: eventId },
+      ],
     }),
 
-    // GET /v1/events/:eventId/reminders/logs
-    getReminderLogs: build.query<ReminderLogsResponse, string>({
+    /** GET /v1/events/:eventId/reminders/logs */
+    getReminderLogs: builder.query<ReminderLogsResponse, string>({
       query: (eventId) => `/v1/events/${eventId}/reminders/logs`,
-      transformResponse: (res: any) => ({
-        logs: Array.isArray(res?.data?.logs) ? res.data.logs : [],
-        summary: res?.data?.summary ?? {},
-      }),
-      providesTags: (_, __, eventId) => [{ type: 'ReminderLogs', id: eventId }],
+      transformResponse: (res: any) => res?.data ?? res,
+      providesTags: (_, __, eventId) => [{ type: "ReminderLogs", id: eventId }],
     }),
 
-    // POST /v1/events/:eventId/reminders/import-csv
-    importCsvReminders: build.mutation<
+    /** POST /v1/events/:eventId/reminders/import-csv?timing=...&channel=EMAIL */
+    importCsvReminders: builder.mutation<
       CsvImportResponse,
-      { eventId: string; timing: ReminderTiming; file: { uri: string; name: string; type: string } }
+      { eventId: string; timing: ReminderTiming; file: File }
     >({
       query: ({ eventId, timing, file }) => {
         const formData = new FormData();
-        formData.append('timing', timing);
-        // React Native file object for FormData
-        formData.append('file', {
-          uri: file.uri,
-          name: file.name,
-          type: file.type,
-        } as any);
+        formData.append("file", file);
         return {
-          url: `/v1/events/${eventId}/reminders/import-csv`,
-          method: 'POST',
+          url: `/v1/events/${eventId}/reminders/import-csv?timing=${timing}&channel=EMAIL`,
+          method: "POST",
           body: formData,
         };
       },
       transformResponse: (res: any) => res?.data ?? res,
+      // Refresh delivery logs after import so new pending records appear immediately
       invalidatesTags: (_, __, { eventId }) => [
-        { type: 'Reminders', id: eventId },
-        { type: 'ReminderLogs', id: eventId },
+        { type: "ReminderLogs", id: eventId },
       ],
     }),
   }),

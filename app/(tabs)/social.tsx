@@ -250,6 +250,13 @@ export default function SocialScreen() {
     else refetchMutuals();
   };
 
+  // Re-fetch when tab comes into focus — prevents stale data after login/logout
+  useFocusEffect(
+    useCallback(() => {
+      refetchFeed();
+    }, [refetchFeed])
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       {/* Header */}

@@ -1,150 +1,184 @@
-import { createApi } from '@reduxjs/toolkit/query/react';
-import { API_URL, baseQueryWithReauth, tokenStore } from '../baseQuery';
-import { clearAuth, setNewUser, setUser } from '../slices/authSlice';
 
-// ── Response types ────────────────────────────────────────────────────────────
+import { createApi } from "@reduxjs/toolkit/query/react";
+import { baseQueryWithReauth } from "./baseQuery";
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  role: string;
-  avatarUrl?: string | null;
-}
 
-export interface AuthResponse {
-  success: boolean;
-  data: {
-    accessToken: string;
-    refreshToken: string;
-    user: AuthUser;
-    /** Present on registration / first Google sign-in */
-    isNewUser?: boolean;
-  };
-}
-
-// ── Helper: persist tokens + update Redux ─────────────────────────────────────
-
-async function persistSession(
-  data: AuthResponse,
-  dispatch: (action: any) => void,
-  forceNewUser = false,
-) {
-  await tokenStore.set('accessToken',  data.data.accessToken);
-  await tokenStore.set('refreshToken', data.data.refreshToken);
-  if (forceNewUser || data.data.isNewUser) {
-    dispatch(setNewUser(data.data.user));
-  } else {
-    dispatch(setUser(data.data.user));
-  }
-}
-
-// ── API slice ─────────────────────────────────────────────────────────────────
 
 export const authApi = createApi({
-  reducerPath: 'authApi',
-  baseQuery: baseQueryWithReauth,
-  endpoints: (build) => ({
+    reducerPath: "authApi",
+    baseQuery: baseQueryWithReauth,
+    tagTypes: ["User"],
+    keepUnusedDataFor: 300, // cache user data for 5 minutes
+    endpoints: (build) => ({
 
-    // POST /v1/auth/register
-    register: build.mutation<
-      AuthResponse,
-      { email: string; password: string; displayName: string; username: string }
-    >({
-      query: (body) => ({ url: '/v1/auth/register', method: 'POST', body }),
-      async onQueryStarted(_, { queryFulfilled, dispatch }) {
-        try {
-          const { data } = await queryFulfilled;
-          // Registration always routes to onboarding
-          await persistSession(data, dispatch, true);
-        } catch { /* handled by caller */ }
-      },
-    }),
-
-    // POST /v1/auth/login
-    login: build.mutation<AuthResponse, { email: string; password: string }>({
-      query: (body) => ({ url: '/v1/auth/login', method: 'POST', body }),
-      async onQueryStarted(_, { queryFulfilled, dispatch }) {
-        try {
-          const { data } = await queryFulfilled;
-          await persistSession(data, dispatch);
-        } catch { /* handled by caller */ }
-      },
-    }),
-
-    // POST /v1/auth/oauth/google
-    googleLogin: build.mutation<AuthResponse, { idToken: string }>({
-      query: (body) => ({ url: '/v1/auth/oauth/google', method: 'POST', body }),
-      async onQueryStarted(_, { queryFulfilled, dispatch }) {
-        try {
-          const { data } = await queryFulfilled;
-          // Use isNewUser flag from backend for Google sign-ins
-          await persistSession(data, dispatch);
-        } catch { /* handled by caller */ }
-      },
-    }),
-
-    // POST /v1/auth/forgot-password
-    forgotPassword: build.mutation<
-      { success: boolean; message: string },
-      { email: string }
-    >({
-      query: (body) => ({ url: '/v1/auth/forgot-password', method: 'POST', body }),
-    }),
-
-    // POST /v1/auth/reset-password
-    resetPassword: build.mutation<
-      { success: boolean },
-      { token: string; newPassword: string }
-    >({
-      query: (body) => ({ url: '/v1/auth/reset-password', method: 'POST', body }),
-    }),
-
-    // POST /v1/auth/logout
-    logout: build.mutation<void, void>({
-      queryFn: async (_, { dispatch }) => {
-        try {
-          const accessToken  = await tokenStore.get('accessToken');
-          const refreshToken = await tokenStore.get('refreshToken');
-          // Unregister push token before dropping the access token
-          const pushToken = await tokenStore.get('expoPushToken');
-          if (pushToken && accessToken) {
-            try {
-              await fetch(`${API_URL}/v1/notifications/devices`, {
-                method: 'DELETE',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${accessToken}`,
-                },
-                body: JSON.stringify({ token: pushToken }),
-              });
-            } catch { /* best-effort — don't block logout */ }
-          }
-          await fetch(`${API_URL}/v1/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken ?? ''}`,
+        login: build.mutation({
+            query(body) {
+                return {
+                    url: "/v1/auth/login",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        googleLogin: build.mutation({
+            query(body: { idToken: string }) {
+                return {
+                    url: "/v1/auth/oauth/google",
+                    method: "POST",
+                    credentials: "include",
+                    body
+                }
+            }
+        }),
+        register: build.mutation({
+            query(body) {
+                return {
+                    url: "/v1/auth/register",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        verifyEmail: build.mutation({
+            query(body) {
+                return {
+                    url: "/auth/verify-email",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        resendverificationEmail: build.mutation({
+            query(body) {
+                return {
+                    url: "/auth/request-new-verification",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        forgotPassword: build.mutation({
+            query(body) {
+                return {
+                    url: "/v1/auth/forgot-password",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        resetPassword: build.mutation({
+            query(body: { token: string; newPassword: string }) {
+                return {
+                    url: "/v1/auth/reset-password",
+                    method: "POST",
+                    body
+                }
+            }
+        }),
+        getUser: build.query<any, void>({
+            query() {
+                return {
+                    url: "/v1/users/me",
+                    method: "GET",
+                }
             },
-            body: JSON.stringify({ refreshToken }),
-          });
-        } finally {
-          await tokenStore.removeMany(['accessToken', 'refreshToken', 'expoPushToken']);
-          dispatch(clearAuth());
-        }
-        return { data: null as unknown as void };
-      },
-    }),
+            providesTags: ["User"],
+        }),
+        getMe: build.query<any, void>({
+            query() {
+                return {
+                    url: "/v1/me",
+                    method: "GET",
+                }
+            }
+        }),
+        getOrganizerEvents: build.query<any, { organizerId: string; page?: number; limit?: number }>({
+            query({ organizerId, page = 1, limit = 10 }) {
+                const p = new URLSearchParams();
+                p.set("page", String(page));
+                p.set("limit", String(limit));
+                return {
+                    url: `/v1/events/organizer/${organizerId}?${p.toString()}`,
+                    method: "GET",
+                }
+            }
+        }),
+        getUserBasic: build.query<any, string>({
+            query(userId) {
+                return {
+                    url: `/v1/users/${userId}/basic`,
+                    method: "GET",
+                }
+            }
+        }),
+        getUserActivity: build.query<any, string>({
+            query(userId) {
+                return {
+                    url: `/v1/users/${userId}/activity`,
+                    method: "GET",
+                }
+            }
+        }),
+        updateUser: build.mutation<
+            any,
+            {
+                displayName?: string;
+                username?: string;
+                bio?: string | null;
+                avatarUrl?: string | null;
+            }
+        >({
+            query(body) {
+                return {
+                    url: "/v1/users/me",
+                    method: "PATCH",
+                    body,
+                };
+            },
 
-  }),
-});
+            invalidatesTags: ["User"],
+        }),
+        // authApi.ts
 
-export const {
-  useRegisterMutation,
-  useLoginMutation,
-  useGoogleLoginMutation,
-  useForgotPasswordMutation,
-  useResetPasswordMutation,
-  useLogoutMutation,
-} = authApi;
+        getPresignedUrl: build.mutation<
+            {
+                [x: string]: any;
+                uploadUrl: string;
+                objectUrl: string;
+                expiresIn: number;
+            },
+            {
+                filename: string;
+                mimeType: string;
+                context: string;
+            }
+        >({
+            query(body) {
+                return {
+                    url: "/v1/storage/presigned-url",
+                    method: "POST",
+                    body,
+                };
+            },
+        }),
+        logout: build.mutation<void, void>({
+            queryFn: async () => {
+                try {
+                    const res = await fetch("/api/auth/logout", { method: "POST" });
+                    if (!res.ok) {
+                        const data = await res.json();
+                        return { error: { status: res.status, data } as any };
+                    }
+                    return { data: undefined };
+                } catch (e) {
+                    return { error: { status: "FETCH_ERROR", error: String(e) } as any };
+                }
+            },
+        }),
+
+
+
+    })
+})
+
+export const { useLoginMutation, useGoogleLoginMutation, useRegisterMutation, useVerifyEmailMutation, useResendverificationEmailMutation, useGetUserQuery, useGetMeQuery, useGetUserBasicQuery, useGetUserActivityQuery, useGetOrganizerEventsQuery, useForgotPasswordMutation, useResetPasswordMutation, useLogoutMutation, useUpdateUserMutation, useGetPresignedUrlMutation } = authApi

@@ -240,10 +240,7 @@ export default function EditEventScreen() {
         />
 
         {/* 5b ── VibeTag Studio */}
-        <VibeTagStudioSection
-          eventId={eventId}
-          eventPlan={eventPlan}
-        />
+        <VibeTagStudioSection eventId={eventId} eventPlan={eventPlan} />
 
         {/* 6 ── Tickets */}
         <TicketSection eventId={eventId} eventStatus={event.status} />
@@ -437,7 +434,9 @@ function EventTagsSection({
         isLocked ? (
           <StatusBadge label="Locked" color={semantic.error} />
         ) : (
-          <CountBadge label={`${liveTagCount} ${liveTagCount === 1 ? "Tag" : "Tags"}`} />
+          <CountBadge
+            label={`${liveTagCount} ${liveTagCount === 1 ? "Tag" : "Tags"}`}
+          />
         )
       }
     >
@@ -577,7 +576,11 @@ function VibeTagStudioSection({
     <DashboardCard
       title="VibeTag Studio"
       icon={
-        <Ionicons name="color-palette-outline" size={16} color={brand.primary} />
+        <Ionicons
+          name="color-palette-outline"
+          size={16}
+          color={brand.primary}
+        />
       }
       badge={
         <CountBadge
@@ -607,9 +610,7 @@ function PublishSection({
   return (
     <DashboardCard
       title="Publish Your Event"
-      icon={
-        <Ionicons name="rocket-outline" size={16} color={brand.primary} />
-      }
+      icon={<Ionicons name="rocket-outline" size={16} color={brand.primary} />}
       badge={<StatusBadge label="DRAFT" color="#b45309" />}
       defaultOpen
     >

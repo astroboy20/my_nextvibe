@@ -144,6 +144,13 @@ export default function MessagesScreen() {
 
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
 
+  // Re-fetch when tab comes into focus — prevents stale data after login/logout
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       {/* Header */}

@@ -23,6 +23,8 @@ import { RoundPlayer } from "./RoundPlayer";
 import { SessionCard } from "./SessionCard";
 import type { PhaseTab } from "./types";
 import { mapPhase, mapStatus, mapType } from "./types";
+import AuthModal from "@/components/auth/AuthModal";
+import { useAuthModal } from "@/hooks/useAuthModal";
 
 // ── Phase tabs ────────────────────────────────────────────────────────────────
 
