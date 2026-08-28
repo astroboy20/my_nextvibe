@@ -2,6 +2,22 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "./baseQuery";
 
+// ─── AuthUser ─────────────────────────────────────────────────────────────────
+// Shape returned by GET /v1/users/me and stored in authSlice.
+export interface AuthUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  role: string;
+  isEmailVerified?: boolean;
+  city?: string | null;
+  country?: string | null;
+  createdAt?: string;
+}
+
 
 
 export const authApi = createApi({

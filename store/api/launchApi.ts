@@ -1,9 +1,10 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { API_URL } from "./baseQuery";
 
 export const launchApi = createApi({
     reducerPath: "launchApi",
     baseQuery: fetchBaseQuery({
-        baseUrl: process.env.NEXT_PUBLIC_API_URL
+        baseUrl: API_URL
     }),
     endpoints: (build) => ({
         waitlist: build.mutation({

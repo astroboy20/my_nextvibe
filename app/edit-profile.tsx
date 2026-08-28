@@ -270,7 +270,8 @@ export default function EditProfileScreen() {
           type: 'image/jpeg',
         } as any);
         const uploaded = await uploadFile(fd).unwrap();
-        finalAvatarUrl = uploaded.data.url;
+        // uploadMultipleFiles returns { data: [{ url, fileKey, mediaType }] }
+        finalAvatarUrl = uploaded.data[0]?.url ?? finalAvatarUrl;
       }
 
       await updateMe({

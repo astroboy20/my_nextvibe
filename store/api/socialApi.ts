@@ -214,3 +214,15 @@ export const {
   useGetCommentRepliesQuery,
   useRecordShareMutation,
 } = socialApi;
+
+// ─── Messaging re-exports ─────────────────────────────────────────────────────
+// messages.tsx imports useGetConversationsQuery and Conversation from socialApi.
+// The real definitions live in messagingApi — re-export them here for compat.
+export {
+    useGetConversationsQuery, useGetEventChatQuery, useGetMessagesQuery, useStartConversationMutation
+} from "./messagingApi";
+
+export type {
+    Conversation, ConversationsResponse, Message, MessagesResponse
+} from "./messagingApi";
+

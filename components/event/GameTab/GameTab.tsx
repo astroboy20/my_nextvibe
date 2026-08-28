@@ -1,12 +1,13 @@
+import AuthModal from "@/components/auth/AuthModal";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuthModal } from "@/hooks/useAuthModal";
 import {
     useGetActiveGameStatusQuery,
     useGetGameSessionQuery,
-    useGetGameSessionsQuery,
     useJoinGameSessionMutation,
-    useSubmitRoundAnswersMutation,
+    useSubmitRoundAnswersMutation
 } from "@/store/api/gamesApi";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
@@ -23,8 +24,6 @@ import { RoundPlayer } from "./RoundPlayer";
 import { SessionCard } from "./SessionCard";
 import type { PhaseTab } from "./types";
 import { mapPhase, mapStatus, mapType } from "./types";
-import AuthModal from "@/components/auth/AuthModal";
-import { useAuthModal } from "@/hooks/useAuthModal";
 
 // ── Phase tabs ────────────────────────────────────────────────────────────────
 
@@ -77,7 +76,7 @@ export default function GameTab({ eventId, eventName, startsAt, onPlayingChange 
     data: gamesData,
     isLoading: isLoadingGames,
     refetch: refetchGames,
-  } = useGetGameSessionsQuery(eventId, {
+  } = useGetGamesQuery(eventId, {
     skip: !eventId,
     refetchOnMountOrArgChange: true,
   });

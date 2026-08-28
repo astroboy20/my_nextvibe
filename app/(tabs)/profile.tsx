@@ -16,9 +16,9 @@ import {
     type UserTicket,
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
     Image,
     RefreshControl,

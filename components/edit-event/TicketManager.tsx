@@ -16,25 +16,24 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useUploadIntentMutation } from "@/store/api/eventsApi";
 import {
-  useCreateTicketTierMutation,
-  useDeleteTicketTierMutation,
-  useGetEventTicketsQuery,
-  useUpdateTicketTierMutation,
-  type TicketTier,
+    useCreateTicketTierMutation,
+    useDeleteTicketTierMutation,
+    useUpdateTicketTierMutation,
+    type TicketTier
 } from "@/store/api/ticketsApi";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import FieldInput from "./FieldInput";
 
@@ -1208,7 +1207,7 @@ export default function TicketManager({
   eventStatus?: string;
 }) {
   const { data: serverTiers = [], isLoading } =
-    useGetEventTicketsQuery(eventId);
+    useGetTicketTiersQuery(eventId);
   const [tiers, setTiers] = useState<TicketTier[] | null>(null);
   const displayTiers = tiers ?? serverTiers;
 

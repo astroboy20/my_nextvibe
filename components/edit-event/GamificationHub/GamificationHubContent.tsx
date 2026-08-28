@@ -5,31 +5,33 @@
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import {
-  useGetGameSessionEditPolicyQuery,
-  useGetGamesQuery,
-  useGetSessionLeaderboardQuery,
-  useInitiateAdditionalGamePaymentMutation,
-  useUpdateGameSessionMutation,
-  useUpdateGameStatusMutation,
-  useUpdateRoundStatusMutation,
+    useGetGameSessionEditPolicyQuery,
+    useGetGamesQuery,
+    useGetSessionLeaderboardQuery,
+    useUpdateGameSessionMutation,
+    useUpdateGameStatusMutation,
+    useUpdateRoundStatusMutation,
 } from '@/store/api/gamesApi';
+import {
+    useInitiateAdditionalGamePaymentMutation,
+} from '@/store/api/organizerPaymentApi';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GameCreationWizard } from './GameCreationWizard';
 import Toast from 'react-native-toast-message';
+import { GameCreationWizard } from './GameCreationWizard';
 
 type GameStatus  = 'pending' | 'live' | 'ended';
 type GamePhase   = 'pre-event' | 'main-event' | 'post-event' | 'both';

@@ -6,8 +6,8 @@ import {
     type Conversation,
 } from '@/store/api/socialApi';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
     FlatList,
     RefreshControl,

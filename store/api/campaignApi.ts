@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { API_URL } from "./baseQuery";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ export interface VerifyResponse {
 export const campaignApi = createApi({
   reducerPath: "campaignApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_URL,
+    baseUrl: API_URL,
   }),
   tagTypes: ["CampaignStats"],
   keepUnusedDataFor: 30,

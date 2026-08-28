@@ -9,7 +9,7 @@ import {
     useInitiatePlanPaymentMutation,
     type PlanQuote,
     type PlanType,
-} from "@/store/api/paymentApi";
+} from "@/store/api/organizerPaymentApi";
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import React, { useEffect, useState } from "react";
