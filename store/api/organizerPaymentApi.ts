@@ -98,6 +98,8 @@ export const organizerPaymentApi = createApi({
      * POST /v1/organizer-payments/plan/initiate
      * Start a plan purchase payment to publish a DRAFT event.
      * Returns checkoutUrl — redirect organizer there.
+     * Also invalidates the Event cache so the status reflects immediately
+     * after a free/instant-complete payment.
      */
     initiatePlanPayment: builder.mutation<
       { success: boolean; data: InitiatePaymentResponse },
@@ -108,7 +110,12 @@ export const organizerPaymentApi = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["OrganizerPayments"],
+      invalidatesTags: (_result, _error, { eventId }) => [
+        "OrganizerPayments",
+        { type: "PublishPreview", id: eventId },
+        { type: "Event",          id: eventId },
+        "Events",
+      ],
     }),
 
     /**

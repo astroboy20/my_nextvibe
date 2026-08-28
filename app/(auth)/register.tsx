@@ -10,7 +10,6 @@ import { Link } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { type ReactNode, useState } from "react";
 import {
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -22,26 +21,20 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 
-let GoogleSigninButton: any = null;
-if (Platform.OS !== "web") {
-  try {
-    GoogleSigninButton =
-      require("@react-native-google-signin/google-signin").GoogleSigninButton;
-  } catch { /* Expo Go */ }
-}
-
 export default function RegisterScreen() {
   const colors = Colors.light;
+
+  // Flow 1A — hosted redirect via expo-web-browser, no native SDK needed
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
 
   const [register, { isLoading }] = useRegisterMutation();
 
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail]             = useState("");
-  const [username, setUsername]       = useState("");
-  const [password, setPassword]       = useState("");
-  const [showPass, setShowPass]       = useState(false);
-  const [agreed, setAgreed]           = useState(false);
+  const [email,       setEmail]       = useState("");
+  const [username,    setUsername]    = useState("");
+  const [password,    setPassword]    = useState("");
+  const [showPass,    setShowPass]    = useState(false);
+  const [agreed,      setAgreed]      = useState(false);
   const [errors, setErrors] = useState({
     displayName: "", email: "", username: "", password: "", agreed: "",
   });
@@ -49,12 +42,12 @@ export default function RegisterScreen() {
   function validate() {
     const e = { displayName: "", email: "", username: "", password: "", agreed: "" };
     let ok = true;
-    if (!displayName.trim())                      { e.displayName = "Display name is required"; ok = false; }
-    if (!email.trim())                            { e.email = "Email is required"; ok = false; }
-    else if (!/\S+@\S+\.\S+/.test(email))        { e.email = "Enter a valid email"; ok = false; }
-    if (!username.trim())                         { e.username = "Username is required"; ok = false; }
-    if (password.length < 8)                      { e.password = "At least 8 characters required"; ok = false; }
-    if (!agreed)                                  { e.agreed = "You must agree to continue"; ok = false; }
+    if (!displayName.trim())               { e.displayName = "Display name is required"; ok = false; }
+    if (!email.trim())                     { e.email = "Email is required";              ok = false; }
+    else if (!/\S+@\S+\.\S+/.test(email)) { e.email = "Enter a valid email";            ok = false; }
+    if (!username.trim())                  { e.username = "Username is required";        ok = false; }
+    if (password.length < 8)              { e.password = "At least 8 characters";       ok = false; }
+    if (!agreed)                           { e.agreed = "You must agree to continue";    ok = false; }
     setErrors(e);
     return ok;
   }
@@ -63,26 +56,16 @@ export default function RegisterScreen() {
     if (!validate()) return;
     try {
       await register({
-        email: email.trim(),
-        password,
+        email: email.trim(), password,
         displayName: displayName.trim(),
         username: username.trim(),
       }).unwrap();
-      Toast.show({
-        type: "success",
-        text1: "Account created! 🎉",
-        text2: "Welcome to NextVibe",
-        visibilityTime: 2500,
-      });
-      // AuthGate redirects automatically
+      // onQueryStarted persists tokens + dispatches setNewUser
+      // AuthGate routes to /(auth)/onboarding → vibes selection → /(tabs)
+      Toast.show({ type: "success", text1: "Account created! 🎉", text2: "Welcome to NextVibe", visibilityTime: 2500 });
     } catch (err: any) {
       const msg = err?.data?.message ?? err?.error ?? "Registration failed. Please try again.";
-      Toast.show({
-        type: "error",
-        text1: "Registration failed",
-        text2: msg,
-        visibilityTime: 3500,
-      });
+      Toast.show({ type: "error", text1: "Registration failed", text2: msg, visibilityTime: 3500 });
     }
   }
 
@@ -100,23 +83,12 @@ export default function RegisterScreen() {
       >
         <AuthHeader title="Join NextVibe" subtitle="Create your account and start vibing" />
 
-        {/* Google */}
-        {Platform.OS !== "web" && GoogleSigninButton ? (
-          <View style={styles.googleBtnWrapper}>
-            <GoogleSigninButton
-              size={GoogleSigninButton.Size.Wide}
-              color={GoogleSigninButton.Color.Dark}
-              onPress={signInWithGoogle}
-              disabled={googleLoading}
-              style={styles.googleBtn}
-            />
-            {googleLoading && <ActivityIndicator size="small" style={styles.googleLoader} color={colors.textTertiary} />}
-          </View>
-        ) : (
-          <GoogleFallbackButton onPress={signInWithGoogle} loading={googleLoading} colors={colors} />
-        )}
+        {/* ── Google (Flow 1A — works on all platforms without native SDK) ── */}
+        <GoogleFallbackButton onPress={signInWithGoogle} loading={googleLoading} colors={colors} />
         {googleError ? (
-          <Text style={[textStyles.caption, { color: colors.secondary, marginTop: space.sm }]}>{googleError}</Text>
+          <Text style={[textStyles.caption, { color: colors.secondary, marginTop: space.sm, marginBottom: space.sm }]}>
+            {googleError}
+          </Text>
         ) : null}
 
         <View style={styles.orRow}>
@@ -177,7 +149,7 @@ export default function RegisterScreen() {
           </View>
         </Field>
 
-        {/* T&C */}
+        {/* ── T&C ── */}
         <View style={styles.checkRow}>
           <Pressable
             style={[styles.checkbox, { borderColor: errors.agreed ? colors.secondary : colors.border, backgroundColor: agreed ? colors.primary : "transparent" }]}
@@ -189,16 +161,28 @@ export default function RegisterScreen() {
           </Pressable>
           <Text style={[textStyles.bodySm, { color: colors.textSecondary, flex: 1, marginLeft: space.sm }]}>
             {"I have read and agree to the "}
-            <Text style={{ color: colors.primary, textDecorationLine: "underline" }} onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/privacy")} accessibilityRole="link">Privacy Policy</Text>
+            <Text
+              style={{ color: colors.primary, textDecorationLine: "underline" }}
+              onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/privacy")}
+              accessibilityRole="link"
+            >
+              Privacy Policy
+            </Text>
             {" and "}
-            <Text style={{ color: colors.primary, textDecorationLine: "underline" }} onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/terms")} accessibilityRole="link">Terms of Service</Text>
+            <Text
+              style={{ color: colors.primary, textDecorationLine: "underline" }}
+              onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/terms")}
+              accessibilityRole="link"
+            >
+              Terms of Service
+            </Text>
             {"."}
           </Text>
         </View>
         {errors.agreed ? <Text style={[textStyles.caption, { color: colors.secondary, marginTop: 4 }]}>{errors.agreed}</Text> : null}
 
         <PrimaryButton
-          label="Submit"
+          label="Create Account"
           loading={isLoading}
           onPress={handleSubmit}
           backgroundColor={agreed ? colors.primary : colors.primaryLight}
@@ -209,7 +193,9 @@ export default function RegisterScreen() {
           <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>Already have an account? </Text>
           <Link href="/(auth)/login" asChild>
             <Pressable>
-              <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: "underline" }]}>Sign in</Text>
+              <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: "underline" }]}>
+                Sign in
+              </Text>
             </Pressable>
           </Link>
         </View>
@@ -218,7 +204,9 @@ export default function RegisterScreen() {
   );
 }
 
-function Field({ label, error, colors, top, children }: { label: string; error: string; colors: any; top?: boolean; children: ReactNode }) {
+function Field({ label, error, colors, top, children }: {
+  label: string; error: string; colors: any; top?: boolean; children: ReactNode;
+}) {
   return (
     <View style={top ? { marginTop: space.lg } : undefined}>
       <Text style={[textStyles.label, { color: colors.textSecondary, marginBottom: space.xs }]}>{label}</Text>
@@ -229,20 +217,17 @@ function Field({ label, error, colors, top, children }: { label: string; error: 
 }
 
 const styles = StyleSheet.create({
-  scroll:          { paddingHorizontal: space.xl, paddingBottom: space["3xl"] },
+  scroll:    { paddingHorizontal: space.xl, paddingBottom: space["3xl"] },
   input: {
     height: layout.inputHeight, borderRadius: radius.lg, borderWidth: 1.5,
     paddingHorizontal: space.md, fontFamily: "NunitoSans_400Regular", fontSize: 15, includeFontPadding: false,
   },
-  inputPadR:       { paddingRight: 52 },
-  eyeBtn:          { position: "absolute", right: 0, top: 0, bottom: 0, width: 52, alignItems: "center", justifyContent: "center" },
-  orRow:           { flexDirection: "row", alignItems: "center", marginVertical: space.lg },
-  orLine:          { flex: 1, height: StyleSheet.hairlineWidth * 2 },
-  googleBtnWrapper:{ alignItems: "center", marginBottom: space.xs },
-  googleBtn:       { width: "100%", height: 56 },
-  googleLoader:    { position: "absolute", right: space.md, top: 0, bottom: 0 },
-  checkRow:        { flexDirection: "row", alignItems: "flex-start", marginTop: space.lg },
-  checkbox:        { width: 20, height: 20, borderRadius: radius.xs, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  checkMark:       { color: "#fff", fontSize: 12, lineHeight: 16, fontWeight: "700" },
-  bottomRow:       { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: space.xl },
+  inputPadR: { paddingRight: 52 },
+  eyeBtn:    { position: "absolute", right: 0, top: 0, bottom: 0, width: 52, alignItems: "center", justifyContent: "center" },
+  orRow:     { flexDirection: "row", alignItems: "center", marginVertical: space.lg },
+  orLine:    { flex: 1, height: StyleSheet.hairlineWidth * 2 },
+  checkRow:  { flexDirection: "row", alignItems: "flex-start", marginTop: space.lg },
+  checkbox:  { width: 20, height: 20, borderRadius: radius.xs, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
+  checkMark: { color: "#fff", fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  bottomRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: space.xl },
 });

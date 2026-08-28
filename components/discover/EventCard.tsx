@@ -68,7 +68,6 @@ export interface EventCardData {
 
 export default function EventCard({ item, onPress }: { item: EventCardData; onPress?: () => void }) {
   const router = useRouter();
-
   const handlePress = () => {
     if (onPress) {
       onPress();

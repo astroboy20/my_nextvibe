@@ -127,7 +127,9 @@ export default function RootLayout() {
           <Stack.Screen name="events/[id]" />
           <Stack.Screen name="edit-event" />
           <Stack.Screen name="analytics" />
-        </Stack>      </AuthGate>
+          <Stack.Screen name="notifications" />
+        </Stack>
+      </AuthGate>
       <Toast />
     </Provider>
   );

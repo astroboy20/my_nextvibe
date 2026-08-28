@@ -1,5 +1,6 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useNotificationBell } from '@/hooks/useNotificationBell';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -34,43 +35,87 @@ function LogoMark({ size = 38 }: { size?: number }) {
   );
 }
 
+// ─── Bell button — shared by AppHeader and TopNavBar ─────────────────────────
+// If notificationCount / onPress are not provided, falls back to the live
+// RTK Query count and automatic navigation to /notifications.
+
+function NotificationBell({
+  count: countProp,
+  onPress: onPressProp,
+  size = 22,
+  style,
+}: {
+  count?: number;
+  onPress?: () => void;
+  size?: number;
+  style?: object;
+}) {
+  const { unreadCount, onBellPress } = useNotificationBell();
+  const count   = countProp   ?? unreadCount;
+  const onPress = onPressProp ?? onBellPress;
+
+  return (
+    <TouchableOpacity
+      style={[bell.wrap, style]}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityLabel="Notifications"
+      accessibilityRole="button"
+    >
+      <Ionicons name="notifications-outline" size={size} color={neutral[700]} />
+      {count > 0 && (
+        <View style={bell.badge}>
+          <Text style={bell.text}>{count > 9 ? '9+' : count}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+const bell = StyleSheet.create({
+  wrap:  { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  badge: {
+    position: 'absolute', top: 4, right: 4,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: brand.secondary,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  text: { fontFamily: fontFamily.bold, fontSize: 9, color: '#fff' },
+});
+
 // ─── AppHeader ─────────────────────────────────────────────────────────────────
 // Used on all non-tab screens: [back]  [logo + wordmark]  [bell]
+// notificationCount / onNotificationPress are optional — omit them and the
+// bell self-manages via useNotificationBell.
 
 export interface AppHeaderProps {
   onBack?: () => void;
+  /** Override the badge count. Omit to use live RTK Query unreadCount. */
   notificationCount?: number;
+  /** Override the press handler. Omit to auto-navigate to /notifications. */
   onNotificationPress?: () => void;
+  /** Replaces the bell entirely with a custom right-side element. */
   right?: React.ReactNode;
 }
 
 export function AppHeader({
   onBack,
-  notificationCount = 0,
+  notificationCount,
   onNotificationPress,
   right,
 }: AppHeaderProps) {
-  const Bell = right ? (
+  const RightSlot = right ? (
     <View style={ah.side}>{right}</View>
   ) : (
-    <TouchableOpacity
-      style={ah.side}
+    <NotificationBell
+      count={notificationCount}
       onPress={onNotificationPress}
-      activeOpacity={0.7}
-      accessibilityLabel="Notifications"
-    >
-      <Ionicons name="notifications-outline" size={22} color={neutral[700]} />
-      {notificationCount > 0 && (
-        <View style={ah.badge}>
-          <Text style={ah.badgeText}>
-            {notificationCount > 9 ? '9+' : notificationCount}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
+      size={22}
+      style={ah.side}
+    />
   );
 
-  // No back button → logo flush left, bell flush right
   if (!onBack) {
     return (
       <View style={ah.bar}>
@@ -78,24 +123,21 @@ export function AppHeader({
           <LogoMark size={34} />
           <Text style={ah.wordmark}>nextvibe</Text>
         </View>
-        {Bell}
+        {RightSlot}
       </View>
     );
   }
 
-  // Has back button → [back]  [logo centred]  [bell]
   return (
     <View style={ah.bar}>
       <TouchableOpacity style={ah.side} onPress={onBack} activeOpacity={0.7} hitSlop={8}>
         <Ionicons name="chevron-back" size={22} color={neutral[800]} />
       </TouchableOpacity>
-
       <View style={ah.brand}>
         <LogoMark size={34} />
         <Text style={ah.wordmark}>nextvibe</Text>
       </View>
-
-      {Bell}
+      {RightSlot}
     </View>
   );
 }
@@ -111,51 +153,19 @@ const ah = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  side: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // centred logo (used when back button is present)
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  // left-aligned logo (used when there is no back button)
-  brandLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  side:      { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  brand:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   wordmark: {
     fontFamily: fontFamily.extrabold,
     fontSize: fontSize.xl,
     color: neutral[900],
     letterSpacing: -0.5,
   },
-  badge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: brand.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 9,
-    color: '#fff',
-  },
 });
 
 // ─── TopNavBar (tab screens) ──────────────────────────────────────────────────
+// notificationCount / onNotificationPress optional — same self-managing bell.
 
 interface TopNavBarProps {
   onNotificationPress?: () => void;
@@ -164,35 +174,17 @@ interface TopNavBarProps {
 
 export default function TopNavBar({
   onNotificationPress,
-  notificationCount = 0,
+  notificationCount,
 }: TopNavBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
-      {/* Brand */}
       <View style={styles.brand}>
         <LogoMark size={38} />
         <Text style={styles.brandName}>nextvibe</Text>
       </View>
-
-      {/* Notification bell */}
-      <TouchableOpacity
-        onPress={onNotificationPress}
-        style={styles.bellButton}
-        activeOpacity={0.7}
-        accessibilityLabel="Notifications"
-        accessibilityRole="button"
-      >
-        <Ionicons name="notifications-outline" size={24} color={neutral[700]} />
-        {notificationCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {notificationCount > 9 ? '9+' : notificationCount}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      <NotificationBell count={notificationCount} onPress={onNotificationPress} size={24} />
     </View>
   );
 }
@@ -208,38 +200,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  brand:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandName: {
     fontFamily: fontFamily.extrabold,
     fontSize: fontSize.xl,
     color: neutral[900],
     letterSpacing: -0.5,
-  },
-  bellButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: brand.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 9,
-    color: '#fff',
   },
 });

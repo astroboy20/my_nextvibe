@@ -6,6 +6,7 @@ import { useAuthModal } from "@/hooks/useAuthModal";
 import {
     useGetActiveGameStatusQuery,
     useGetGameSessionQuery,
+    useGetGamesQuery,
     useJoinGameSessionMutation,
     useSubmitRoundAnswersMutation
 } from "@/store/api/gamesApi";

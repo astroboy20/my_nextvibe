@@ -4,12 +4,12 @@
  * Handles Expo push token registration and unregistration against the
  * NextVibe backend (POST/DELETE /v1/notifications/devices).
  *
- * Rules from MOBILE-INTEGRATION.md §2:
+ * Per MOBILE-INTEGRATION.md §2:
  *   - Call registerForPush on every app start after sign-in (endpoint upserts)
- *   - No-op on simulators (Device.isDevice guard)
+ *   - No-op on simulators AND in Expo Go (push was removed from Expo Go in SDK 53)
  *   - Android requires a notification channel named exactly 'default'
- *   - Token is stored in SecureStore under 'expoPushToken' so logout can
- *     unregister before discarding the access token
+ *   - Token stored in SecureStore under 'expoPushToken' so logout can
+ *     unregister before dropping the access token
  *   - projectId must be the EAS project ID from app.json extra.eas.projectId
  */
 
@@ -18,19 +18,41 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-const EAS_PROJECT_ID = 'e837865d-1e7b-495f-b8dd-db9783e2435b'; // from app.json extra.eas.projectId
+const EAS_PROJECT_ID = 'e837865d-1e7b-495f-b8dd-db9783e2435b';
+
+// ── Expo Go detection ─────────────────────────────────────────────────────────
+// expo-constants exposes the app ownership. In Expo Go it is 'expo';
+// in a dev build or production build it is 'standalone' or undefined.
+// Push was removed from Expo Go in SDK 53 — we must skip all push code there.
+function isExpoGo(): boolean {
+  try {
+    const Constants = require('expo-constants').default;
+    return Constants.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+}
+
+// ── Push supported? ───────────────────────────────────────────────────────────
+// Must be a real device AND a dev/production build (not Expo Go).
+function isPushSupported(): boolean {
+  return Device.isDevice && !isExpoGo();
+}
 
 // ── Configure foreground notification behaviour ───────────────────────────────
-// Show alert + play sound + update badge even when the app is in the foreground.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge:  true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Only call setNotificationHandler in builds that support push.
+// In Expo Go this call itself throws the SDK 53 error.
+if (isPushSupported()) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert:  true,
+      shouldPlaySound:  true,
+      shouldSetBadge:   true,
+      shouldShowBanner: true,
+      shouldShowList:   true,
+    }),
+  });
+}
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
@@ -39,11 +61,11 @@ Notifications.setNotificationHandler({
  * POST it to the backend, and persist it in SecureStore.
  *
  * Safe to call on every app start — the backend endpoint upserts.
- * Returns the token string, or null if push is not available/permitted.
+ * Returns the token string, or null if push is not available / not permitted.
  */
 export async function registerForPush(accessToken: string): Promise<string | null> {
-  // Push does not work on simulators/emulators
-  if (!Device.isDevice) return null;
+  // Skip on simulators and Expo Go — push is not available in either
+  if (!isPushSupported()) return null;
 
   // Check / request permission
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -52,7 +74,7 @@ export async function registerForPush(accessToken: string): Promise<string | nul
     const { status: asked } = await Notifications.requestPermissionsAsync();
     status = asked;
   }
-  // Respect the user's refusal — don't re-prompt every launch
+  // Respect the refusal — don't re-prompt every launch
   if (status !== 'granted') return null;
 
   // Android requires a channel. Backend sends channelId 'default' so the
@@ -69,7 +91,7 @@ export async function registerForPush(accessToken: string): Promise<string | nul
     projectId: EAS_PROJECT_ID,
   });
 
-  // Register with the backend
+  // Register with the backend (upsert — safe to repeat every launch)
   await fetch(`${API_URL}/v1/notifications/devices`, {
     method:  'POST',
     headers: {
@@ -92,8 +114,7 @@ export async function registerForPush(accessToken: string): Promise<string | nul
 
 /**
  * Delete the device token from the backend and remove it from SecureStore.
- * Must be called before discarding the access token on sign-out.
- * Already called inside authApi logout mutation — exposed here for direct use.
+ * Called inside authApi logout before clearing the access token.
  */
 export async function unregisterPush(accessToken: string): Promise<void> {
   const token = await tokenStore.get('expoPushToken');
@@ -116,28 +137,13 @@ export async function unregisterPush(accessToken: string): Promise<void> {
 // ── Notification data types ───────────────────────────────────────────────────
 
 export type NotificationType =
-  | 'FOLLOW'
-  | 'LIKE'
-  | 'COMMENT'
-  | 'TAG'
-  | 'RSVP'
-  | 'GAME_RESULT'
-  | 'EVENT_REMINDER'
-  | 'CHECK_IN'
-  | 'PAYMENT_CONFIRMED'
-  | 'PAYMENT_FAILED'
-  | 'EVENT_PUBLISHED'
-  | 'TICKET_PURCHASED'
-  | 'GAME_UNLOCKED'
-  | 'VIBETAG_ACTIVATED';
+  | 'FOLLOW' | 'LIKE' | 'COMMENT' | 'TAG' | 'RSVP'
+  | 'GAME_RESULT' | 'EVENT_REMINDER' | 'CHECK_IN'
+  | 'PAYMENT_CONFIRMED' | 'PAYMENT_FAILED' | 'EVENT_PUBLISHED'
+  | 'TICKET_PURCHASED' | 'GAME_UNLOCKED' | 'VIBETAG_ACTIVATED';
 
 export type NotificationTargetType =
-  | 'EVENT'
-  | 'POSTCARD'
-  | 'GAME'
-  | 'USER'
-  | 'PAYMENT'
-  | 'TICKET';
+  | 'EVENT' | 'POSTCARD' | 'GAME' | 'USER' | 'PAYMENT' | 'TICKET';
 
 export interface PushNotificationData {
   notificationId: string;
