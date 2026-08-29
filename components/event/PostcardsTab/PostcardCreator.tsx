@@ -40,6 +40,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { PostcardCamera, type CapturedMedia } from './PostcardCamera';
+import { stampOverlay } from './stampOverlay';
 
 const { width: W, height: H } = Dimensions.get('window');
 const TILE_W = (W - 28 - 8) / 2;   // two-column swap grid
@@ -273,7 +274,7 @@ export function PostcardCreator({
   const [caption, setCaption] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState<'uploading' | 'saving'>('uploading');
+  const [uploadStage, setUploadStage] = useState<'stamping' | 'uploading' | 'saving'>('stamping');
   const [showCamera, setShowCamera] = useState(false);
   const [showSwapPicker, setShowSwapPicker] = useState(false);
   const [showSwapConfirm, setShowSwapConfirm] = useState(false);
@@ -364,32 +365,59 @@ export function PostcardCreator({
     if (!items.length || !eventId) return;
     setIsSubmitting(true);
     setUploadProgress(0);
-    setUploadStage('uploading');
+    setUploadStage('stamping');
+
+    // overlayUrl from vibeTagOverlay prop — used for both stamping and video reference
+    const overlayUrl = vibeTagOverlay?.imageUrl ?? null;
+
     try {
-      // Use SecureStore (same as the rest of the app) — NOT AsyncStorage
+      // ── Step 1: Stamp VibeTag onto every item before upload ─────────────
+      // Images  → Skia composites photo + overlay → JPEG data URI
+      // Videos  → returned unchanged; overlayUrl stored for playback-time rendering
+      setUploadProgress(5);
+      const stamped = await Promise.all(
+        items.map((item) =>
+          stampOverlay(item.uri, item.type, overlayUrl),
+        ),
+      );
+      setUploadProgress(15);
+
+      // ── Step 2: Build FormData with stamped URIs ─────────────────────────
       const token = await tokenStore.get('accessToken');
-
       const formData = new FormData();
-      for (const item of items) {
-        const uri = Platform.OS === 'ios' ? item.uri.replace('file://', '') : item.uri;
-        const ext = item.uri.split('.').pop() ?? (item.type === 'video' ? 'mp4' : 'jpg');
-        const mime = item.mimeType ?? (item.type === 'video' ? 'video/mp4' : 'image/jpeg');
-        const name = item.fileName ?? `postcard-${Date.now()}.${ext}`;
-        (formData as any).append('files', { uri, name, type: mime } as any);
-      }
 
-      // ── XHR upload (supports progress) ────────────────────────────────
+      stamped.forEach((result, i) => {
+        const original = items[i];
+        let uploadUri = result.uri;
+
+        // data: URIs (stamped images) — React Native FormData needs a file-like object
+        // with a uri field, not a raw data: string.  We pass it as-is; the native
+        // FormData implementation handles base64 data URIs correctly on iOS & Android.
+        const ext = original.uri.split('.').pop() ?? (original.type === 'video' ? 'mp4' : 'jpg');
+        const mime = result.mimeType;
+        const name = original.fileName ?? `postcard-${Date.now()}-${i}.${result.mimeType === 'video/mp4' ? 'mp4' : 'jpg'}`;
+
+        // For regular file URIs strip the file:// prefix on iOS
+        if (original.type !== 'video' && Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
+          uploadUri = uploadUri.replace('file://', '');
+        }
+
+        (formData as any).append('files', { uri: uploadUri, name, type: mime } as any);
+      });
+
+      // ── Step 3: XHR upload with progress ────────────────────────────────
+      setUploadStage('uploading');
       const uploadResult = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_URL}/v1/storage/upload-multiple`);
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable)
-            setUploadProgress(Math.round((e.loaded / e.total) * 85));
+            // Reserve 15–85% of progress bar for the upload
+            setUploadProgress(15 + Math.round((e.loaded / e.total) * 70));
         };
         xhr.onload = () => {
           if (xhr.status === 401) {
-            // Token expired — signal it with a typed error
             reject(Object.assign(new Error('Unauthorized'), { status: 401 }));
             return;
           }
@@ -405,15 +433,21 @@ export function PostcardCreator({
         xhr.send(formData);
       });
 
-      const uploaded = (uploadResult?.data ?? []).map((f: any) => ({
-        fileKey: f.fileKey, mediaType: f.mediaType, mediaUrl: f.url,
+      // ── Step 4: Build media array — attach vibeTagOverlayUrl for videos ──
+      const uploaded = (uploadResult?.data ?? []).map((f: any, i: number) => ({
+        fileKey:           f.fileKey,
+        mediaType:         f.mediaType,
+        mediaUrl:          f.url,
+        // For video items, persist the overlay URL so the viewer renders it
+        vibeTagOverlayUrl: stamped[i]?.vibeTagOverlayUrl ?? null,
       }));
+
       if (!uploaded.length) {
         Toast.show({ type: 'error', text1: 'Upload failed' });
         return;
       }
 
-      // ── Save postcard via RTK Query mutation ───────────────────────────
+      // ── Step 5: Save postcard ────────────────────────────────────────────
       setUploadStage('saving');
       setUploadProgress(90);
       if (targetSwapId) {
@@ -772,7 +806,11 @@ export function PostcardCreator({
                     <View style={s.progressCard}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                         <Text style={s.progressLabel}>
-                          {uploadStage === 'uploading' ? 'Uploading media…' : 'Saving postcard…'}
+                          {uploadStage === 'stamping'
+                            ? `Stamping VibeTag… (${items.filter(i => i.type === 'image').length} image${items.filter(i => i.type === 'image').length !== 1 ? 's' : ''})`
+                            : uploadStage === 'uploading'
+                            ? 'Uploading media…'
+                            : 'Saving postcard…'}
                         </Text>
                         <Text style={s.progressPct}>{uploadProgress}%</Text>
                       </View>
@@ -782,7 +820,9 @@ export function PostcardCreator({
                         />
                       </View>
                       <Text style={s.progressSub}>
-                        {uploadStage === 'uploading'
+                        {uploadStage === 'stamping'
+                          ? 'Applying VibeTag overlay…'
+                          : uploadStage === 'uploading'
                           ? 'Please keep the app open…'
                           : 'Almost done…'}
                       </Text>
