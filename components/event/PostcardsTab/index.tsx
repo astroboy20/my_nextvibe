@@ -148,7 +148,10 @@ function PhaseGrid({
         (data as any)?.data?.data ?? (data as any)?.data ?? [];
     const postcards: PostcardData[] = rawList.filter((p: any) =>
         (p?.media ?? []).some((m: any) => !!m.mediaUrl),
-    );
+    ).map((p: any) => ({
+        ...p,
+        vibeTagId: p.vibeTagId ?? p.vibeTag?.id ?? null,
+    }));
 
     if (isLoading) {
         return (
@@ -270,7 +273,21 @@ export default function PostcardsTab({
         : true;
 
     const openViewer = (postcards: PostcardData[], index: number) => {
-        setViewerPostcards(postcards);
+        // Resolve vibeTagOverlayUrl for each postcard's media items
+        // The backend stores vibeTagId on the postcard but doesn't always
+        // inline the overlay URL into each media item — resolve it here
+        const enriched = postcards.map((p) => {
+            const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
+            const overlayUrl = tag?.imageUrl ?? null;
+            return {
+                ...p,
+                media: (p.media ?? []).map((m) => ({
+                    ...m,
+                    vibeTagOverlayUrl: m.vibeTagOverlayUrl ?? overlayUrl,
+                })),
+            };
+        });
+        setViewerPostcards(enriched);
         setViewerIndex(index);
         setShowViewer(true);
     };

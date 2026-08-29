@@ -20,6 +20,7 @@ export interface PostcardData {
   viewCount?: number;
   isLiked?: boolean;
   eventId?: string;
+  vibeTagId?: string | null;
   createdAt?: string;
   author?: {
     displayName?: string;

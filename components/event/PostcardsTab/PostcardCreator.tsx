@@ -12,9 +12,9 @@ import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuthModal } from '@/hooks/useAuthModal';
 import {
-    useCreatePostcardsMutation,
-    useGetEventPostcardsQuery,
-    useSwapPostcardMutation,
+  useCreatePostcardsMutation,
+  useGetEventPostcardsQuery,
+  useSwapPostcardMutation,
 } from '@/store/api/eventsApi';
 import { API_URL, tokenStore } from '@/store/baseQuery';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,18 +23,19 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -467,7 +468,13 @@ export function PostcardCreator({
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <View style={[StyleSheet.absoluteFillObject, { zIndex: 100 }]}>
+    <Modal
+      visible
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1 }}>
       <SafeAreaView style={s.root} edges={['top', 'bottom']}>
 
         {/* ── CHOOSE STAGE ─────────────────────────────────────────────── */}
@@ -609,11 +616,15 @@ export function PostcardCreator({
                 </View>
               )}
 
-              <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-
-                {/* Active media preview — full width, 1:1 ratio */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Active media preview — full width, 4:3 ratio, proper overlay */}
                 {activeItem && (
                   <View style={s.mediaPreview}>
+                    {/* User's photo / video */}
                     {activeItem.type === 'video' ? (
                       <Video
                         source={{ uri: activeItem.uri }}
@@ -628,20 +639,31 @@ export function PostcardCreator({
                         source={{ uri: activeItem.uri }}
                         style={StyleSheet.absoluteFillObject}
                         contentFit="cover"
-                        cachePolicy="memory"
+                        cachePolicy="memory-disk"
                       />
                     )}
-                    {/* VibeTag overlay */}
+
+                    {/* VibeTag overlay — sits on top at 60% opacity so the photo shows through */}
                     {vibeTagOverlay?.imageUrl && (
-                      <Image
-                        source={{ uri: vibeTagOverlay.imageUrl }}
-                        style={StyleSheet.absoluteFillObject}
-                        contentFit="cover"
-                        cachePolicy="memory"
-                        pointerEvents="none"
-                      />
+                      <>
+                        <Image
+                          source={{ uri: vibeTagOverlay.imageUrl }}
+                          style={[StyleSheet.absoluteFillObject, { opacity: 0.65 }]}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          pointerEvents="none"
+                        />
+                        {/* Overlay label badge */}
+                        <View style={s.overlayBadge} pointerEvents="none">
+                          <Ionicons name="sparkles" size={11} color="#fff" />
+                          <Text style={s.overlayBadgeText} numberOfLines={1}>
+                            {vibeTagOverlay.name}
+                          </Text>
+                        </View>
+                      </>
                     )}
-                    {/* Remove current */}
+
+                    {/* Remove current item */}
                     <TouchableOpacity
                       style={s.removeBtn}
                       onPress={() => removeItem(activeIdx)}
@@ -649,6 +671,7 @@ export function PostcardCreator({
                     >
                       <Ionicons name="trash-outline" size={17} color="#fff" />
                     </TouchableOpacity>
+
                     {/* Item counter badge */}
                     {items.length > 1 && (
                       <View style={s.counterBadge} pointerEvents="none">
@@ -661,7 +684,7 @@ export function PostcardCreator({
                   </View>
                 )}
 
-                {/* Thumbnail strip — only when >1 item */}
+                    {/* Thumbnail strip — only when >1 item */}
                 {items.length > 1 && (
                   <ScrollView
                     horizontal
@@ -684,15 +707,16 @@ export function PostcardCreator({
                             source={{ uri: item.uri }}
                             style={StyleSheet.absoluteFillObject}
                             contentFit="cover"
-                            cachePolicy="memory"
+                            cachePolicy="memory-disk"
                           />
                         )}
+                        {/* Subtle vibeTag tint on thumbnail */}
                         {vibeTagOverlay?.imageUrl && (
                           <Image
                             source={{ uri: vibeTagOverlay.imageUrl }}
-                            style={[StyleSheet.absoluteFillObject, { opacity: 0.5 }]}
+                            style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
                             contentFit="cover"
-                            cachePolicy="memory"
+                            cachePolicy="memory-disk"
                             pointerEvents="none"
                           />
                         )}
@@ -842,7 +866,8 @@ export function PostcardCreator({
         }}
         message="Your session expired. Sign in to post your postcard."
       />
-    </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -936,11 +961,33 @@ const s = StyleSheet.create({
   vibeBannerText: { fontFamily: fontFamily.semibold, fontSize: 12, color: brand.primary, flex: 1 },
   vibeBannerSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
 
-  // Media preview
+  // Media preview — full width, 4:3 aspect, overlay stacked on top
   mediaPreview: {
-    width: W, height: W,         // 1:1 square preview
+    width: '100%',
+    aspectRatio: 4 / 3,
     backgroundColor: '#000',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  overlayBadge: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  overlayBadgeText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 11,
+    color: '#fff',
+    maxWidth: 180,
   },
   removeBtn: {
     position: 'absolute', top: 12, right: 12,

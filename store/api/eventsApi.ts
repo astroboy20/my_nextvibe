@@ -9,9 +9,6 @@
 // ─── Re-export everything from the canonical slice ────────────────────────────
 export * from "./eventApi";
 
-// ─── Named API object — needed by useAuth.ts resetApiState ───────────────────
-export { eventsApi } from "./eventApi";
-
 // ─── Hook aliases ─────────────────────────────────────────────────────────────
 // app/events/[id].tsx and app/edit-event.tsx:
 export {

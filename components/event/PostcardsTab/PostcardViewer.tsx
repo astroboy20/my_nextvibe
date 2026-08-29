@@ -5,6 +5,7 @@ import {
   useGetPostcardCommentsQuery,
   useGetPostcardQuery,
   useToggleLikePostcardMutation,
+  useTrackPostcardViewMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
@@ -28,6 +29,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import type { PostcardData, PostcardMediaItem } from "./types";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -325,6 +327,36 @@ function PostcardCard({
   const scrollRef = useRef<ScrollView>(null);
 
   const [toggleLike] = useToggleLikePostcardMutation();
+  const [trackView] = useTrackPostcardViewMutation();
+
+  // ── View tracking — 1.5 s dwell when card is active ──────────────────────
+  const viewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasTrackedRef = useRef(false);
+
+  useEffect(() => {
+    if (active && postcard.id && !hasTrackedRef.current) {
+      viewTimerRef.current = setTimeout(() => {
+        hasTrackedRef.current = true;
+        trackView({ postcardId: postcard.id! }).catch(() => {});
+      }, 1500);
+    } else {
+      if (viewTimerRef.current) {
+        clearTimeout(viewTimerRef.current);
+        viewTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (viewTimerRef.current) {
+        clearTimeout(viewTimerRef.current);
+        viewTimerRef.current = null;
+      }
+    };
+  }, [active, postcard.id]);
+
+  // Reset tracking flag when postcard changes
+  useEffect(() => {
+    hasTrackedRef.current = false;
+  }, [postcard.id]);
 
   const media: PostcardMediaItem[] = (postcard.media ?? []).filter(
     (m) => !!m.mediaUrl
@@ -336,9 +368,33 @@ function PostcardCard({
   });
 
   const freshData = freshPostcard?.data ?? freshPostcard;
-  // (freshData?.author?.avatarUrl, "url")
 
-  const displayName = freshData?.author?.username?.trim() || "User";
+  const displayName =
+    freshData?.author?.displayName?.trim() ||
+    freshData?.author?.username?.trim() ||
+    postcard.author?.displayName?.trim() ||
+    postcard.author?.username?.trim() ||
+    "User";
+
+  // Keep like/comment/view counts in sync with fresh polled data
+  const freshLikeCount = freshData?.likeCount ?? postcard.likeCount ?? 0;
+  const freshCommentCount =
+    freshData?.commentCount ??
+    freshData?.commentsCount ??
+    postcard.commentCount ??
+    0;
+  const freshViewCount = freshData?.viewCount ?? postcard.viewCount ?? 0;
+  const freshIsLiked = freshData?.isLiked ?? postcard.isLiked ?? false;
+
+  // Sync fresh liked state from server (only when not locally modified)
+  useEffect(() => {
+    if (freshData?.isLiked !== undefined) {
+      setLiked(freshData.isLiked);
+    }
+    if (freshData?.likeCount !== undefined) {
+      setLikeCount(freshData.likeCount);
+    }
+  }, [freshData?.isLiked, freshData?.likeCount]);
   const caption = postcard.caption ?? "";
   const MAX_CAP = 80;
   const isLong = caption.length > MAX_CAP;
@@ -428,9 +484,9 @@ function PostcardCard({
 
         {/* Author */}
         <View style={ov.authorRow}>
-          {freshData?.author?.avatarUr ? (
+          {freshData?.author?.avatarUrl ? (
             <Image
-              source={{ uri: freshData?.author?.avatarUrlconso }}
+              source={{ uri: freshData?.author?.avatarUrl }}
               style={ov.avatar}
               contentFit="cover"
             />
@@ -440,9 +496,13 @@ function PostcardCard({
             </View>
           )}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={ov.authorName} numberOfLines={1}>
-              {displayName}
-            </Text>
+            {isLoading ? (
+              <Skeleton width={100} height={13} borderRadius={6} />
+            ) : (
+              <Text style={ov.authorName} numberOfLines={1}>
+                {displayName}
+              </Text>
+            )}
             {timeAgo ? <Text style={ov.timeAgo}>{timeAgo}</Text> : null}
           </View>
         </View>
@@ -469,7 +529,7 @@ function PostcardCard({
             <Ionicons
               name={liked ? "heart" : "heart-outline"}
               size={26}
-              color={liked ? "#FF6584" : "#fff"}
+              color={liked ? brand.primary : "#fff"}
             />
             <Text style={ov.actionCount}>{likeCount}</Text>
           </TouchableOpacity>
@@ -480,12 +540,12 @@ function PostcardCard({
             activeOpacity={0.8}
           >
             <Ionicons name="chatbubble-outline" size={24} color="#fff" />
-            <Text style={ov.actionCount}>{postcard.commentCount ?? 0}</Text>
+            <Text style={ov.actionCount}>{freshCommentCount}</Text>
           </TouchableOpacity>
 
           <View style={ov.actionBtn}>
             <Ionicons name="eye-outline" size={24} color="#fff" />
-            <Text style={ov.actionCount}>{postcard.viewCount ?? 0}</Text>
+            <Text style={ov.actionCount}>{freshViewCount}</Text>
           </View>
         </View>
       </View>

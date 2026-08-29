@@ -1,13 +1,15 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useToggleLikePostcardMutation } from '@/store/api/eventApi';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,18 +70,76 @@ export default function PostcardCard({ item, onPress }: Props) {
   const [likeCount,  setLikeCount]  = useState(item.likeCount ?? 0);
   const [showComments, setShowComments] = useState(false);
 
-  const author     = item.author;
-  const name       = author?.displayName ?? author?.username ?? 'User';
-  const username   = author?.username ?? '';
+  // Double-tap to like
+  const lastTapRef = useRef<number>(0);
+  const heartScale = useRef(new Animated.Value(0)).current;
+  const heartOpacity = useRef(new Animated.Value(0)).current;
+
+  const [toggleLike] = useToggleLikePostcardMutation();
+
+  const author = item.author;
+  const name = author?.displayName ?? author?.username ?? 'User';
+  const username = author?.username ?? '';
   const primaryMedia = item.media?.find((m) => !!m.mediaUrl);
   const mediaUrl   = primaryMedia?.mediaUrl ?? null;
   const isVideo    = primaryMedia?.mediaType === 'VIDEO';
   const hasMultiple = (item.media?.filter((m) => !!m.mediaUrl).length ?? 0) > 1;
 
-  const handleLike = () => {
-    setLiked((v) => !v);
-    setLikeCount((c) => liked ? c - 1 : c + 1);
-    // TODO: call toggleLikePostcard API
+  const triggerLike = async () => {
+    const wasLiked = liked;
+    setLiked(true);
+    setLikeCount((c) => wasLiked ? c : c + 1);
+
+    // Burst heart animation
+    heartScale.setValue(0);
+    heartOpacity.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, bounciness: 12 }),
+      Animated.delay(400),
+      Animated.timing(heartOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start();
+
+    if (!wasLiked) {
+      try {
+        const res = await toggleLike({ eventId: item.event?.id ?? '', postcardId: item.id }).unwrap();
+        if (res?.currentLikes !== undefined) setLikeCount(res.currentLikes);
+        if (res?.liked !== undefined) setLiked(res.liked);
+      } catch {
+        setLiked(wasLiked);
+        setLikeCount((c) => c - 1);
+      }
+    }
+  };
+
+  const handleLike = async () => {
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikeCount((c) => wasLiked ? c - 1 : c + 1);
+    try {
+      const res = await toggleLike({ eventId: item.event?.id ?? '', postcardId: item.id }).unwrap();
+      if (res?.currentLikes !== undefined) setLikeCount(res.currentLikes);
+      if (res?.liked !== undefined) setLiked(res.liked);
+    } catch {
+      setLiked(wasLiked);
+      setLikeCount((c) => wasLiked ? c + 1 : c - 1);
+    }
+  };
+
+  const handleMediaPress = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      // Double tap
+      triggerLike();
+    } else {
+      // Single tap — open viewer after short delay to detect double
+      lastTapRef.current = now;
+      setTimeout(() => {
+        if (Date.now() - lastTapRef.current >= 290) {
+          onPress(item);
+        }
+      }, 310);
+    }
+    lastTapRef.current = now;
   };
 
   return (
@@ -95,7 +155,7 @@ export default function PostcardCard({ item, onPress }: Props) {
       </View>
 
       {/* ── Media ── */}
-      <TouchableOpacity activeOpacity={0.92} onPress={() => onPress(item)} style={styles.mediaWrap}>
+      <TouchableOpacity activeOpacity={0.92} onPress={handleMediaPress} style={styles.mediaWrap}>
         {mediaUrl ? (
           <>
             <Image source={{ uri: mediaUrl }} style={styles.media} resizeMode="cover" />
@@ -117,6 +177,13 @@ export default function PostcardCard({ item, onPress }: Props) {
             <Ionicons name="copy-outline" size={14} color="#fff" />
           </View>
         )}
+        {/* Double-tap heart burst */}
+        <Animated.View
+          style={[styles.heartBurst, { opacity: heartOpacity, transform: [{ scale: heartScale }] }]}
+          pointerEvents="none"
+        >
+          <Ionicons name="heart" size={80} color={brand.primary} />
+        </Animated.View>
       </TouchableOpacity>
 
       {/* ── Actions ── */}
@@ -129,7 +196,6 @@ export default function PostcardCard({ item, onPress }: Props) {
           />
           <Text style={[styles.actionCount, liked && { color: brand.primary }]}>{likeCount}</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => setShowComments((v) => !v)}
@@ -208,6 +274,7 @@ const styles = StyleSheet.create({
   playOverlay:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' },
   playBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   multiIcon:    { position: 'absolute', top: 8, right: 8 },
+  heartBurst:   { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
 
   actions:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10, gap: 16 },
   actionBtn:    { flexDirection: 'row', alignItems: 'center', gap: 5 },

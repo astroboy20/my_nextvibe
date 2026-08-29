@@ -1,9 +1,9 @@
 import { unregisterPush } from "@/services/pushNotifications";
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { API_URL, tokenStore } from "../baseQuery";
+import { resetAllApiCaches } from "../resetCaches";
 import { clearAuth, setNewUser, setUser } from "../slices/authSlice";
 import { baseQueryWithReauth } from "./baseQuery";
-import { resetAllApiCaches } from "../resetCaches";
 
 // ─── AuthUser ─────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -223,6 +223,7 @@ export const authApi = createApi({
                 } finally {
                     await tokenStore.removeMany(["accessToken", "refreshToken", "expoPushToken"]);
                     dispatch(clearAuth());
+                    resetAllApiCaches(dispatch);
                 }
                 return { data: null };
             },

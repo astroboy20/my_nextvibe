@@ -1,23 +1,24 @@
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useGetEventAttendeesQuery,
-  useGetEventTicketsQuery,
-  useRsvpEventMutation,
+    useGetEventAttendeesQuery,
+    useGetEventTicketsQuery,
+    useRsvpEventMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import type { EventDetail } from "./types";
+import { useRouter } from "expo-router";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export default function RsvpTab({ event }: Props) {
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState<RsvpStatus>(null);
 
+  const router = useRouter();
   const [rsvpMutation] = useRsvpEventMutation();
 
   const { data: attendeesRes, isLoading: attendeesLoading } =
@@ -418,9 +420,11 @@ export default function RsvpTab({ event }: Props) {
               const name = a?.user?.displayName ?? a?.user?.username ?? "User";
               const confirmed = a?.status === "CONFIRMED" || a.checkedIn;
               return (
-                <View
+                <TouchableOpacity
                   key={a.userId}
                   style={[s.attendeeRow, idx === 0 && { borderTopWidth: 0 }]}
+                  onPress={() => a.userId && router.push(`/users/${a.userId}` as any)}
+                  activeOpacity={0.8}
                 >
                   <Avatar
                     name={name}
@@ -456,7 +460,7 @@ export default function RsvpTab({ event }: Props) {
                       {confirmed ? "Going" : "Waitlist"}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })
           )}

@@ -15,15 +15,12 @@ import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -163,6 +160,7 @@ export default function AddressSearch({
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const borderColor = error ? semantic.error : focused ? brand.primary : neutral[200];
+  const showDropdown = dropdownOpen && suggestions.length > 0;
 
   return (
     <View>
@@ -178,11 +176,13 @@ export default function AddressSearch({
           onBlur={() => {
             setFocused(false);
             // Small delay so tapping a suggestion isn't eaten by blur
-            setTimeout(() => setDropdownOpen(false), 150);
+            setTimeout(() => setDropdownOpen(false), 200);
           }}
           style={s.input}
           autoCorrect={false}
           autoCapitalize="none"
+          returnKeyType="search"
+          blurOnSubmit={false}
         />
         {loading && <ActivityIndicator size="small" color={brand.primary} style={s.suffix} />}
         {!loading && inputValue.length > 0 && (
@@ -203,51 +203,29 @@ export default function AddressSearch({
 
       {!!error && <Text style={s.errorText}>{error}</Text>}
 
-      {/* Suggestions dropdown — rendered in a Modal to escape scroll clipping */}
-      <Modal
-        visible={dropdownOpen && suggestions.length > 0}
-        transparent
-        animationType="none"
-        onRequestClose={() => setDropdownOpen(false)}
-      >
-        <Pressable style={s.modalBackdrop} onPress={() => setDropdownOpen(false)}>
-          {/* Sheet positions near top of screen since we don't know exact input Y */}
-          <View style={s.dropdownSheet}>
-            <View style={s.dropdownHeader}>
-              <Ionicons name="location-outline" size={14} color={neutral[500]} />
-              <Text style={s.dropdownHeaderText}>Suggestions</Text>
-              <TouchableOpacity onPress={() => setDropdownOpen(false)} activeOpacity={0.7}>
-                <Ionicons name="close" size={18} color={neutral[400]} />
-              </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={suggestions}
-              keyExtractor={(item) => item.place_id}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="always"
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  style={[
-                    s.suggestion,
-                    index === suggestions.length - 1 && s.suggestionLast,
-                  ]}
-                  onPress={() => handleSelect(item)}
-                  activeOpacity={0.75}
-                >
-                  <View style={s.pinCircle}>
-                    <Ionicons name="location" size={12} color={brand.primary} />
-                  </View>
-                  <Text style={s.suggestionText} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-
-          </View>
-        </Pressable>
-      </Modal>
+      {/* Inline suggestions list — plain View.map, no FlatList, avoids nested VirtualizedList warning */}
+      {showDropdown && (
+        <View style={s.dropdownSheet}>
+          {suggestions.map((item, index) => (
+            <TouchableOpacity
+              key={item.place_id}
+              style={[
+                s.suggestion,
+                index === suggestions.length - 1 && s.suggestionLast,
+              ]}
+              onPress={() => handleSelect(item)}
+              activeOpacity={0.75}
+            >
+              <View style={s.pinCircle}>
+                <Ionicons name="location" size={12} color={brand.primary} />
+              </View>
+              <Text style={s.suggestionText} numberOfLines={2}>
+                {item.description}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -282,36 +260,20 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Modal backdrop
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-
-  // Dropdown sheet (bottom sheet style)
+  // Inline dropdown — appears directly below the input, inside the scroll
   dropdownSheet: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 4,
-    paddingBottom: 32,
-    maxHeight: '55%',
-  },
-  dropdownHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: neutral[100],
-  },
-  dropdownHeaderText: {
-    flex: 1,
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[600],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: neutral[200],
+    marginTop: 4,
+    maxHeight: 220,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
   },
 
   // Suggestion row
