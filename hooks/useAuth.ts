@@ -7,17 +7,9 @@
  *   const { user, isAuthenticated, isBootstrapped, logout } = useAuth();
  */
 
-import { analyticsApi } from '@/store/api/analyticsApi';
 import { useLogoutMutation } from '@/store/api/authApi';
-import { eventsApi } from '@/store/api/eventsApi';
-import { gamesApi } from '@/store/api/gamesApi';
-import { paymentApi } from '@/store/api/paymentApi';
-import { reminderApi } from '@/store/api/reminderApi';
-import { socialApi } from '@/store/api/socialApi';
-import { tagsApi } from '@/store/api/tagsApi';
-import { ticketsApi } from '@/store/api/ticketsApi';
-import { usersApi } from '@/store/api/usersApi';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { resetAllApiCaches } from '@/store/resetCaches';
 import { clearAuth } from '@/store/slices/authSlice';
 import { useRouter } from 'expo-router';
 
@@ -31,30 +23,14 @@ export function useAuth() {
 
   const [logoutMutation, { isLoading: isLoggingOut }] = useLogoutMutation();
 
-  function resetAllCaches() {
-    // Flush every RTK Query cache so no stale data leaks to the next user session
-    dispatch(usersApi.util.resetApiState());
-    dispatch(eventsApi.util.resetApiState());
-    dispatch(socialApi.util.resetApiState());
-    dispatch(gamesApi.util.resetApiState());
-    dispatch(reminderApi.util.resetApiState());
-    dispatch(tagsApi.util.resetApiState());
-    dispatch(ticketsApi.util.resetApiState());
-    dispatch(analyticsApi.util.resetApiState());
-    dispatch(paymentApi.util.resetApiState());
-  }
-
   async function logout() {
     try {
       await logoutMutation().unwrap();
     } catch {
-      // Even if the server call fails, clear local state
       dispatch(clearAuth());
     }
-    // clearAuth is also called inside the mutation's queryFn on success,
-    // but dispatch again here is safe (idempotent) and ensures router fires
     dispatch(clearAuth());
-    resetAllCaches();
+    resetAllApiCaches(dispatch);
     router.replace('/(auth)/login');
   }
 

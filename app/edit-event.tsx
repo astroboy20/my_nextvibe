@@ -1,4 +1,4 @@
-﻿import ConfirmModal, {
+import ConfirmModal, {
   type ConfirmAction,
 } from "@/components/edit-event/ConfirmModal";
 import DashboardCard from "@/components/edit-event/DashboardCard";
@@ -20,7 +20,6 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
   useGetEventByIdQuery,
-  useGetEventVibeTagsQuery,
   useUpdateEventMutation,
   useUpdateEventStatusMutation,
 } from "@/store/api/eventsApi";
@@ -40,14 +39,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ─── Screen ─────────────────────────────────────────────────────────────────────
+// --- Screen ---------------------------------------------------------------------
 
 export default function EditEventScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = id ?? "";
   const router = useRouter();
 
-  // ── Data ───────────────────────────────────────────────────────────────────
+  // -- Data -------------------------------------------------------------------
   const {
     data: eventData,
     isLoading,
@@ -59,11 +58,11 @@ export default function EditEventScreen() {
     skip: !eventId,
   });
 
-  // ── Mutations ───────────────────────────────────────────────────────────────
+  // -- Mutations ---------------------------------------------------------------
   const [updateEvent] = useUpdateEventMutation();
   const [updateEventStatus] = useUpdateEventStatusMutation();
 
-  // ── UI state ────────────────────────────────────────────────────────────────
+  // -- UI state ----------------------------------------------------------------
   const [showQR, setShowQR] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -72,7 +71,7 @@ export default function EditEventScreen() {
   );
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  // live tag count — kept in sync by EventTagsEditor via onCountChange
+  // live tag count � kept in sync by EventTagsEditor via onCountChange
   const [liveTagCount, setLiveTagCount] = useState(0);
 
   const event = eventData?.data;
@@ -88,7 +87,7 @@ export default function EditEventScreen() {
 
   const activeReminderCount = reminderTemplates.filter((t) => t.enabled).length;
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // -- Handlers ----------------------------------------------------------------
 
   const handleShare = async () => {
     if (!event) return;
@@ -140,12 +139,12 @@ export default function EditEventScreen() {
     }
   };
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
+  // -- Loading -----------------------------------------------------------------
 
   if (isLoading) {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={2} />
+        <AppHeader onBack={() => router.back()}  />
         <ScrollView style={s.scroll} contentContainerStyle={s.content}>
           <EditEventDashboardSkeleton />
         </ScrollView>
@@ -153,18 +152,18 @@ export default function EditEventScreen() {
     );
   }
 
-  // ── Error ───────────────────────────────────────────────────────────────────
+  // -- Error -------------------------------------------------------------------
 
   if (isError || !event) {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={2} />
+        <AppHeader onBack={() => router.back()}  />
         <ErrorState onRetry={refetch} />
       </SafeAreaView>
     );
   }
 
-  // ── Normalise event shape ────────────────────────────────────────────────────
+  // -- Normalise event shape ----------------------------------------------------
 
   const eventForCard = {
     id: event.id,
@@ -187,11 +186,11 @@ export default function EditEventScreen() {
     eventPlan,
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // -- Render -------------------------------------------------------------------
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <AppHeader onBack={() => router.back()} notificationCount={2} />
+      <AppHeader onBack={() => router.back()}  />
 
       <ScrollView
         style={s.scroll}
@@ -199,7 +198,7 @@ export default function EditEventScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 1 ── Header */}
+        {/* 1 -- Header */}
         <EventHeaderCard
           event={eventForCard}
           eventId={eventId}
@@ -209,21 +208,21 @@ export default function EditEventScreen() {
           onViewPress={() => router.push(`/events/${eventId}` as any)}
         />
 
-        {/* 2 ── RSVP */}
+        {/* 2 -- RSVP */}
         <RsvpTrackerSection
           going={eventForCard.attendingCount}
           maybe={eventForCard.maybeCount}
           cantGo={eventForCard.cantGoCount}
         />
 
-        {/* 3 ── Edit */}
+        {/* 3 -- Edit */}
         <EditEventSection
           event={eventForCard}
           isLocked={isEventStarted(event.startsAt)}
           onOpenEdit={() => setShowEdit(true)}
         />
 
-        {/* 4 ── Reminders */}
+        {/* 4 -- Reminders */}
         <EventRemindersSection
           eventId={eventId}
           eventStartsAt={event.startsAt}
@@ -231,7 +230,7 @@ export default function EditEventScreen() {
           activeCount={activeReminderCount}
         />
 
-        {/* 5 ── Tags */}
+        {/* 5 -- Tags */}
         <EventTagsSection
           event={eventForCard}
           isLocked={isEventStarted(event.startsAt)}
@@ -239,13 +238,19 @@ export default function EditEventScreen() {
           onTagCountChange={setLiveTagCount}
         />
 
-        {/* 5b ── VibeTag Studio */}
-        <VibeTagStudioSection eventId={eventId} eventPlan={eventPlan} />
+        {/* 5b -- VibeTag Studio */}
+        <VibeTagStudioSection
+          eventId={eventId}
+          eventName={event.name}
+          eventPlan={eventPlan}
+          vibeTags={(event as any).vibeTag ?? []}
+          onRefetch={refetch}
+        />
 
-        {/* 6 ── Tickets */}
+        {/* 6 -- Tickets */}
         <TicketSection eventId={eventId} eventStatus={event.status} />
 
-        {/* 7 ── Games */}
+        {/* 7 -- Games */}
         <GamificationSection
           eventId={eventId}
           eventStatus={event.status}
@@ -253,14 +258,14 @@ export default function EditEventScreen() {
           eventStartsAt={event.startsAt}
         />
 
-        {/* 8 ── Analytics */}
+        {/* 8 -- Analytics */}
         <AnalyticsSection
           eventId={eventId}
           rsvps={eventForCard.attendingCount}
           activeReminders={activeReminderCount}
         />
 
-        {/* 9 ── Status */}
+        {/* 9 -- Status */}
         <StatusSection
           status={event.status}
           isLoading={isUpdatingStatus}
@@ -268,7 +273,7 @@ export default function EditEventScreen() {
           onCancel={() => setConfirmAction("CANCELLED")}
         />
 
-        {/* 10 ── Publish / Payment */}
+        {/* 10 -- Publish / Payment */}
         <PublishSection
           eventId={eventId}
           eventStatus={event.status}
@@ -276,7 +281,7 @@ export default function EditEventScreen() {
         />
       </ScrollView>
 
-      {/* ── Modals ── */}
+      {/* -- Modals -- */}
       <QRModal
         visible={showQR}
         eventName={event.name}
@@ -302,9 +307,9 @@ export default function EditEventScreen() {
   );
 }
 
-// ─── Section components ────────────────────────────────────────────────────────
+// --- Section components --------------------------------------------------------
 
-// ── 2. RSVP ────────────────────────────────────────────────────────────────────
+// -- 2. RSVP --------------------------------------------------------------------
 
 function RsvpTrackerSection({
   going,
@@ -327,7 +332,7 @@ function RsvpTrackerSection({
   );
 }
 
-// ── 3. Edit Event ───────────────────────────────────────────────────────────────
+// -- 3. Edit Event ---------------------------------------------------------------
 
 function EditEventSection({
   event,
@@ -377,7 +382,7 @@ function EditEventSection({
   );
 }
 
-// ── 4. Reminders ────────────────────────────────────────────────────────────────
+// -- 4. Reminders ----------------------------------------------------------------
 
 function EventRemindersSection({
   eventId,
@@ -411,7 +416,7 @@ function EventRemindersSection({
   );
 }
 
-// ── 5. Tags ─────────────────────────────────────────────────────────────────────
+// -- 5. Tags ---------------------------------------------------------------------
 
 function EventTagsSection({
   event,
@@ -445,7 +450,7 @@ function EventTagsSection({
   );
 }
 
-// ── 6. Tickets ──────────────────────────────────────────────────────────────────
+// -- 6. Tickets ------------------------------------------------------------------
 
 function TicketSection({
   eventId,
@@ -465,7 +470,7 @@ function TicketSection({
   );
 }
 
-// ── 7. Gamification ─────────────────────────────────────────────────────────────
+// -- 7. Gamification -------------------------------------------------------------
 
 function GamificationSection({
   eventId,
@@ -511,7 +516,7 @@ function GamificationSection({
   );
 }
 
-// ── 8. Analytics ────────────────────────────────────────────────────────────────
+// -- 8. Analytics ----------------------------------------------------------------
 
 function AnalyticsSection({
   eventId,
@@ -558,19 +563,23 @@ function AnalyticsSection({
   );
 }
 
-// ── 5b. VibeTag Studio ──────────────────────────────────────────────────────
+// -- 5b. VibeTag Studio ------------------------------------------------------
 
 function VibeTagStudioSection({
   eventId,
+  eventName,
   eventPlan,
+  vibeTags,
+  onRefetch,
 }: {
   eventId: string;
+  eventName?: string | null;
   eventPlan: any;
+  vibeTags: any[];
+  onRefetch: () => void;
 }) {
-  const { data: vibeTagData } = useGetEventVibeTagsQuery(eventId, {
-    skip: !eventId,
-  });
-  const vibeTagCount = (vibeTagData?.data ?? []).length;
+  // vibeTags is event.vibeTag from the already-fetched event — no extra query
+  const vibeTagCount = vibeTags.length; // max 4 phases
 
   return (
     <DashboardCard
@@ -584,16 +593,22 @@ function VibeTagStudioSection({
       }
       badge={
         <CountBadge
-          label={`${vibeTagCount} ${vibeTagCount === 1 ? "Tag" : "Tags"}`}
+          label={vibeTagCount === 0 ? "No Tags" : `${vibeTagCount} / 4 phases`}
         />
       }
     >
-      <VibeTagSection eventId={eventId} eventPlan={eventPlan} />
+      <VibeTagSection
+        eventId={eventId}
+        eventName={eventName}
+        vibeTags={vibeTags}
+        eventPlan={eventPlan}
+        onRefetch={onRefetch}
+      />
     </DashboardCard>
   );
 }
 
-// ── 10. Publish / Payment ───────────────────────────────────────────────────
+// -- 10. Publish / Payment ---------------------------------------------------
 
 function PublishSection({
   eventId,
@@ -623,7 +638,7 @@ function PublishSection({
   );
 }
 
-// ── 9. Status ───────────────────────────────────────────────────────────────────
+// -- 9. Status -------------------------------------------------------------------
 
 function StatusSection({
   status,
@@ -671,7 +686,7 @@ function StatusSection({
   );
 }
 
-// ─── Shared micro-components ───────────────────────────────────────────────────
+// --- Shared micro-components ---------------------------------------------------
 
 function PrimaryButton({
   label,
@@ -750,7 +765,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
+// --- Styles --------------------------------------------------------------------
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: neutral[50] },
@@ -867,3 +882,4 @@ const sec = StyleSheet.create({
     color: brand.primary,
   },
 });
+

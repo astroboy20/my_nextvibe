@@ -1,8 +1,9 @@
+import { unregisterPush } from "@/services/pushNotifications";
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { API_URL, tokenStore } from "../baseQuery";
 import { clearAuth, setNewUser, setUser } from "../slices/authSlice";
 import { baseQueryWithReauth } from "./baseQuery";
-import { unregisterPush } from "@/services/pushNotifications";
+import { resetAllApiCaches } from "../resetCaches";
 
 // ─── AuthUser ─────────────────────────────────────────────────────────────────
 export interface AuthUser {
@@ -46,14 +47,15 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
-                    // setUser → isAuthenticated = true → AuthGate routes to /(tabs)
+                    // Wipe ALL stale caches before setting user so screens never
+                    // render the previous user's data even for a single frame
+                    resetAllApiCaches(dispatch);
                     if (user) dispatch(setUser(user));
                 } catch {}
             },
         }),
 
         // ── Google OAuth exchange (Flow 1A — hosted redirect) ─────────────────
-        // POST /v1/auth/oauth/exchange  { code: <one-time code from deep link> }
         exchangeOAuthCode: build.mutation({
             query(body: { code: string }) {
                 return { url: "/v1/auth/oauth/exchange", method: "POST", body };
@@ -64,13 +66,14 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
+                    resetAllApiCaches(dispatch);
                     const isNew = data?.data?.isNewUser ?? data?.isNewUser ?? false;
                     if (user) isNew ? dispatch(setNewUser(user)) : dispatch(setUser(user));
                 } catch {}
             },
         }),
 
-        // ── Google OAuth (Flow 1B — native ID token, kept for reference) ─────
+        // ── Google OAuth (Flow 1B — native ID token) ─────────────────────────
         googleLogin: build.mutation({
             query(body: { idToken: string }) {
                 return { url: "/v1/auth/oauth/google", method: "POST", body };
@@ -81,6 +84,7 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
+                    resetAllApiCaches(dispatch);
                     if (user) dispatch(setUser(user));
                 } catch {}
             },
@@ -97,7 +101,7 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
-                    // setNewUser → isNewUser = true → AuthGate routes to /(auth)/onboarding
+                    resetAllApiCaches(dispatch);
                     if (user) dispatch(setNewUser(user));
                 } catch {}
             },

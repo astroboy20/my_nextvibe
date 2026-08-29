@@ -174,7 +174,7 @@ export default function EventDetailScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <AppHeader onBack={() => router.back()} />
         <ScrollView showsVerticalScrollIndicator={false}>
           <EventDetailHeroSkeleton />
           <EventDetailTabSkeleton />
@@ -187,7 +187,7 @@ export default function EventDetailScreen() {
   if (isError || !event) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <AppHeader onBack={() => router.back()} />
         <View style={styles.errorWrap}>
           <Ionicons name="alert-circle-outline" size={48} color={semantic.error} />
           <Text style={styles.errorTitle}>Couldn't load event</Text>
@@ -268,7 +268,7 @@ export default function EventDetailScreen() {
   if (activeTab === "games" && isPlayingGame) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <AppHeader onBack={() => router.back()} />
         {TabBar}
         <GameTab
           eventId={event.id} eventName={event.name}
@@ -284,7 +284,7 @@ export default function EventDetailScreen() {
   if (isSelfScroll) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-        <AppHeader onBack={() => router.back()} notificationCount={0} />
+        <AppHeader onBack={() => router.back()} />
         {/* Compact hero strip — shows name + tags, no full-height image */}
         <View style={styles.compactHero}>
           {event.flierUrl ? (
@@ -336,7 +336,7 @@ export default function EventDetailScreen() {
   // ── Simple tabs (about, rsvp, qr) — outer ScrollView is fine ─────────────
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <AppHeader onBack={() => router.back()} notificationCount={0} />
+      <AppHeader onBack={() => router.back()} />
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}

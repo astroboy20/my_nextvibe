@@ -15,6 +15,8 @@ export interface CanvasElement {
   fontSize?: number;
   fontColor?: string;
   fontFamily?: string;
+  bold?: boolean;
+  fontStyle?: string; // name of the style preset (e.g. 'Neon', 'Gold')
   // image / sticker only
   uri?: string;         // local file:// URI or remote https://
   naturalW?: number;

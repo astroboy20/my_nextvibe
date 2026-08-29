@@ -330,7 +330,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar style="dark" backgroundColor="#fff" />
-      <AppHeader notificationCount={2} />
+      <AppHeader  />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -749,3 +749,4 @@ const tk = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontFamily: fontFamily.semibold, fontSize: 11 },
 });
+

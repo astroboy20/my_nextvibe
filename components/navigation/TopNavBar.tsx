@@ -6,7 +6,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// ─── Logo mark: plum circle with "»" ──────────────────────────────────────────
+// ─── Logo mark ────────────────────────────────────────────────────────────────
 function LogoMark({ size = 38 }: { size?: number }) {
   return (
     <View
@@ -35,28 +35,21 @@ function LogoMark({ size = 38 }: { size?: number }) {
   );
 }
 
-// ─── Bell button — shared by AppHeader and TopNavBar ─────────────────────────
-// If notificationCount / onPress are not provided, falls back to the live
-// RTK Query count and automatic navigation to /notifications.
-
-function NotificationBell({
-  count: countProp,
-  onPress: onPressProp,
-  size = 22,
-  style,
+// ─── Pure bell UI — NO hooks, just props ─────────────────────────────────────
+function BellIcon({
+  count,
+  onPress,
+  size,
+  containerStyle,
 }: {
-  count?: number;
-  onPress?: () => void;
-  size?: number;
-  style?: object;
+  count: number;
+  onPress: () => void;
+  size: number;
+  containerStyle?: object;
 }) {
-  const { unreadCount, onBellPress } = useNotificationBell();
-  const count   = countProp   ?? unreadCount;
-  const onPress = onPressProp ?? onBellPress;
-
   return (
     <TouchableOpacity
-      style={[bell.wrap, style]}
+      style={[bellS.wrap, containerStyle]}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityLabel="Notifications"
@@ -64,16 +57,16 @@ function NotificationBell({
     >
       <Ionicons name="notifications-outline" size={size} color={neutral[700]} />
       {count > 0 && (
-        <View style={bell.badge}>
-          <Text style={bell.text}>{count > 9 ? '9+' : count}</Text>
+        <View style={bellS.badge}>
+          <Text style={bellS.text}>{count > 9 ? '9+' : count}</Text>
         </View>
       )}
     </TouchableOpacity>
   );
 }
 
-const bell = StyleSheet.create({
-  wrap:  { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+const bellS = StyleSheet.create({
+  wrap: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute', top: 4, right: 4,
     minWidth: 16, height: 16, borderRadius: 8,
@@ -84,38 +77,31 @@ const bell = StyleSheet.create({
   text: { fontFamily: fontFamily.bold, fontSize: 9, color: '#fff' },
 });
 
-// ─── AppHeader ─────────────────────────────────────────────────────────────────
+// ─── AppHeader ────────────────────────────────────────────────────────────────
 // Used on all non-tab screens: [back]  [logo + wordmark]  [bell]
-// notificationCount / onNotificationPress are optional — omit them and the
-// bell self-manages via useNotificationBell.
+// Hooks live HERE at the top level — never inside a child component.
 
 export interface AppHeaderProps {
   onBack?: () => void;
-  /** Override the badge count. Omit to use live RTK Query unreadCount. */
-  notificationCount?: number;
-  /** Override the press handler. Omit to auto-navigate to /notifications. */
-  onNotificationPress?: () => void;
-  /** Replaces the bell entirely with a custom right-side element. */
   right?: React.ReactNode;
 }
 
-export function AppHeader({
-  onBack,
-  notificationCount,
-  onNotificationPress,
-  right,
-}: AppHeaderProps) {
+export function AppHeader({ onBack, right }: AppHeaderProps) {
+  // Hook called at component top level — safe
+  const { unreadCount, onBellPress } = useNotificationBell();
+
   const RightSlot = right ? (
     <View style={ah.side}>{right}</View>
   ) : (
-    <NotificationBell
-      count={notificationCount}
-      onPress={onNotificationPress}
+    <BellIcon
+      count={unreadCount}
+      onPress={onBellPress}
       size={22}
-      style={ah.side}
+      containerStyle={ah.side}
     />
   );
 
+  // No back button — logo left, bell right
   if (!onBack) {
     return (
       <View style={ah.bar}>
@@ -128,6 +114,7 @@ export function AppHeader({
     );
   }
 
+  // Has back button — [back] [logo centred] [bell]
   return (
     <View style={ah.bar}>
       <TouchableOpacity style={ah.side} onPress={onBack} activeOpacity={0.7} hitSlop={8}>
@@ -165,31 +152,24 @@ const ah = StyleSheet.create({
 });
 
 // ─── TopNavBar (tab screens) ──────────────────────────────────────────────────
-// notificationCount / onNotificationPress optional — same self-managing bell.
 
-interface TopNavBarProps {
-  onNotificationPress?: () => void;
-  notificationCount?: number;
-}
-
-export default function TopNavBar({
-  onNotificationPress,
-  notificationCount,
-}: TopNavBarProps) {
+export default function TopNavBar() {
   const insets = useSafeAreaInsets();
+  // Hook called at component top level — safe
+  const { unreadCount, onBellPress } = useNotificationBell();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
-      <View style={styles.brand}>
+    <View style={[navS.container, { paddingTop: insets.top + 8 }]}>
+      <View style={navS.brand}>
         <LogoMark size={38} />
-        <Text style={styles.brandName}>nextvibe</Text>
+        <Text style={navS.brandName}>nextvibe</Text>
       </View>
-      <NotificationBell count={notificationCount} onPress={onNotificationPress} size={24} />
+      <BellIcon count={unreadCount} onPress={onBellPress} size={24} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const navS = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -200,7 +180,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  brand:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandName: {
     fontFamily: fontFamily.extrabold,
     fontSize: fontSize.xl,

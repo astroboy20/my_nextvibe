@@ -1,10 +1,8 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { useGetEventVibeTagsQuery } from '@/store/api/eventsApi';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Modal,
   ScrollView,
@@ -27,38 +25,54 @@ const TIMING_TABS: { value: ActivityTiming; label: string }[] = [
   { value: 'BOTH', label: 'Both' },
 ];
 
+// ── VibeTag item shape from event response ────────────────────────────────────
+export interface EventVibeTag {
+  id: string;
+  name: string;
+  imageUrl: string;
+  activityTiming: string;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   eventId: string;
   eventName?: string | null;
+  /** vibeTag array directly from the event response — no extra fetch needed */
+  vibeTags: EventVibeTag[];
   eventPlan?: {
     vibetagsEnabled: boolean;
     vibetagPhases: string[];
     isQuotaExhausted?: boolean;
   } | null;
+  /** Called after a new VibeTag is saved so the parent can refetch the event */
+  onRefetch: () => void;
 }
 
-export default function VibeTagSection({ eventId, eventName, eventPlan }: Props) {
+export default function VibeTagSection({
+  eventId,
+  eventName,
+  vibeTags,
+  eventPlan,
+  onRefetch,
+}: Props) {
   const [activeTiming, setActiveTiming] = useState<ActivityTiming>('PRE_EVENT');
   const [showEditor, setShowEditor] = useState(false);
 
-  const { data, isLoading, refetch } = useGetEventVibeTagsQuery(eventId, {
-    skip: !eventId,
-  });
+  // vibeTags comes straight from event.vibeTag — already deduplicated by the
+  // backend (one per phase). No extra query, no client-side dedup needed.
+  const existingTag = vibeTags.find((t) => t.activityTiming === activeTiming) ?? null;
 
-  const allVibeTags = data?.data ?? [];
-  const existingTag = allVibeTags.find((t) => t.activityTiming === activeTiming) ?? null;
-
-  const hasPreEvent = allVibeTags.some((t) => t.activityTiming === 'PRE_EVENT');
-  const hasDuringEvent = allVibeTags.some((t) => t.activityTiming === 'DURING_EVENT');
+  const hasPreEvent   = vibeTags.some((t) => t.activityTiming === 'PRE_EVENT');
+  const hasDuringEvent = vibeTags.some((t) => t.activityTiming === 'DURING_EVENT');
   const isBothDisabled = activeTiming === 'BOTH' && hasPreEvent && hasDuringEvent;
 
   const canCreate = !isBothDisabled && !existingTag;
 
-  const handleEditorClose = (meta?: { paymentRequired: boolean; vibeTagId?: string }) => {
+  const handleEditorClose = (_meta?: { paymentRequired: boolean; vibeTagId?: string }) => {
     setShowEditor(false);
-    refetch();
+    // Refetch the event so the vibeTag array updates in the parent
+    onRefetch();
   };
 
   return (
@@ -120,12 +134,8 @@ export default function VibeTagSection({ eventId, eventName, eventPlan }: Props)
       })()}
 
       {/* Content */}
-      {isLoading ? (
-        <View style={s.centered}>
-          <ActivityIndicator color={brand.primary} />
-        </View>
-      ) : existingTag ? (
-        // Existing tag for this timing
+      {existingTag ? (
+        // Existing tag for this timing — straight from event.vibeTag
         <View style={s.tagCard}>
           {existingTag.imageUrl ? (
             <Image
@@ -151,7 +161,7 @@ export default function VibeTagSection({ eventId, eventName, eventPlan }: Props)
           </View>
         </View>
       ) : (
-        // No tag yet
+        // No tag yet for this timing
         <View style={s.emptyBox}>
           <Ionicons name="pricetag-outline" size={28} color={neutral[300]} />
           <Text style={s.emptyTitle}>
@@ -179,7 +189,7 @@ export default function VibeTagSection({ eventId, eventName, eventPlan }: Props)
             </Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={s.refreshBtn} onPress={() => refetch()} activeOpacity={0.8}>
+        <TouchableOpacity style={s.refreshBtn} onPress={onRefetch} activeOpacity={0.8}>
           <Ionicons name="refresh-outline" size={14} color={brand.primary} />
           <Text style={s.refreshBtnText}>Refresh</Text>
         </TouchableOpacity>
@@ -272,7 +282,6 @@ const s = StyleSheet.create({
     lineHeight: 17,
   },
   bold: { fontFamily: fontFamily.semibold },
-  centered: { alignItems: 'center', paddingVertical: 24 },
   tagCard: {
     flexDirection: 'row',
     alignItems: 'center',

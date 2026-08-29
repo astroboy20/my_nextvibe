@@ -8,12 +8,13 @@ import { EventCardGridSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
-import { useNotificationBell } from "@/hooks/useNotificationBell";
+import {
+  useGetEventsQuery,
+} from "@/store/api/eventApi";
 import {
   toCardData,
-  useGetEventsQuery,
   type DiscoverEvent,
-} from "@/store/api/eventsApi";
+} from "@/store/api/eventsApi"; // RTK shim — types + utilities
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, {
@@ -69,7 +70,6 @@ function isStartingSoon(startsAt?: string): boolean {
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { unreadCount, onBellPress } = useNotificationBell();
 
   // Active tab — driven by both the segmented control AND swipe
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -326,7 +326,7 @@ export default function HomeScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={["left", "right"]}>
-      <TopNavBar notificationCount={unreadCount} onNotificationPress={onBellPress} />
+      <TopNavBar />
 
       {/* Sticky shared header */}
       {SharedHeader}

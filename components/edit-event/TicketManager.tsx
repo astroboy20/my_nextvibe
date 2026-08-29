@@ -16,24 +16,25 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useUploadIntentMutation } from "@/store/api/eventsApi";
 import {
-    useCreateTicketTierMutation,
-    useDeleteTicketTierMutation,
-    useUpdateTicketTierMutation,
-    type TicketTier
+  useCreateTicketTierMutation,
+  useDeleteTicketTierMutation,
+  useGetTicketTiersQuery,
+  useUpdateTicketTierMutation,
+  type TicketTier,
 } from "@/store/api/ticketsApi";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import FieldInput from "./FieldInput";
 
@@ -1206,8 +1207,9 @@ export default function TicketManager({
   eventId: string;
   eventStatus?: string;
 }) {
-  const { data: serverTiers = [], isLoading } =
-    useGetTicketTiersQuery(eventId);
+  const { data: ticketsResponse, isLoading } = useGetTicketTiersQuery(eventId);
+  const serverTiers: TicketTier[] = ticketsResponse?.data ?? [];
+
   const [tiers, setTiers] = useState<TicketTier[] | null>(null);
   const displayTiers = tiers ?? serverTiers;
 
@@ -1219,11 +1221,14 @@ export default function TicketManager({
   const [editingTier, setEditingTier] = useState<TicketTier | null>(null);
   const [deletingTier, setDeletingTier] = useState<TicketTier | null>(null);
 
-  const totalRevenue = displayTiers.reduce(
+  const totalRevenue = displayTiers?.reduce(
     (s, t) => s + t.price * (t.quantitySold ?? 0),
     0
   );
-  const totalSold = displayTiers.reduce((s, t) => s + (t.quantitySold ?? 0), 0);
+  const totalSold = displayTiers?.reduce(
+    (s, t) => s + (t.quantitySold ?? 0),
+    0
+  );
 
   if (isLoading) {
     return (
@@ -1277,9 +1282,9 @@ export default function TicketManager({
       </TouchableOpacity>
 
       {/* Ticket list */}
-      {displayTiers.length > 0 ? (
+      {displayTiers?.length > 0 ? (
         <View style={tm.list}>
-          {displayTiers.map((tier) => (
+          {displayTiers?.map((tier) => (
             <TicketRow
               key={tier.id}
               tier={tier}

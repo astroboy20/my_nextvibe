@@ -102,7 +102,7 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-      <AppHeader onBack={() => router.back()} notificationCount={2} />
+      <AppHeader onBack={() => router.back()}  />
       <FlatList
         data={isFirstLoad ? [] : events}
         keyExtractor={(item) => item.id}
@@ -336,3 +336,4 @@ const badge = StyleSheet.create({
   pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   text: { fontFamily: fontFamily.semibold, fontSize: 11 },
 });
+

@@ -110,12 +110,7 @@ export const organizerPaymentApi = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (_result, _error, { eventId }) => [
-        "OrganizerPayments",
-        { type: "PublishPreview", id: eventId },
-        { type: "Event",          id: eventId },
-        "Events",
-      ],
+      invalidatesTags: ["OrganizerPayments"],
     }),
 
     /**

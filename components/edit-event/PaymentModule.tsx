@@ -7,25 +7,24 @@ import {
 import {
     useGetQuoteMutation,
     useInitiatePlanPaymentMutation,
-    type PlanQuote,
-    type PlanType,
+    useLazyVerifyOrganizerPaymentQuery,
 } from "@/store/api/organizerPaymentApi";
 import { Ionicons } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
-import React, { useEffect, useState } from "react";
+import * as WebBrowser from "expo-web-browser";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 // ── Plan labels ───────────────────────────────────────────────────────────────
 
-const PLAN_LABELS: Record<PlanType, string> = {
+const PLAN_LABELS: Record<string, string> = {
   VIBETAGS_SINGLE: "VibeTags — Single Phase",
   VIBETAGS_BUNDLE: "VibeTags — Full Bundle",
   GAMIFICATION_SINGLE: "Gamification — Single Phase",
@@ -34,7 +33,7 @@ const PLAN_LABELS: Record<PlanType, string> = {
   MEGA_BUNDLE_FULL: "Mega Bundle — Full Event",
 };
 
-const PLAN_DESCRIPTIONS: Record<PlanType, string> = {
+const PLAN_DESCRIPTIONS: Record<string, string> = {
   VIBETAGS_SINGLE: "VibeTags for one event phase",
   VIBETAGS_BUNDLE: "VibeTags across all phases",
   GAMIFICATION_SINGLE: "Games for one event phase",
@@ -50,7 +49,7 @@ function PlanCard({
   selected,
   onSelect,
 }: {
-  plan: PlanQuote;
+  plan: any;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -117,10 +116,13 @@ export default function PaymentModule({
   eventStatus,
   onPublished,
 }: Props) {
-  const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [couponInput, setCouponInput] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<string | undefined>();
-  const [quotedPlan, setQuotedPlan] = useState<PlanQuote | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(undefined);
+  const [quotedPlan, setQuotedPlan] = useState<any>(null);
+  // Track in-progress payment verification after in-app browser closes
+  const [isVerifying, setIsVerifying] = useState(false);
+  const pendingPaymentId = useRef<string | null>(null);
 
   const {
     data: previewData,
@@ -136,6 +138,7 @@ export default function PaymentModule({
     useInitiatePlanPaymentMutation();
   const [updateEventStatus, { isLoading: isPublishing }] =
     useUpdateEventStatusMutation();
+  const [verifyPayment] = useLazyVerifyOrganizerPaymentQuery();
 
   const preview = previewData?.data;
 
@@ -179,17 +182,27 @@ export default function PaymentModule({
             style={[s.retryBtn, { borderColor: brand.primary }]}
             onPress={async () => {
               try {
+                Toast.show({
+                  type: "info",
+                  text1: "Publishing…",
+                  text2: "Please wait while we publish your event.",
+                });
                 await updateEventStatus({
                   eventId,
                   status: "PUBLISHED",
                 }).unwrap();
-                Alert.alert("Published!", "Your event is now live.");
+                Toast.show({
+                  type: "success",
+                  text1: "Published!",
+                  text2: "Your event is now live.",
+                });
                 onPublished?.();
               } catch (err: any) {
-                Alert.alert(
-                  "Error",
-                  err?.data?.message ?? "Failed to publish event."
-                );
+                Toast.show({
+                  type: "error",
+                  text1: "Failed to Publish",
+                  text2: err?.data?.message ?? "Something went wrong.",
+                });
               }
             }}
             activeOpacity={0.8}
@@ -204,6 +217,87 @@ export default function PaymentModule({
   }
 
   if (!preview) return null;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Poll the verify endpoint until the payment is confirmed or fails.
+   * Maximum ~30 seconds (15 × 2s intervals).
+   */
+  const pollUntilVerified = async (paymentId: string): Promise<boolean> => {
+    const MAX_ATTEMPTS = 15;
+    const INTERVAL_MS = 2000;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const res = await verifyPayment(paymentId).unwrap();
+        const status = res?.data?.status;
+        if (status === "completed") return true;
+        if (status === "failed") return false;
+      } catch {
+        // network hiccup — keep trying
+      }
+      await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS));
+    }
+    return false;
+  };
+
+  /**
+   * After the in-app browser closes, verify the payment and — if confirmed —
+   * mark the event as PUBLISHED.
+   */
+  const handlePostPayment = async (paymentId: string) => {
+    setIsVerifying(true);
+    Toast.show({
+      type: "info",
+      text1: "Verifying Payment",
+      text2: "Checking your payment status…",
+      autoHide: false,
+    });
+
+    const confirmed = await pollUntilVerified(paymentId);
+    Toast.hide();
+
+    if (confirmed) {
+      // Payment verified — now publish the event
+      try {
+        Toast.show({
+          type: "info",
+          text1: "Publishing Your Event",
+          text2: "Almost there…",
+          autoHide: false,
+        });
+        await updateEventStatus({ eventId, status: "PUBLISHED" }).unwrap();
+        Toast.hide();
+        Toast.show({
+          type: "success",
+          text1: "🚀 Event Published!",
+          text2: "Your event is now live.",
+        });
+        refetch();
+        onPublished?.();
+      } catch (err: any) {
+        Toast.hide();
+        Toast.show({
+          type: "error",
+          text1: "Publish Failed",
+          text2:
+            err?.data?.message ?? "Payment was received but publish failed.",
+        });
+      }
+    } else {
+      Toast.show({
+        type: "error",
+        text1: "Payment Not Confirmed",
+        text2:
+          "We couldn't verify your payment. Please try again or contact support.",
+        visibilityTime: 5000,
+      });
+    }
+
+    setIsVerifying(false);
+    pendingPaymentId.current = null;
+  };
 
   // ── Free publish path ──────────────────────────────────────────────────────
   if (preview.isFreePublish) {
@@ -223,17 +317,30 @@ export default function PaymentModule({
           disabled={isPublishing}
           onPress={async () => {
             try {
+              Toast.show({
+                type: "info",
+                text1: "Publishing Your Event",
+                text2: "Please wait…",
+                autoHide: false,
+              });
               await updateEventStatus({
                 eventId,
                 status: "PUBLISHED",
               }).unwrap();
-              Alert.alert("Published!", "Your event is now live.");
+              Toast.hide();
+              Toast.show({
+                type: "success",
+                text1: "🚀 Event Published!",
+                text2: "Your event is now live.",
+              });
               onPublished?.();
             } catch (err: any) {
-              Alert.alert(
-                "Error",
-                err?.data?.message ?? "Failed to publish event."
-              );
+              Toast.hide();
+              Toast.show({
+                type: "error",
+                text1: "Publish Failed",
+                text2: err?.data?.message ?? "Failed to publish event.",
+              });
             }
           }}
           activeOpacity={0.8}
@@ -269,15 +376,21 @@ export default function PaymentModule({
       }).unwrap();
       setQuotedPlan(res.data);
       setAppliedCoupon(couponInput.trim());
+      Toast.show({
+        type: "success",
+        text1: "Coupon Applied! 🎉",
+        text2: `Saved ₦${res.data.couponDiscountAmount.toLocaleString()} with code "${couponInput.trim()}"`,
+      });
     } catch (err: any) {
-      Alert.alert(
-        "Invalid Coupon",
-        err?.data?.message ?? "Invalid or expired coupon."
-      );
+      Toast.show({
+        type: "error",
+        text1: "Invalid Coupon",
+        text2: err?.data?.message ?? "Invalid or expired coupon code.",
+      });
     }
   };
 
-  const handlePlanSelect = (planType: PlanType) => {
+  const handlePlanSelect = (planType: any) => {
     setSelectedPlan(planType);
     setQuotedPlan(null);
     if (appliedCoupon) {
@@ -287,6 +400,11 @@ export default function PaymentModule({
         .catch(() => {
           setAppliedCoupon(undefined);
           setCouponInput("");
+          Toast.show({
+            type: "error",
+            text1: "Coupon Removed",
+            text2: "The coupon isn't valid for this plan.",
+          });
         });
     }
   };
@@ -300,21 +418,58 @@ export default function PaymentModule({
         ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
       }).unwrap();
 
-      const { status, checkoutUrl } = res.data;
+      const { status, checkoutUrl, paymentId } = res.data;
 
+      // ── Free / instant complete (coupon covers full cost) ──────────────────
       if (status === "COMPLETED" || !checkoutUrl) {
-        Alert.alert("Published!", "Your event is now live.");
-        refetch();
-        onPublished?.();
+        Toast.show({
+          type: "info",
+          text1: "Publishing Your Event",
+          text2: "Payment complete — publishing now…",
+          autoHide: false,
+        });
+        try {
+          await updateEventStatus({ eventId, status: "PUBLISHED" }).unwrap();
+          Toast.hide();
+          Toast.show({
+            type: "success",
+            text1: "🚀 Event Published!",
+            text2: "Your event is now live.",
+          });
+          refetch();
+          onPublished?.();
+        } catch (err: any) {
+          Toast.hide();
+          Toast.show({
+            type: "error",
+            text1: "Publish Failed",
+            text2: err?.data?.message ?? "Payment received but publish failed.",
+          });
+        }
         return;
       }
 
-      // Open checkout in browser
-      await Linking.openURL(checkoutUrl);
+      // ── Paid path: open checkout in in-app browser ─────────────────────────
+      pendingPaymentId.current = paymentId;
+      const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
+        dismissButtonStyle: "close",
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+      });
+
+      // Browser dismissed — verify regardless of result type
+      if (pendingPaymentId.current) {
+        await handlePostPayment(pendingPaymentId.current);
+      }
     } catch (err: any) {
-      Alert.alert("Error", err?.data?.message ?? "Failed to initiate payment.");
+      Toast.show({
+        type: "error",
+        text1: "Payment Error",
+        text2: err?.data?.message ?? "Failed to initiate payment.",
+      });
     }
   };
+
+  const isBusy = isInitiating || isPublishing || isVerifying;
 
   return (
     <View style={s.root}>
@@ -409,17 +564,22 @@ export default function PaymentModule({
         </Text>
       </View>
 
+      {/* Verification progress */}
+      {isVerifying && (
+        <View style={s.verifyingBox}>
+          <ActivityIndicator color={brand.primary} size="small" />
+          <Text style={s.verifyingText}>Verifying payment…</Text>
+        </View>
+      )}
+
       {/* CTA */}
       <TouchableOpacity
-        style={[
-          s.ctaBtn,
-          (!selectedPlan || isInitiating || isPublishing) && s.ctaBtnDisabled,
-        ]}
-        disabled={!selectedPlan || isInitiating || isPublishing}
+        style={[s.ctaBtn, (!selectedPlan || isBusy) && s.ctaBtnDisabled]}
+        disabled={!selectedPlan || isBusy}
         onPress={handleActivate}
         activeOpacity={0.8}
       >
-        {isInitiating || isPublishing ? (
+        {isBusy && !isVerifying ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <>
@@ -436,7 +596,7 @@ export default function PaymentModule({
       <Text style={s.ctaHint}>
         {activePlan?.finalAmount === 0
           ? "Your coupon covers the full cost. Tap to publish immediately."
-          : "You'll be redirected to a secure payment page."}
+          : "A secure payment page will open in-app. Your event publishes automatically once payment is confirmed."}
       </Text>
     </View>
   );
@@ -697,6 +857,21 @@ const s = StyleSheet.create({
   totalAmount: {
     fontFamily: fontFamily.bold,
     fontSize: 22,
+    color: brand.primary,
+  },
+  verifyingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: `${brand.primary}08`,
+    borderWidth: 1,
+    borderColor: `${brand.primary}20`,
+  },
+  verifyingText: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
     color: brand.primary,
   },
   ctaBtn: {

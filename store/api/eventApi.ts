@@ -1,7 +1,14 @@
 
-import { IGalleryItem } from "@/types/event.type";
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { baseQueryWithReauth } from "./baseQuery";
+
+// Inline type — replaces the missing @/types/event.type import
+interface IGalleryItem {
+  id: string;
+  url?: string;
+  type?: string;
+  tags?: string[];
+}
 
 // ── Withdrawal types ──────────────────────────────────────────────────────────
 /**
@@ -507,9 +514,15 @@ export const eventsApi = createApi({
       query: ({ eventId, name, imageKey, activityTiming }) => {
         const formData = new FormData();
         formData.append("eventId", eventId as string);
-        formData.append("name", name);
-        formData.append("imageKey", imageKey);
+        formData.append("name", name ?? "VibeTag");
         formData.append("activityTiming", activityTiming);
+        // imageKey is a base64 PNG string — wrap it as a file so the backend
+        // receives it as a proper multipart image upload
+        formData.append("imageKey", {
+          uri: `data:image/png;base64,${imageKey}`,
+          name: `vibetag_${Date.now()}.png`,
+          type: "image/png",
+        } as any);
         return {
           url: "/v1/vibe-tags",
           method: "POST",
@@ -522,6 +535,18 @@ export const eventsApi = createApi({
       ],
     }),    getVibeTags: builder.query<any, { eventId: string; activityTiming?: string }>({
       query: ({ eventId }) => `/v1/vibe-tags?eventId=${eventId}`,
+      // Deduplicate at cache level — keep only the most recently created per activityTiming
+      transformResponse: (response: any) => {
+        const tags: any[] = response?.data ?? [];
+        const map = new Map<string, any>();
+        for (const t of tags) {
+          const existing = map.get(t.activityTiming);
+          if (!existing || new Date(t.createdAt) > new Date(existing.createdAt)) {
+            map.set(t.activityTiming, t);
+          }
+        }
+        return { ...response, data: Array.from(map.values()) };
+      },
       providesTags: (_, __, { eventId }) => [{ type: "Gallery", id: `vibetags-${eventId}` }],
     }),
 
