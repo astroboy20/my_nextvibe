@@ -174,6 +174,8 @@ export default function NotificationsScreen() {
   const isFirstLoad    = isLoading && notifications.length === 0;
   const isRefreshing   = isFetching && !isLoading;
 
+  useRefetchOnFocus(refetch);
+
   // Tap → mark read + deep-link
   const handlePress = useCallback(async (item: Notification) => {
     if (!item.isRead) {

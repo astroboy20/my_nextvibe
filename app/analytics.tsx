@@ -17,24 +17,24 @@
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useGetEventAnalyticsQuery,
-  useGetEventGameAnalyticsQuery,
-  useGetEventPostcardAnalyticsQuery,
-  useGetEventRevenueAnalyticsQuery,
-  useGetEventSocialAnalyticsQuery,
-  useGetEventVibeTagAnalyticsQuery,
+    useGetEventAnalyticsQuery,
+    useGetEventGameAnalyticsQuery,
+    useGetEventPostcardAnalyticsQuery,
+    useGetEventRevenueAnalyticsQuery,
+    useGetEventSocialAnalyticsQuery,
+    useGetEventVibeTagAnalyticsQuery,
 } from "@/store/api/analyticsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -1165,8 +1165,13 @@ export default function AnalyticsScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabKey>("summary");
 
-  // For RefreshControl — we just refetch the active tab's query
+  // Refetch active tab data whenever screen comes back into focus
   const [refreshing, setRefreshing] = useState(false);
+
+  useRefetchOnFocus(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 800);
+  });
 
   const handleRefresh = async () => {
     setRefreshing(true);

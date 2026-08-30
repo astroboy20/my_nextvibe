@@ -8,13 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  FlatList,
-  Image,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    Image,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -98,7 +98,7 @@ export default function DashboardScreen() {
   const isFirstLoad = isLoading && !eventsData;
   const isRefreshing = isFetching && !!eventsData;
 
-
+  useRefetchOnFocus(refetch);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>

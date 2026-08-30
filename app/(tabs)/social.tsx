@@ -6,6 +6,7 @@ import PostcardCard, {
 import { Skeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
     useGetFollowingFeedQuery,
     useGetMutualsQuery,
@@ -13,8 +14,7 @@ import {
     useGetMyFollowingQuery,
 } from "@/store/api/socialApi";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
     FlatList,
     RefreshControl,
@@ -335,12 +335,8 @@ export default function SocialScreen() {
     else refetchMutuals();
   };
 
-  // Re-fetch when tab comes into focus — prevents stale data after login/logout
-  useFocusEffect(
-    useCallback(() => {
-      refetchFeed();
-    }, [refetchFeed])
-  );
+  // Re-fetch when tab comes into focus
+  useRefetchOnFocus(refetchFeed);
 
   return (
     <>

@@ -87,6 +87,8 @@ export default function EditEventScreen() {
 
   const activeReminderCount = reminderTemplates.filter((t) => t.enabled).length;
 
+  useRefetchOnFocus(refetch);
+
   // -- Handlers ----------------------------------------------------------------
 
   const handleShare = async () => {
@@ -178,6 +180,7 @@ export default function EditEventScreen() {
     flierUrl: event.flierUrl ?? null,
     promoVideoUrl: event.promoVideoUrl ?? null,
     status: event.status ?? "DRAFT",
+    isPublic: (event as any).isPublic !== false, // default to true if not set
     attendingCount:
       (event as any).attendingCount ?? (event as any)._count?.attendees ?? 0,
     maybeCount: (event as any).maybeCount ?? 0,
@@ -343,6 +346,7 @@ function EditEventSection({
   isLocked: boolean;
   onOpenEdit: () => void;
 }) {
+  const isPrivate = event?.isPublic === false;
   return (
     <DashboardCard
       title="Edit Event"
@@ -350,11 +354,22 @@ function EditEventSection({
       badge={
         isLocked ? (
           <StatusBadge label="Locked" color={semantic.error} />
+        ) : isPrivate ? (
+          <StatusBadge label="🔒 Private" color="#b45309" />
         ) : (
           <StatusBadge label="Editable" color={semantic.success} />
         )
       }
     >
+      {isPrivate && !isLocked && (
+        <View style={sec.privateRow}>
+          <Ionicons name="lock-closed-outline" size={14} color="#b45309" />
+          <Text style={sec.privateText}>
+            This event is private — it won't appear on the public feed. Share
+            the invite link so guests can access it with an access key.
+          </Text>
+        </View>
+      )}
       {isLocked ? (
         <View style={sec.lockedRow}>
           <Ionicons
@@ -826,6 +841,24 @@ const sec = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     color: semantic.error,
+    lineHeight: 18,
+  },
+  privateRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#fef3c708",
+    borderWidth: 1,
+    borderColor: "#fde68a",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  privateText: {
+    flex: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: "#92400e",
     lineHeight: 18,
   },
   primaryBtn: {

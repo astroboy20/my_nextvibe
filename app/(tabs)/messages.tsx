@@ -1,13 +1,14 @@
 import { Skeleton } from '@/components/ui/Skeleton';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import {
     useGetConversationsQuery,
     type Conversation,
 } from '@/store/api/socialApi';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import {
     FlatList,
     RefreshControl,
@@ -144,12 +145,8 @@ export default function MessagesScreen() {
 
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
 
-  // Re-fetch when tab comes into focus — prevents stale data after login/logout
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch])
-  );
+  // Re-fetch when tab comes into focus
+  useRefetchOnFocus(refetch);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>

@@ -58,7 +58,7 @@ export default function UserProfileScreen() {
   const router  = useRouter();
   const me      = useAppSelector((st) => st.auth.user);
 
-  const { data, isLoading, isError } = useGetUserBasicQuery(id ?? '', {
+  const { data, isLoading, isError, refetch } = useGetUserBasicQuery(id ?? '', {
     skip: !id,
   });
 
@@ -67,6 +67,8 @@ export default function UserProfileScreen() {
   const [following,    setFollowing]    = useState<boolean>(userRaw?.isFollowing ?? false);
   const [followBusy,   setFollowBusy]   = useState(false);
   const [startingChat, setStartingChat] = useState(false);
+
+  useRefetchOnFocus(refetch);
 
   // Re-sync once data arrives
   React.useEffect(() => {

@@ -23,7 +23,7 @@ import {
     Text,
     TouchableOpacity,
     TouchableWithoutFeedback,
-    View,
+    View
 } from 'react-native';
 import FieldInput from './FieldInput';
 import LockedBanner from './LockedBanner';
@@ -60,6 +60,7 @@ interface FormState {
   capacity: string;
   startsAt: string;
   endsAt: string;
+  isPublic: boolean;
 }
 
 interface FormErrors {
@@ -168,6 +169,7 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
     payload.locationName = showLocation    ? form.locationName : '';
     payload.virtualLink  = showVirtualLink ? form.virtualLink  : '';
 
+    payload.isPublic      = form.isPublic;
     payload.flierUri      = flier.uri       ?? null;
     payload.flierUrl      = flier.remoteUrl ?? null;
     payload.promoVideoUri = video.uri       ?? null;
@@ -264,8 +266,41 @@ export default function EditEventForm({ event, visible, onDismiss, onSave, isSav
             </View>
           </View>
 
-          {/* ── Location — ONSITE & HYBRID only ─────────────────── */}
-          {showLocation && (
+          {/* ── Privacy toggle ───────────────────────────────────── */}
+          <View style={s.privacyGroup}>
+            <View style={s.privacyLeft}>
+              <View style={s.privacyIconWrap}>
+                <Ionicons
+                  name={form.isPublic ? 'globe-outline' : 'lock-closed-outline'}
+                  size={16}
+                  color={form.isPublic ? brand.primary : '#b45309'}
+                />
+              </View>
+              <View style={s.privacyTextWrap}>
+                <Text style={s.privacyTitle}>
+                  {form.isPublic ? 'Public Event' : 'Private Event'}
+                </Text>
+                <Text style={s.privacyDesc}>
+                  {form.isPublic
+                    ? 'Discoverable by everyone on the feed'
+                    : 'Hidden from feed — access by invite link only'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => !locked && setForm((f) => ({ ...f, isPublic: !f.isPublic }))}
+              activeOpacity={locked ? 1 : 0.8}
+              style={[
+                s.toggle,
+                form.isPublic ? s.toggleOn : s.toggleOff,
+                locked && s.toggleDisabled,
+              ]}
+            >
+              <View style={[s.toggleThumb, form.isPublic ? s.toggleThumbOn : s.toggleThumbOff]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Location — ONSITE & HYBRID only ─────────────────── */}          {showLocation && (
             <FieldInput
               label="Location"
               value={form.locationName}
@@ -352,6 +387,7 @@ function buildForm(event: any): FormState {
     capacity:     event?.capacity != null ? String(event.capacity) : '',
     startsAt:     event?.startsAt ?? '',
     endsAt:       event?.endsAt   ?? '',
+    isPublic:     event?.isPublic !== false, // default public unless explicitly false
   };
 }
 
@@ -405,6 +441,57 @@ const s = StyleSheet.create({
   // Mode selector
   modeGroup: { marginBottom: 16 },
   modeRow:   { flexDirection: 'row', gap: 8 },
+
+  // Privacy toggle
+  privacyGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: neutral[50],
+    borderWidth: 1,
+    borderColor: neutral[200],
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 12,
+  },
+  privacyLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  privacyIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: neutral[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  privacyTextWrap: { flex: 1 },
+  privacyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
+  privacyDesc:  { fontFamily: fontFamily.regular,  fontSize: 11,          color: neutral[500], marginTop: 2 },
+
+  // Custom toggle (replaces Switch — removed in RN 0.70+)
+  toggle: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleOn:  { backgroundColor: brand.primary },
+  toggleOff: { backgroundColor: '#f59e0b60' },
+  toggleDisabled: { opacity: 0.5 },
+  toggleThumb: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleThumbOn:  { alignSelf: 'flex-end' },
+  toggleThumbOff: { alignSelf: 'flex-start' },
   modePill: {
     flex: 1,
     flexDirection: 'row',

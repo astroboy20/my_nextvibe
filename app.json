@@ -3,6 +3,7 @@
     "name": "nextvibe",
     "slug": "nextvibe",
     "version": "1.0.0",
+    "platforms": ["android", "ios"],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mynextvibe",
@@ -20,7 +21,13 @@
         "googleMaps": {
           "apiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
         }
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "ios": {
       "supportsTablet": true,
@@ -30,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-updates",
       [
         "expo-splash-screen",
         {
@@ -75,6 +83,12 @@
         "projectId": "e837865d-1e7b-495f-b8dd-db9783e2435b"
       }
     },
-    "owner": "nextvibe2026s-organization"
+    "owner": "nextvibe2026s-organization",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e837865d-1e7b-495f-b8dd-db9783e2435b"
+    }
   }
 }

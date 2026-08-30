@@ -8,6 +8,7 @@ import { EventCardGridSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
   useGetEventsQuery,
 } from "@/store/api/eventApi";
@@ -177,6 +178,10 @@ export default function HomeScreen() {
   // ── Client-side filter ─────────────────────────────────────────────────────
   const filtered: EventCardData[] = useMemo(() => {
     let list = allEvents.map(toCardData);
+
+    // Hide private events from the public discover feed
+    list = list.filter((e) => e.isPublic !== false);
+
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -208,6 +213,9 @@ export default function HomeScreen() {
 
   const isFirstLoad = isLoading && allEvents.length === 0;
   const isRefreshing = isFetching && page === 1;
+
+  // Refetch the first page whenever this tab comes back into focus
+  useRefetchOnFocus(handleRefresh);
 
   // ── Shared sticky header (above the pager) ─────────────────────────────────
   const SharedHeader = (

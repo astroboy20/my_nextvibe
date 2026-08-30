@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
     useGetMeQuery,
     useGetOrganizerEventsQuery,
@@ -16,9 +17,9 @@ import {
     type UserTicket,
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import {
     Image,
     RefreshControl,
@@ -319,13 +320,8 @@ export default function ProfileScreen() {
     refetchEvents();
   };
 
-  // Re-fetch every time this tab comes into focus — ensures fresh data after
-  // login, logout+login with a different account, or returning from another screen.
-  useFocusEffect(
-    useCallback(() => {
-      refetchMe();
-    }, [refetchMe])
-  );
+  // Re-fetch every time this tab comes into focus
+  useRefetchOnFocus(refetchMe);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>

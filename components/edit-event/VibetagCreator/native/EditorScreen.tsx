@@ -59,6 +59,7 @@ import {
     STICKER_URLS,
 } from './TemplateData';
 import type { CanvasElement, CanvasTemplate } from './types';
+import { encode as base64Encode } from 'base-64';
 
 // ── remove.bg API key from env ────────────────────────────────────────────────
 const REMOVE_BG_API_KEY = process.env.EXPO_PUBLIC_REMOVE_BG_API_KEY ?? '';
@@ -918,93 +919,95 @@ export default function EditorScreen({
 
   // ── Background removal upload ──────────────────────────────────────────────
 
-  const handleUploadWithBgRemoval = async () => {
-    setShowImageUpload(false);
-    const asset = await pickImage();
-    if (!asset) return;
 
-    if (!REMOVE_BG_API_KEY) {
-      Toast.show({ type: 'error', text1: 'Missing API key', text2: 'EXPO_PUBLIC_REMOVE_BG_API_KEY not set.' });
-      return;
+
+const handleUploadWithBgRemoval = async () => {
+  setShowImageUpload(false);
+  const asset = await pickImage();
+  if (!asset) return;
+
+  if (!REMOVE_BG_API_KEY) {
+    Toast.show({ type: 'error', text1: 'Missing API key', text2: 'EXPO_PUBLIC_REMOVE_BG_API_KEY not set.' });
+    return;
+  }
+
+  setIsRemovingBg(true);
+
+  try {
+    // remove.bg file upload — React Native supports { uri, name, type } in FormData
+    const formData = new FormData();
+    formData.append('image_file', {
+      uri: asset.uri,
+      name: `photo_${Date.now()}.jpg`,
+      type: asset.mimeType ?? 'image/jpeg',
+    } as any);
+    formData.append('size', 'auto');
+    formData.append('format', 'auto');
+
+    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': REMOVE_BG_API_KEY,
+        'Accept': 'application/json', // this is what actually gets us the JSON/base64 envelope
+        // Do NOT set Content-Type — fetch sets multipart boundary automatically
+      },
+      body: formData,
+    });
+
+    let errMsg = `HTTP ${res.status}`;
+    const contentType = res.headers.get('content-type') ?? '';
+
+    if (!res.ok) {
+      try {
+        const errJson = await res.json();
+        errMsg = errJson?.errors?.[0]?.title ?? errJson?.message ?? errMsg;
+      } catch { /* ignore */ }
+      throw new Error(errMsg);
     }
 
-    setIsRemovingBg(true);
+    let pngUri: string;
 
-    try {
-      // remove.bg file upload — React Native supports { uri, name, type } in FormData
-      const formData = new FormData();
-      formData.append('image_file', {
-        uri: asset.uri,
-        name: `photo_${Date.now()}.jpg`,
-        type: asset.mimeType ?? 'image/jpeg',
-      } as any);
-      formData.append('size', 'auto');
-      // Request base64 JSON response — avoids arrayBuffer/btoa issues in Hermes
-      formData.append('format', 'auto');
-
-      const res = await fetch('https://api.remove.bg/v1.0/removebg', {
-        method: 'POST',
-        headers: {
-          'X-Api-Key': REMOVE_BG_API_KEY,
-          'Accept': 'application/json',
-          // Do NOT set Content-Type — fetch sets multipart boundary automatically
-        },
-        body: formData,
-      });
-
-      let errMsg = `HTTP ${res.status}`;
-      const contentType = res.headers.get('content-type') ?? '';
-
-      if (!res.ok) {
-        try {
-          const errJson = await res.json();
-          errMsg = errJson?.errors?.[0]?.title ?? errJson?.message ?? errMsg;
-        } catch { /* ignore */ }
-        throw new Error(errMsg);
+    if (contentType.includes('application/json')) {
+      // JSON response contains base64 result
+      const json = await res.json();
+      const b64 = json?.data?.result_b64 ?? json?.result_b64;
+      if (!b64) throw new Error('No image data in response.');
+      pngUri = `data:image/png;base64,${b64}`;
+    } else {
+      // Binary PNG response — convert using Uint8Array + base-64 lib in chunks
+      // (not relying on global btoa, which isn't guaranteed to exist in Hermes)
+      const arrayBuffer = await res.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...(bytes.subarray(i, i + chunk) as any));
       }
-
-      let pngUri: string;
-
-      if (contentType.includes('application/json')) {
-        // JSON response contains base64 result
-        const json = await res.json();
-        const b64 = json?.data?.result_b64 ?? json?.result_b64;
-        if (!b64) throw new Error('No image data in response.');
-        pngUri = `data:image/png;base64,${b64}`;
-      } else {
-        // Binary PNG response — convert using Uint8Array + btoa in chunks
-        const arrayBuffer = await res.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        const chunk = 8192;
-        for (let i = 0; i < bytes.length; i += chunk) {
-          binary += String.fromCharCode(...(bytes.subarray(i, i + chunk) as any));
-        }
-        pngUri = `data:image/png;base64,${btoa(binary)}`;
-      }
-
-      const w = Math.min(asset.width ?? 600, LOGICAL_W * 0.8);
-      const h = asset.height && asset.width ? (w / asset.width) * asset.height : w;
-
-      addElement({
-        id: uid(), kind: 'image',
-        x: LOGICAL_W / 2, y: LOGICAL_H / 3,
-        scale: 1, rotation: 0,
-        uri: pngUri,
-        naturalW: w, naturalH: h,
-      });
-
-      Toast.show({ type: 'success', text1: 'Background removed!', text2: 'Transparent PNG added to canvas.' });
-    } catch (err: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Background removal failed',
-        text2: err?.message ?? 'Unknown error. Try uploading the image normally.',
-      });
-    } finally {
-      setIsRemovingBg(false);
+      pngUri = `data:image/png;base64,${base64Encode(binary)}`;
     }
-  };
+
+    const w = Math.min(asset.width ?? 600, LOGICAL_W * 0.8);
+    const h = asset.height && asset.width ? (w / asset.width) * asset.height : w;
+
+    addElement({
+      id: uid(), kind: 'image',
+      x: LOGICAL_W / 2, y: LOGICAL_H / 3,
+      scale: 1, rotation: 0,
+      uri: pngUri,
+      naturalW: w, naturalH: h,
+    });
+
+    Toast.show({ type: 'success', text1: 'Background removed!', text2: 'Transparent PNG added to canvas.' });
+  } catch (err: any) {
+    Toast.show({
+      type: 'error',
+      text1: 'Background removal failed',
+      text2: err?.message ?? 'Unknown error. Try uploading the image normally.',
+    });
+  } finally {
+    setIsRemovingBg(false);
+  }
+};
 
   // ── Preview ────────────────────────────────────────────────────────────────
 

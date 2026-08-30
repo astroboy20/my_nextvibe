@@ -13,6 +13,8 @@ export interface EventDraft {
   flierUrl: string | null;
   promoVideoUrl: string | null;
   status: string;
+  /** Whether the event is publicly discoverable (true) or invite-only/private (false) */
+  isPublic?: boolean;
 }
 
 export interface MediaState {
