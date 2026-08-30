@@ -6,15 +6,13 @@ import { useGetMeQuery, useSwitchRoleMutation } from "@/store/api/usersApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Linking } from "react-native";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert, Linking, ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -130,7 +128,7 @@ export default function SettingsScreen() {
           id: "appearance",
           label: "Appearance",
           icon: "color-palette-outline",
-          onPress: () => {},
+          onPress: () => router.push("/appearance"),
         },
       ],
     },

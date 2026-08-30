@@ -3,6 +3,7 @@ import { registerForPush } from "@/services/pushNotifications";
 import { tokenStore } from "@/store/baseQuery";
 import { resetAllApiCaches } from "@/store/resetCaches";
 import { bootstrapAuth } from "@/store/slices/authSlice";
+import { bootstrapTheme } from "@/store/slices/themeSlice";
 import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
 import { useFonts } from "expo-font";
@@ -111,6 +112,7 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
       // Run token bootstrap as soon as fonts are ready
       store.dispatch(bootstrapAuth());
+      store.dispatch(bootstrapTheme() as any);
     }
   }, [fontsLoaded]);
 
@@ -140,6 +142,7 @@ export default function RootLayout() {
           <Stack.Screen name="edit-event" />
           <Stack.Screen name="analytics" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="appearance" />
         </Stack>
       </AuthGate>
       <Toast />

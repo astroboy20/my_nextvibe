@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
@@ -13,6 +14,7 @@ import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -23,13 +25,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
-  ViewToken,
+  ViewToken
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import type { PostcardData, PostcardMediaItem } from "./types";
-import { Skeleton } from "@/components/ui/Skeleton";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -326,6 +328,12 @@ function PostcardCard({
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
+  // ── Double-tap heart burst ────────────────────────────────────────────────
+  const lastTapRef = useRef(0);
+  const doubleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartScale   = useRef(new Animated.Value(0)).current;
+  const heartOpacity = useRef(new Animated.Value(0)).current;
+
   const [toggleLike] = useToggleLikePostcardMutation();
   const [trackView] = useTrackPostcardViewMutation();
 
@@ -431,42 +439,100 @@ function PostcardCard({
     }
   }, [liked, postcard.id, eventId, toggleLike]);
 
+  // Burst the heart and fire like (only if not already liked)
+  const burstLike = useCallback(async () => {
+    // Always show the animation
+    heartScale.setValue(0);
+    heartOpacity.setValue(1);
+    Animated.sequence([
+      Animated.spring(heartScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        bounciness: 14,
+        speed: 14,
+      }),
+      Animated.delay(380),
+      Animated.timing(heartOpacity, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    if (!postcard.id) return;
+    // If already liked, just show the burst (no toggle)
+    if (liked) return;
+    setLiked(true);
+    setLikeCount((c) => c + 1);
+    try {
+      const res = await toggleLike({ eventId, postcardId: postcard.id }).unwrap();
+      if (res?.currentLikes !== undefined) setLikeCount(res.currentLikes);
+      if (res?.liked !== undefined) setLiked(res.liked);
+    } catch {
+      setLiked(false);
+      setLikeCount((c) => c - 1);
+    }
+  }, [liked, postcard.id, eventId, toggleLike, heartScale, heartOpacity]);
+
+  // Single tap → no-op on media; double-tap → like burst
+  const handleMediaTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 320) {
+      // Double tap detected
+      if (doubleTapTimerRef.current) {
+        clearTimeout(doubleTapTimerRef.current);
+        doubleTapTimerRef.current = null;
+      }
+      burstLike();
+    }
+    lastTapRef.current = now;
+  }, [burstLike]);
+
   if (media.length === 0) return null;
 
   return (
     <View style={{ width: W, height: H, backgroundColor: "#000" }}>
       {/* ── Full-screen media carousel ─────────────────────────────── */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => {
-          setMediaIdx(Math.round(e.nativeEvent.contentOffset.x / W));
-        }}
-        style={StyleSheet.absoluteFillObject}
+      <TouchableWithoutFeedback onPress={handleMediaTap}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onMomentumScrollEnd={(e) => {
+            setMediaIdx(Math.round(e.nativeEvent.contentOffset.x / W));
+          }}
+          style={StyleSheet.absoluteFillObject}
+        >
+          {media.map((m, i) => (
+            <View key={m.id ?? i} style={{ width: W, height: H }}>
+              {m.mediaType === "VIDEO" ? (
+                <VideoPlayer
+                  src={m.mediaUrl!}
+                  active={active && i === mediaIdx}
+                  overlayUrl={m.vibeTagOverlayUrl}
+                />
+              ) : (
+                <Image
+                  source={{ uri: m.mediaUrl! }}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="contain"
+                  transition={200}
+                />
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </TouchableWithoutFeedback>
+
+      {/* ── Double-tap heart burst ──────────────────────────────────── */}
+      <Animated.View
+        style={[ov.heartBurst, { opacity: heartOpacity, transform: [{ scale: heartScale }] }]}
+        pointerEvents="none"
       >
-        {media.map((m, i) => (
-          <View key={m.id ?? i} style={{ width: W, height: H }}>
-            {m.mediaType === "VIDEO" ? (
-              <VideoPlayer
-                src={m.mediaUrl!}
-                active={active && i === mediaIdx}
-                overlayUrl={m.vibeTagOverlayUrl}
-              />
-            ) : (
-              // contain — no cropping/zoom, letterboxed on black
-              <Image
-                source={{ uri: m.mediaUrl! }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="contain"
-                transition={200}
-              />
-            )}
-          </View>
-        ))}
-      </ScrollView>
+        <Ionicons name="heart" size={120} color={brand.primary} />
+      </Animated.View>
 
       {/* ── Gradient — bottom 50% so info is readable ──────────────── */}
       <GradientFade />
@@ -688,6 +754,12 @@ const ov = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  heartBurst: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 20,
   },
 });
 

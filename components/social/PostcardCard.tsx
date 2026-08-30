@@ -1,16 +1,23 @@
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { useToggleLikePostcardMutation } from '@/store/api/eventApi';
+import { useCommentOnPostcardMutation, useGetPostcardCommentsQuery, useToggleLikePostcardMutation } from '@/store/api/eventApi';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Animated,
+    FlatList,
     Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,9 +73,11 @@ interface Props {
 }
 
 export default function PostcardCard({ item, onPress }: Props) {
-  const [liked,      setLiked]      = useState(item.isLiked ?? false);
-  const [likeCount,  setLikeCount]  = useState(item.likeCount ?? 0);
-  const [showComments, setShowComments] = useState(false);
+  const [liked,         setLiked]         = useState(item.isLiked ?? false);
+  const [likeCount,     setLikeCount]     = useState(item.likeCount ?? 0);
+  // Local comment count — incremented optimistically when user posts a comment
+  const [commentCount,  setCommentCount]  = useState(item.commentsCount ?? 0);
+  const [showComments,  setShowComments]  = useState(false);
 
   // Double-tap to like
   const lastTapRef = useRef<number>(0);
@@ -202,7 +211,7 @@ export default function PostcardCard({ item, onPress }: Props) {
           activeOpacity={0.75}
         >
           <Ionicons name="chatbubble-outline" size={21} color={neutral[700]} />
-          <Text style={styles.actionCount}>{item.commentsCount ?? 0}</Text>
+          <Text style={styles.actionCount}>{commentCount}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.actionBtn, { marginLeft: 'auto' }]} activeOpacity={0.75}>
@@ -226,13 +235,164 @@ export default function PostcardCard({ item, onPress }: Props) {
         </View>
       ) : null}
 
-      {/* ── Comments stub ── */}
+      {/* ── Comments sheet ── */}
       {showComments && (
-        <View style={styles.commentStub}>
-          <Text style={styles.commentStubText}>Comments coming soon</Text>
-        </View>
+        <Modal
+          visible={showComments}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowComments(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <CommentSheet
+              postcardId={item.id}
+              onClose={() => setShowComments(false)}
+              onCommentPosted={() => setCommentCount((c) => c + 1)}
+            />
+          </View>
+        </Modal>
       )}
     </View>
+  );
+}
+
+// ─── Comment Sheet ────────────────────────────────────────────────────────────
+
+function CommentSheet({
+  postcardId,
+  onClose,
+  onCommentPosted,
+}: {
+  postcardId: string;
+  onClose: () => void;
+  onCommentPosted: () => void;
+}) {
+  const [body, setBody] = useState('');
+  const [postComment, { isLoading: isPosting }] = useCommentOnPostcardMutation();
+  const { data: commentsData, isLoading } = useGetPostcardCommentsQuery(postcardId);
+
+  // Local list — starts from server data, optimistic entries appended immediately
+  const serverComments: any[] = commentsData?.data ?? commentsData ?? [];
+  const [optimisticComments, setOptimisticComments] = useState<any[]>([]);
+  const allComments = [...serverComments, ...optimisticComments];
+
+  // Keep optimistic list in sync: drop any optimistic entry whose id now
+  // appears in the server list (server confirmed it)
+  React.useEffect(() => {
+    if (serverComments.length > 0 && optimisticComments.length > 0) {
+      const serverIds = new Set(serverComments.map((c) => c.id));
+      setOptimisticComments((prev) => prev.filter((c) => !serverIds.has(c.id)));
+    }
+  }, [serverComments.length]);
+
+  const submit = async () => {
+    const t = body.trim();
+    if (!t || isPosting) return;
+
+    // 1. Clear input immediately
+    setBody('');
+
+    // 2. Add optimistic entry right away
+    const optimisticId = `optimistic_${Date.now()}`;
+    const optimisticEntry = {
+      id: optimisticId,
+      content: t,
+      createdAt: new Date().toISOString(),
+      author: { displayName: 'You' },
+      _optimistic: true,
+    };
+    setOptimisticComments((prev) => [...prev, optimisticEntry]);
+
+    // 3. Notify parent so the count badge updates
+    onCommentPosted();
+
+    try {
+      // 4. Fire API — on success the invalidation refetches server list
+      await postComment({ postcardId, content: t }).unwrap();
+    } catch {
+      // Roll back: remove optimistic entry and restore input
+      setOptimisticComments((prev) => prev.filter((c) => c.id !== optimisticId));
+      setBody(t);
+      onCommentPosted(); // undo the count increment in the parent
+      Toast.show({ type: 'error', text1: 'Could not post comment' });
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={cs.wrap}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Header */}
+      <View style={cs.header}>
+        <Text style={cs.title}>
+          Comments{allComments.length > 0 ? ` (${allComments.length})` : ''}
+        </Text>
+        <TouchableOpacity onPress={onClose} hitSlop={8}>
+          <Ionicons name="close" size={22} color={neutral[700]} />
+        </TouchableOpacity>
+      </View>
+
+      {/* List */}
+      {isLoading && allComments.length === 0 ? (
+        <View style={cs.center}>
+          <ActivityIndicator color={brand.primary} />
+        </View>
+      ) : allComments.length === 0 ? (
+        <View style={cs.center}>
+          <Text style={cs.empty}>No comments yet. Be the first!</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={allComments}
+          keyExtractor={(c) => c.id}
+          contentContainerStyle={{ padding: 16, gap: 14 }}
+          renderItem={({ item: c }) => {
+            const name = c.author?.displayName ?? c.author?.username ?? 'User';
+            return (
+              <View style={[cs.row, c._optimistic && cs.rowOptimistic]}>
+                {c.author?.avatarUrl ? (
+                  <Image source={{ uri: c.author.avatarUrl }} style={cs.avatar} resizeMode="cover" />
+                ) : (
+                  <View style={cs.avatarFb}>
+                    <Text style={cs.avatarL}>{name[0]?.toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={cs.name}>{name}</Text>
+                  <Text style={cs.content}>{c.content ?? c.body}</Text>
+                </View>
+                {c._optimistic && (
+                  <ActivityIndicator size="small" color={neutral[400]} style={{ marginLeft: 6 }} />
+                )}
+              </View>
+            );
+          }}
+        />
+      )}
+
+      {/* Input */}
+      <View style={cs.inputRow}>
+        <TextInput
+          value={body}
+          onChangeText={setBody}
+          placeholder="Add a comment…"
+          placeholderTextColor={neutral[400]}
+          style={cs.input}
+          returnKeyType="send"
+          onSubmitEditing={submit}
+          autoFocus
+        />
+        <TouchableOpacity
+          onPress={submit}
+          disabled={!body.trim() || isPosting}
+          style={[cs.send, (!body.trim() || isPosting) && { opacity: 0.4 }]}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="send" size={16} color="#fff" />
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -287,6 +447,45 @@ const styles = StyleSheet.create({
   eventRow:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 10 },
   eventName:    { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[500] },
 
-  commentStub:  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: neutral[100], padding: 12 },
-  commentStubText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400], textAlign: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+});
+
+// ─── Comment sheet styles ─────────────────────────────────────────────────────
+
+const cs = StyleSheet.create({
+  wrap: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '75%', minHeight: 280 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200],
+  },
+  title: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[800] },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+  empty: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
+  row: { flexDirection: 'row', gap: 10 },
+  rowOptimistic: { opacity: 0.6 },
+  avatar: { width: 34, height: 34, borderRadius: 17 },
+  avatarFb: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: `${brand.primary}20`, alignItems: 'center', justifyContent: 'center',
+  },
+  avatarL: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
+  name: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
+  content: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[700], marginTop: 2 },
+  inputRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: neutral[200],
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+  },
+  input: {
+    flex: 1, height: 40, borderRadius: 20, borderWidth: 1,
+    borderColor: neutral[200], backgroundColor: neutral[100],
+    paddingHorizontal: 14, fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm, color: neutral[800],
+  },
+  send: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center',
+  },
 });

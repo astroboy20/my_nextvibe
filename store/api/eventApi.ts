@@ -630,6 +630,11 @@ export const eventsApi = createApi({
         method: "POST",
         body: { content },
       }),
+      // Invalidate the comments list and the postcard itself (so commentCount refreshes)
+      invalidatesTags: (_, __, { postcardId }) => [
+        { type: "Gallery", id: `comments-${postcardId}` },
+        { type: "Gallery", id: `postcard-${postcardId}` },
+      ],
     }),
 
     /** GET /v1/postcards/:id/likes — list of likes */

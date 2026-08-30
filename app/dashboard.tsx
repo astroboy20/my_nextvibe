@@ -3,6 +3,7 @@ import { AudienceCardSkeleton, DashboardEventsSkeleton } from '@/components/ui/S
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { useGetOrganizerEventsQuery, type OrganizerEvent } from '@/store/api/usersApi';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';

@@ -18,6 +18,7 @@ import { AppHeader } from "@/components/navigation/TopNavBar";
 import { EditEventDashboardSkeleton } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
   useGetEventByIdQuery,
   useUpdateEventMutation,

@@ -19,47 +19,48 @@ import { fontFamily as appFontFamily, fontSize } from '@/constants/Typography';
 import { useCreateVibeTagMutation } from '@/store/api/eventsApi';
 import { Ionicons } from '@expo/vector-icons';
 import {
-    Canvas,
-    Fill,
-    Group,
-    Image as SkiaImage,
-    Text as SkiaText,
-    matchFont,
-    useCanvasRef,
-    useFont,
-    useImage
+  Canvas,
+  Fill,
+  Group,
+  Image as SkiaImage,
+  Text as SkiaText,
+  matchFont,
+  useCanvasRef,
+  useFont,
+  useImage
 } from '@shopify/react-native-skia';
+import { encode as base64Encode } from 'base-64';
+import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import {
-    GestureHandlerRootView,
-    PanGestureHandler,
-    PinchGestureHandler,
-    State,
+  GestureHandlerRootView,
+  PanGestureHandler,
+  PinchGestureHandler,
+  State,
 } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
+import { allElements } from '../data/elements';
+import { fonts } from '../data/fonts';
 import {
-    FONT_OPTIONS,
-    PRESET_COLORS,
-    STICKER_URLS,
+  PRESET_COLORS,
 } from './TemplateData';
 import type { CanvasElement, CanvasTemplate } from './types';
-import { encode as base64Encode } from 'base-64';
 
 // ── remove.bg API key from env ────────────────────────────────────────────────
 const REMOVE_BG_API_KEY = process.env.EXPO_PUBLIC_REMOVE_BG_API_KEY ?? '';
@@ -73,32 +74,35 @@ const DISPLAY_W = Math.min(SCREEN_W - 32, 360);
 const DISPLAY_H = DISPLAY_W * (LOGICAL_H / LOGICAL_W);
 const SCALE = DISPLAY_W / LOGICAL_W;
 
+// Export canvas renders at full 1080×1920 — always crisp for preview & save
+const EXPORT_W = LOGICAL_W;
+const EXPORT_H = LOGICAL_H;
+
 // ── ID generator ──────────────────────────────────────────────────────────────
 let _id = 0;
 function uid() { return `el_${Date.now()}_${_id++}`; }
 
-// ── Font style presets (match FONT_OPTIONS names) ─────────────────────────────
-// Each preset is what gets applied to the RN text overlay AND Skia canvas text.
+// ── Derive style presets from data/fonts for canvas rendering ─────────────────
+// Maps font name → { color, bold, shadow } for the Skia + RN overlay layers.
 const STYLE_PRESETS: Record<string, {
   color: string;
   bold: boolean;
-  italic?: boolean;
   shadow?: string;
-  outline?: string;
-}> = {
-  'Classic':   { color: '#000000', bold: false },
-  'Bold':      { color: '#000000', bold: true },
-  'Elegant':   { color: '#4a2c5e', bold: false },
-  'Neon':      { color: '#39ff14', bold: true, shadow: '#39ff14' },
-  'Rose':      { color: '#ec4899', bold: false },
-  'Gold':      { color: '#f7d060', bold: true },
-  'Sky Blue':  { color: '#00d4ff', bold: false },
-  'White Pop': { color: '#ffffff', bold: true },
-  'Sunset':    { color: '#ff6b35', bold: true },
-  'Purple':    { color: '#a855f7', bold: true },
-  'Neon Pink': { color: '#ff2d78', bold: true, shadow: '#ff2d78' },
-  'Red Bold':  { color: '#e53935', bold: true },
-};
+}> = Object.fromEntries(
+  fonts.map((f) => {
+    // Pick a solid fill color from canvasStyles, falling back to webStyles color
+    const fill: string =
+      (f.canvasStyles as any).fill ??
+      (f.webStyles as any).color ??
+      '#000000';
+    const bold = ((f.canvasStyles as any).fontWeight ?? (f.webStyles as any).fontWeight ?? '400') === '800'
+      || ((f.canvasStyles as any).fontWeight ?? (f.webStyles as any).fontWeight ?? '400') === '900'
+      || ((f.canvasStyles as any).fontWeight ?? (f.webStyles as any).fontWeight ?? '400') === 800
+      || ((f.canvasStyles as any).fontWeight ?? (f.webStyles as any).fontWeight ?? '400') === 900;
+    const shadowColor: string | undefined = (f.canvasStyles as any).shadow?.color;
+    return [f.name, { color: fill, bold, shadow: shadowColor }];
+  })
+);
 
 // ── Skia canvas layer ─────────────────────────────────────────────────────────
 
@@ -107,16 +111,20 @@ function SkiaLayer({
   frameUri,
   regularFont,
   boldFont,
+  transparent = false,
 }: {
   elements: CanvasElement[];
   frameUri?: string;
   regularFont: ReturnType<typeof useFont>;
   boldFont: ReturnType<typeof useFont>;
+  transparent?: boolean;
 }) {
   const frameImage = useImage(frameUri ?? null);
   return (
     <>
-      <Fill color="#ffffff" />
+      {/* White fill only on the display canvas; export canvas is transparent
+          so the preview background photo shows through */}
+      {!transparent && <Fill color="#ffffff" />}
       {elements.map((el) =>
         el.kind === 'text'
           ? <SkiaTextEl key={el.id} el={el} regularFont={regularFont} boldFont={boldFont} />
@@ -139,10 +147,10 @@ function SkiaTextEl({
   boldFont: ReturnType<typeof useFont>;
 }) {
   const baseFont = el.bold ? boldFont : regularFont;
-  // Scale the font size for the logical canvas
+  const FONT_BASE = 200; // matches useFont load size above
   const logicalSize = el.fontSize ?? 64;
+  const fontScale = logicalSize / FONT_BASE;
 
-  // useFont is a hook so we can't conditionally call it — we use matchFont as fallback
   const fallback = matchFont({
     fontFamily: Platform.select({ ios: 'Helvetica', android: 'sans-serif' }) ?? 'sans-serif',
     fontSize: logicalSize,
@@ -156,23 +164,28 @@ function SkiaTextEl({
   const w = el.naturalW ?? 600;
   const h = el.naturalH ?? logicalSize + 20;
   const color = el.fontColor ?? '#000000';
-  const shadow = (STYLE_PRESETS[el.fontStyle ?? '']?.shadow);
+  const shadow = STYLE_PRESETS[el.fontStyle ?? '']?.shadow;
 
+  // FONT_BASE is what Skia draws at scale=1.
+  // We scale the group so the rendered size = logicalSize.
+  // Text baseline in Skia sits at y = FONT_BASE (the ascender height).
+  // After scaling: visual height ≈ logicalSize. Center the group on el.x/y.
   return (
     <Group
       transform={[
         { translateX: el.x },
         { translateY: el.y },
         { rotate: el.rotation ?? 0 },
-        { translateX: -w / 2 },
-        { translateY: -h / 2 },
+        { scale: fontScale },
+        // Offset so the text is centred on the element position
+        { translateX: -(w / fontScale) / 2 },
+        { translateY: -FONT_BASE / 2 },
       ]}
     >
-      {/* Shadow layer for neon/glow styles */}
       {shadow && (
         <SkiaText
-          x={4}
-          y={logicalSize}
+          x={4 / fontScale}
+          y={FONT_BASE}
           text={text}
           font={font}
           color={shadow}
@@ -181,7 +194,7 @@ function SkiaTextEl({
       )}
       <SkiaText
         x={0}
-        y={logicalSize}
+        y={FONT_BASE}
         text={text}
         font={font}
         color={color}
@@ -342,10 +355,8 @@ function ElementHandle({
           <Pressable
             onPress={() => {
               if (!isSelected) {
-                // First tap — just select
                 onSelect();
               } else if (el.kind === 'text') {
-                // Second tap on already-selected text — open editor
                 onEdit?.();
               }
             }}
@@ -359,22 +370,7 @@ function ElementHandle({
               },
             ]}
           >
-            {/* Text preview overlay — visible but not blocking gestures */}
-            {el.kind === 'text' && (
-              <Text
-                style={{
-                  color: el.fontColor ?? '#000000',
-                  fontSize: Math.max(Math.round((el.fontSize ?? 64) * SCALE), 10),
-                  fontWeight: el.bold ? '700' : '400',
-                  textAlign: 'center',
-                  flexShrink: 1,
-                }}
-                numberOfLines={4}
-                pointerEvents="none"
-              >
-                {el.text ?? ''}
-              </Text>
-            )}
+            {/* No RN text overlay — Skia canvas renders text; overlay caused double rendering */}
           </Pressable>
         </PanGestureHandler>
       </PinchGestureHandler>
@@ -452,6 +448,7 @@ function ElementHandle({
 
 // ── Preview modal ─────────────────────────────────────────────────────────────
 
+// Portrait (9:16) dummy backgrounds for the preview composite
 const DUMMY_BG_POOL = [
   'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=600&q=85',
   'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=85',
@@ -463,23 +460,33 @@ function PreviewModal({
   visible, snapshotUri, onClose,
 }: { visible: boolean; snapshotUri: string | null; onClose: () => void }) {
   const [bgIdx, setBgIdx] = useState(0);
+  // Portrait preview: 70% of screen width, 9:16
+  const previewW = SCREEN_W * 0.70;
+  const previewH = previewW * (LOGICAL_H / LOGICAL_W);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={pm.overlay}>
         <View style={pm.sheet}>
           <Text style={pm.title}>Preview</Text>
-          <Text style={pm.hint}>
-            Background is a dummy — shows how it looks on a real photo.
-          </Text>
           {snapshotUri ? (
-            <View style={pm.composite}>
-              <Image source={{ uri: DUMMY_BG_POOL[bgIdx] }} style={pm.bg} resizeMode="cover" />
-              <Image source={{ uri: snapshotUri }} style={[pm.bg, { opacity: 0.92 }]} resizeMode="contain" />
+            <View style={[pm.composite, { width: previewW, height: previewH }]}>
+              {/* Portrait background fills the frame */}
+              <Image
+                source={{ uri: DUMMY_BG_POOL[bgIdx] }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+              {/* VibeTag overlay — contain so the background is visible around it */}
+              <Image
+                source={{ uri: snapshotUri }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="contain"
+              />
             </View>
           ) : (
-            <View style={[pm.composite, { alignItems: 'center', justifyContent: 'center' }]}>
+            <View style={[pm.composite, { width: previewW, height: previewH, alignItems: 'center', justifyContent: 'center' }]}>
               <ActivityIndicator color={brand.primary} />
-              <Text style={{ marginTop: 8, color: neutral[500], fontSize: 12 }}>Generating preview…</Text>
+              <Text style={{ marginTop: 8, color: neutral[500], fontSize: 12 }}>Generating…</Text>
             </View>
           )}
           <TouchableOpacity style={pm.swapBtn} onPress={() => setBgIdx((i) => (i + 1) % DUMMY_BG_POOL.length)} activeOpacity={0.8}>
@@ -580,7 +587,7 @@ function FontPickerModal({
   visible, onSelect, onClose,
 }: {
   visible: boolean;
-  onSelect: (font: (typeof FONT_OPTIONS)[0]) => void;
+  onSelect: (font: typeof fonts[0]) => void;
   onClose: () => void;
 }) {
   return (
@@ -596,16 +603,17 @@ function FontPickerModal({
           <Text style={fp.hint}>Tap a style to add it to the canvas</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={fp.grid}>
-              {FONT_OPTIONS.map((font) => {
-                const preset = STYLE_PRESETS[font.name] ?? {};
-                const isDark = preset.color === '#ffffff' || preset.color === '#39ff14'
-                  || preset.color === '#bf5fff' || preset.color === '#ff2d78';
+              {fonts.map((font) => {
+                const preset = STYLE_PRESETS[font.name] ?? { color: '#000000', bold: false };
+                const isLight = preset.color === '#ffffff' || preset.color === '#39ff14'
+                  || preset.color === '#bf5fff' || preset.color === '#ff2d78'
+                  || preset.color === '#00d4ff';
                 return (
                   <TouchableOpacity
                     key={font.name}
                     style={[
                       fp.card,
-                      { backgroundColor: isDark ? '#1a1a2e' : '#f8f8f8' },
+                      { backgroundColor: isLight ? '#1a1a2e' : '#f8f8f8' },
                       preset.shadow ? { borderColor: preset.color, borderWidth: 1 } : {},
                     ]}
                     onPress={() => onSelect(font)}
@@ -613,9 +621,9 @@ function FontPickerModal({
                   >
                     <Text
                       style={{
-                        color: preset.color ?? font.color,
-                        fontSize: 17,
-                        fontWeight: font.bold ? '700' : '400',
+                        color: preset.color,
+                        fontSize: 15,
+                        fontWeight: preset.bold ? '800' : '400',
                         textAlign: 'center',
                         textShadowColor: preset.shadow ?? 'transparent',
                         textShadowOffset: { width: 0, height: 0 },
@@ -650,19 +658,23 @@ function StickerPickerModal({
       <View style={sp.overlay}>
         <View style={sp.sheet}>
           <View style={sp.header}>
-            <Text style={sp.title}>Add Sticker</Text>
+            <Text style={sp.title}>Add Element</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12}>
               <Ionicons name="close" size={22} color={neutral[500]} />
             </TouchableOpacity>
           </View>
           <FlatList
-            data={STICKER_URLS}
+            data={allElements}
             numColumns={4}
             columnWrapperStyle={sp.row}
             keyExtractor={(item) => item.url}
             renderItem={({ item }) => (
               <TouchableOpacity style={sp.stickerBtn} onPress={() => onSelect(item.url)} activeOpacity={0.8}>
-                <Image source={{ uri: item.url }} style={sp.stickerImg} resizeMode="contain" />
+                <ExpoImage
+                  source={{ uri: item.url }}
+                  style={sp.stickerImg}
+                  contentFit="contain"
+                />
               </TouchableOpacity>
             )}
           />
@@ -749,15 +761,19 @@ export default function EditorScreen({
   template, activityTiming, eventId, eventName, onSaved, onBack,
 }: Props) {
   const canvasRef = useCanvasRef();
+  // Full-resolution export canvas — renders at 1080×1920, hidden off-screen.
+  // Both preview and save snapshot from this ref so output is always crisp.
+  const exportCanvasRef = useCanvasRef();
 
-  // Load Nunito Sans fonts into Skia for canvas text rendering
+  // Load Nunito Sans fonts into Skia for canvas text rendering.
+  // Load at 200px — the SkiaTextEl scales each element to its actual fontSize.
   const regularFont = useFont(
     require('@/assets/fonts/NunitoSans_400Regular.ttf'),
-    64
+    200
   );
   const boldFont = useFont(
     require('@/assets/fonts/NunitoSans_700Bold.ttf'),
-    64
+    200
   );
 
   const [elements, setElements] = useState<CanvasElement[]>([]);
@@ -835,23 +851,31 @@ export default function EditorScreen({
 
   // ── Add text ───────────────────────────────────────────────────────────────
 
-  const handleFontSelect = (font: (typeof FONT_OPTIONS)[0]) => {
+  const handleFontSelect = (font: typeof fonts[0]) => {
     setShowFontPicker(false);
-    const preset = STYLE_PRESETS[font.name] ?? {};
+    const preset = STYLE_PRESETS[font.name] ?? { color: '#000000', bold: false };
+    // Stagger position so new text elements don't stack on top of each other
+    const existingTexts = elements.filter((e) => e.kind === 'text').length;
+    const offsetX = (existingTexts % 3) * 100 - 100;
+    const offsetY = Math.floor(existingTexts / 3) * 140;
+    const fontSz = (font.canvasStyles as any).fontSize ?? 64;
+    const initialText = 'Tap to edit';
+    // Estimate width: ~0.6× fontSize per character, capped at canvas width
+    const estimatedW = Math.min(Math.round(initialText.length * fontSz * 0.6), LOGICAL_W - 100);
     const el: CanvasElement = {
       id: uid(),
       kind: 'text',
-      x: LOGICAL_W / 2,
-      y: LOGICAL_H / 2,
+      x: LOGICAL_W / 2 + offsetX,
+      y: LOGICAL_H / 2 - 300 + offsetY,
       scale: 1,
       rotation: 0,
-      text: 'Tap to edit',
-      fontSize: font.size,
-      fontColor: preset.color ?? font.color,
-      bold: preset.bold ?? font.bold,
+      text: initialText,
+      fontSize: fontSz,
+      fontColor: preset.color,
+      bold: preset.bold,
       fontStyle: font.name,
-      naturalW: 700,
-      naturalH: font.size + 30,
+      naturalW: estimatedW,
+      naturalH: fontSz + 30,
     };
     addElement(el);
     setEditingEl(el);
@@ -861,7 +885,15 @@ export default function EditorScreen({
   const handleTextConfirm = (text: string, color: string, size: number) => {
     setShowTextEditor(false);
     if (!editingEl) return;
-    updateElement(editingEl.id, { text, fontColor: color, fontSize: size, naturalH: size + 30 });
+    // Recalculate width to fit the actual text content
+    const estimatedW = Math.min(Math.round(text.length * size * 0.6), LOGICAL_W - 100);
+    updateElement(editingEl.id, {
+      text,
+      fontColor: color,
+      fontSize: size,
+      naturalW: estimatedW,
+      naturalH: size + 30,
+    });
     setEditingEl(null);
   };
 
@@ -874,11 +906,15 @@ export default function EditorScreen({
 
   const handleStickerSelect = (uri: string) => {
     setShowStickers(false);
+    // Skia's useImage cannot decode SVG — Cloudinary serves the same asset as
+    // a raster PNG by swapping the extension. Works for all Cloudinary SVGs.
+    const rasterUri = uri.replace(/\.svg(\?.*)?$/, '.png');
     addElement({
       id: uid(), kind: 'sticker',
       x: LOGICAL_W / 2, y: LOGICAL_H / 2,
-      scale: 1, rotation: 0, uri,
-      naturalW: 240, naturalH: 240,
+      scale: 1, rotation: 0,
+      uri: rasterUri,
+      naturalW: 300, naturalH: 300,
     });
   };
 
@@ -1016,7 +1052,8 @@ const handleUploadWithBgRemoval = async () => {
     setShowPreview(true);
     setTimeout(() => {
       try {
-        const snapshot = canvasRef.current?.makeImageSnapshot();
+        // Snapshot the full-res export canvas (1080×1920) for a crisp preview
+        const snapshot = exportCanvasRef.current?.makeImageSnapshot();
         if (!snapshot) {
           Toast.show({ type: 'error', text1: 'Preview failed', text2: 'Could not capture canvas.' });
           setShowPreview(false);
@@ -1027,7 +1064,7 @@ const handleUploadWithBgRemoval = async () => {
         Toast.show({ type: 'error', text1: 'Preview error', text2: String(e?.message ?? e) });
         setShowPreview(false);
       }
-    }, 150);
+    }, 200);
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -1038,7 +1075,8 @@ const handleUploadWithBgRemoval = async () => {
     if (isSavingRef.current || isSaving || savedSuccessfully) return;
     isSavingRef.current = true;
     try {
-      const snapshot = canvasRef.current?.makeImageSnapshot();
+      // Always save from the full-res export canvas
+      const snapshot = exportCanvasRef.current?.makeImageSnapshot();
       if (!snapshot) {
         Toast.show({ type: 'error', text1: 'Capture failed', text2: 'Could not capture canvas. Please try again.' });
         return;
@@ -1149,6 +1187,25 @@ const handleUploadWithBgRemoval = async () => {
               />
             ))}
           </View>
+        </View>
+
+        {/* ── Hidden full-resolution export canvas (1080×1920) ─────────────
+             Renders identical content to the display canvas but at full
+             logical size. Snapshotted for both Preview and Save so the
+             output is always 1080×1920 and never blurry.                  */}
+        <View
+          style={{ position: 'absolute', top: 0, left: 0, width: EXPORT_W, height: EXPORT_H, opacity: 0 }}
+          pointerEvents="none"
+        >
+          <Canvas ref={exportCanvasRef} style={{ width: EXPORT_W, height: EXPORT_H }}>
+            <SkiaLayer
+              elements={elements}
+              frameUri={template?.frame ?? undefined}
+              regularFont={regularFont}
+              boldFont={boldFont}
+              transparent
+            />
+          </Canvas>
         </View>
 
         {/* ── Tool buttons — 2 per row ── */}
@@ -1377,12 +1434,9 @@ const pm = StyleSheet.create({
     width: SCREEN_W - 40, alignItems: 'center', gap: 12,
   },
   title: { fontFamily: appFontFamily.semibold, fontSize: fontSize.base, color: neutral[800] },
-  hint: { fontFamily: appFontFamily.regular, fontSize: fontSize.xs, color: neutral[500], textAlign: 'center', lineHeight: 16 },
   composite: {
-    width: 200, height: Math.min(200 * (LOGICAL_H / LOGICAL_W), 340),
     borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: neutral[200],
   },
-  bg: { ...StyleSheet.absoluteFillObject },
   swapBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10,

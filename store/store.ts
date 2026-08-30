@@ -17,10 +17,12 @@ import { reminderApi } from "./api/reminderApi";
 import { socialApi } from "./api/socialApi";
 import { userApi } from "./api/userApi";
 import authReducer from "./slices/authSlice";
+import themeReducer from "./slices/themeSlice";
 
 export const store = configureStore({
     reducer: {
         auth: authReducer,
+        theme: themeReducer,
         [authApi.reducerPath]: authApi.reducer,
         [gamesApi.reducerPath]: gamesApi.reducer,
         [eventsApi.reducerPath]: eventsApi.reducer,
