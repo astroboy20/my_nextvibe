@@ -1,4 +1,5 @@
 import SplashScreenView from "@/components/SplashScreenView";
+import { useColorScheme } from "@/components/useColorScheme";
 import { registerForPush } from "@/services/pushNotifications";
 import { tokenStore } from "@/store/baseQuery";
 import { resetAllApiCaches } from "@/store/resetCaches";
@@ -13,6 +14,37 @@ import { useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { Provider, useDispatch, useSelector } from "react-redux";
+
+// ── Theme gate — applies user preference over system scheme ──────────────────
+
+function ThemedStack() {
+  const scheme = useColorScheme(); // already handles preference + system fallback
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: scheme === "dark" ? "#1E1E2E" : "#FFFFFF",
+        },
+      }}
+      initialRouteName="(auth)"
+    >
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="create" />
+      <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="dashboard" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="events/[id]" />
+      <Stack.Screen name="edit-event" />
+      <Stack.Screen name="analytics" />
+      <Stack.Screen name="notifications" />
+      <Stack.Screen name="appearance" />
+    </Stack>
+  );
+}
 
 export { ErrorBoundary } from "expo-router";
 
@@ -130,20 +162,7 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <AuthGate>
-        <Stack screenOptions={{ headerShown: false }} initialRouteName="(auth)">
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="create" />
-          <Stack.Screen name="edit-profile" />
-          <Stack.Screen name="dashboard" />
-          <Stack.Screen name="chat" />
-          <Stack.Screen name="settings" />
-          <Stack.Screen name="events/[id]" />
-          <Stack.Screen name="edit-event" />
-          <Stack.Screen name="analytics" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="appearance" />
-        </Stack>
+        <ThemedStack />
       </AuthGate>
       <Toast />
     </Provider>

@@ -2,12 +2,12 @@ import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useCommentOnPostcardMutation, useGetPostcardCommentsQuery, useToggleLikePostcardMutation } from '@/store/api/eventApi';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
     FlatList,
-    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -55,12 +55,24 @@ function formatTime(dateStr: string): string {
 }
 
 function AvatarCircle({ uri, name, size = 36 }: { uri?: string | null; name: string; size?: number }) {
-  if (uri) {
-    return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
-  }
+  const validUri = uri && uri.startsWith('http') ? uri : null;
+  const [imgFailed, setImgFailed] = useState(false);
+
   return (
-    <View style={[av.circle, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[av.initials, { fontSize: size * 0.38 }]}>{name.charAt(0).toUpperCase()}</Text>
+    <View style={[av.wrap, { width: size, height: size, borderRadius: size / 2 }]}>
+      {validUri && !imgFailed ? (
+        <Image
+          source={{ uri: validUri }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <View style={[av.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
+          <Text style={[av.initials, { fontSize: size * 0.38 }]}>{(name || '?').charAt(0).toUpperCase()}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -73,11 +85,14 @@ interface Props {
 }
 
 export default function PostcardCard({ item, onPress }: Props) {
-  const [liked,         setLiked]         = useState(item.isLiked ?? false);
-  const [likeCount,     setLikeCount]     = useState(item.likeCount ?? 0);
-  // Local comment count — incremented optimistically when user posts a comment
-  const [commentCount,  setCommentCount]  = useState(item.commentsCount ?? 0);
-  const [showComments,  setShowComments]  = useState(false);
+  const [liked,        setLiked]        = useState(item.isLiked ?? false);
+  const [likeCount,    setLikeCount]    = useState(item.likeCount ?? item.likesCount ?? 0);
+  const [showComments, setShowComments] = useState(false);
+
+  // Live comment count — stays accurate after user posts a comment
+  const { data: commentsData } = useGetPostcardCommentsQuery(item.id, { skip: !item.id });
+  const liveComments: any[] = commentsData?.data ?? (Array.isArray(commentsData) ? commentsData : []);
+  const commentCount = liveComments.length > 0 ? liveComments.length : (item.commentsCount ?? 0);
 
   // Double-tap to like
   const lastTapRef = useRef<number>(0);
@@ -166,16 +181,27 @@ export default function PostcardCard({ item, onPress }: Props) {
       {/* ── Media ── */}
       <TouchableOpacity activeOpacity={0.92} onPress={handleMediaPress} style={styles.mediaWrap}>
         {mediaUrl ? (
-          <>
-            <Image source={{ uri: mediaUrl }} style={styles.media} resizeMode="cover" />
-            {isVideo && (
+          isVideo ? (
+            // Dark thumbnail with play overlay — expo-av Video requires expo-video
+            // native module which isn't installed. First-frame preview happens in
+            // the full-screen viewer when opened.
+            <View style={styles.videoThumb}>
+              <View style={styles.videoOverlay} />
               <View style={styles.playOverlay}>
                 <View style={styles.playBtn}>
-                  <Ionicons name="play" size={20} color="#fff" />
+                  <Ionicons name="play" size={24} color="#fff" />
                 </View>
+                <Text style={styles.videoLabel}>Tap to play</Text>
               </View>
-            )}
-          </>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: mediaUrl }}
+              style={styles.media}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+          )
         ) : (
           <View style={styles.mediaFallback}>
             <Ionicons name="image-outline" size={36} color={neutral[300]} />
@@ -247,7 +273,6 @@ export default function PostcardCard({ item, onPress }: Props) {
             <CommentSheet
               postcardId={item.id}
               onClose={() => setShowComments(false)}
-              onCommentPosted={() => setCommentCount((c) => c + 1)}
             />
           </View>
         </Modal>
@@ -261,11 +286,9 @@ export default function PostcardCard({ item, onPress }: Props) {
 function CommentSheet({
   postcardId,
   onClose,
-  onCommentPosted,
 }: {
   postcardId: string;
   onClose: () => void;
-  onCommentPosted: () => void;
 }) {
   const [body, setBody] = useState('');
   const [postComment, { isLoading: isPosting }] = useCommentOnPostcardMutation();
@@ -289,10 +312,8 @@ function CommentSheet({
     const t = body.trim();
     if (!t || isPosting) return;
 
-    // 1. Clear input immediately
     setBody('');
 
-    // 2. Add optimistic entry right away
     const optimisticId = `optimistic_${Date.now()}`;
     const optimisticEntry = {
       id: optimisticId,
@@ -303,17 +324,12 @@ function CommentSheet({
     };
     setOptimisticComments((prev) => [...prev, optimisticEntry]);
 
-    // 3. Notify parent so the count badge updates
-    onCommentPosted();
-
     try {
-      // 4. Fire API — on success the invalidation refetches server list
       await postComment({ postcardId, content: t }).unwrap();
+      // RTK invalidation refetches server list — optimistic entry auto-drops
     } catch {
-      // Roll back: remove optimistic entry and restore input
       setOptimisticComments((prev) => prev.filter((c) => c.id !== optimisticId));
       setBody(t);
-      onCommentPosted(); // undo the count increment in the parent
       Toast.show({ type: 'error', text1: 'Could not post comment' });
     }
   };
@@ -352,7 +368,7 @@ function CommentSheet({
             return (
               <View style={[cs.row, c._optimistic && cs.rowOptimistic]}>
                 {c.author?.avatarUrl ? (
-                  <Image source={{ uri: c.author.avatarUrl }} style={cs.avatar} resizeMode="cover" />
+                  <Image source={{ uri: c.author.avatarUrl }} style={cs.avatar} contentFit="cover" cachePolicy="memory-disk" />
                 ) : (
                   <View style={cs.avatarFb}>
                     <Text style={cs.avatarL}>{name[0]?.toUpperCase()}</Text>
@@ -399,7 +415,8 @@ function CommentSheet({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const av = StyleSheet.create({
-  circle:   { backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },
+  wrap:     { overflow: 'hidden' },
+  fallback: { backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },
   initials: { fontFamily: fontFamily.bold, color: '#fff' },
 });
 
@@ -431,8 +448,11 @@ const styles = StyleSheet.create({
   mediaWrap:    { width: '100%', aspectRatio: 1, backgroundColor: neutral[100] },
   media:        { width: '100%', height: '100%' },
   mediaFallback:{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: neutral[100] },
-  playOverlay:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' },
-  playBtn:      { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  videoThumb:   { width: '100%', height: '100%', backgroundColor: '#111' },
+  videoOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  playOverlay:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  playBtn:      { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)' },
+  videoLabel:   { fontFamily: fontFamily.semibold, fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.5 },
   multiIcon:    { position: 'absolute', top: 8, right: 8 },
   heartBurst:   { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
 

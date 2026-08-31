@@ -310,14 +310,16 @@ export default function SocialScreen() {
     likeCount: raw.likeCount ?? raw.likesCount ?? 0,
     commentsCount: raw.commentsCount ?? 0,
     isLiked: raw.isLiked ?? false,
-    author: raw.author ?? raw.user
-      ? {
-          id: (raw.author ?? raw.user)?.id,
-          username: (raw.author ?? raw.user)?.username,
-          displayName: (raw.author ?? raw.user)?.displayName ?? (raw.author ?? raw.user)?.name,
-          avatarUrl: (raw.author ?? raw.user)?.avatarUrl ?? (raw.author ?? raw.user)?.avatar,
-        }
-      : null,
+    author: (() => {
+        const u = raw.author ?? raw.user;
+        if (!u) return null;
+        return {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName ?? u.name,
+          avatarUrl: u.avatarUrl ?? u.avatar ?? null,
+        };
+      })(),
     media: (raw.media ?? raw.gallery_items ?? []).map((m: any) => ({
       mediaUrl: m.mediaUrl ?? m.url,
       mediaType: (m.mediaType ?? m.type ?? "PHOTO").toUpperCase() === "VIDEO" ? "VIDEO" : "PHOTO",
