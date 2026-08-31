@@ -20,6 +20,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ResizeMode, Video } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { TextInput } from "react-native";
+import { Modal } from "react-native";
 import {
     Animated,
     Dimensions,
@@ -71,7 +73,7 @@ function PrivateEventGate({
           <Text style={gate.title}>Private Event</Text>
           <Text style={gate.sub}>
             {eventName
-              ? `"${eventName}" is invite-only.`
+              ? `${eventName}" is invite-only.`
               : "This event is invite-only."}{" "}
             Enter the access key from your invitation to continue.
           </Text>

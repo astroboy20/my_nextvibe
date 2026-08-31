@@ -218,4 +218,3 @@ export const fonts = [
     canvasStyles: { fontFamily: "Rocket Chicken", fontSize: 24, fill: "#b71c1c", shadow: { color: "#000000", blur: 0, offsetX: 2, offsetY: 2 } },
   },
 ];
-e

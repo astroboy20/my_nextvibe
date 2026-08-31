@@ -1,5 +1,5 @@
 import ConfirmModal, {
-  type ConfirmAction,
+    type ConfirmAction,
 } from "@/components/edit-event/ConfirmModal";
 import DashboardCard from "@/components/edit-event/DashboardCard";
 import EditEventForm from "@/components/edit-event/EditEventForm";
@@ -8,6 +8,7 @@ import EventReminders from "@/components/edit-event/EventReminders";
 import EventTagsEditor from "@/components/edit-event/EventTagsEditor";
 import GamificationHub from "@/components/edit-event/GamificationHub/GamificationHub";
 import PaymentModule from "@/components/edit-event/PaymentModule";
+import { AccessKeyDisplay } from "@/components/edit-event/PrivateEventGuard";
 import QRModal from "@/components/edit-event/QRModal";
 import RsvpTracker from "@/components/edit-event/RsvpTracker";
 import StatusUpdater from "@/components/edit-event/StatusUpdater";
@@ -20,9 +21,9 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
-  useGetEventByIdQuery,
-  useUpdateEventMutation,
-  useUpdateEventStatusMutation,
+    useGetEventByIdQuery,
+    useUpdateEventMutation,
+    useUpdateEventStatusMutation,
 } from "@/store/api/eventsApi";
 import { useGetGamesQuery } from "@/store/api/gamesApi";
 import { useGetRemindersQuery } from "@/store/api/reminderApi";
@@ -30,13 +31,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -147,7 +148,7 @@ export default function EditEventScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
-        <AppHeader onBack={() => router.back()}  />
+        <AppHeader onBack={() => router.back()} />
         <ScrollView style={s.scroll} contentContainerStyle={s.content}>
           <EditEventDashboardSkeleton />
         </ScrollView>
@@ -160,7 +161,7 @@ export default function EditEventScreen() {
   if (isError || !event) {
     return (
       <SafeAreaView style={s.safe} edges={["top"]}>
-        <AppHeader onBack={() => router.back()}  />
+        <AppHeader onBack={() => router.back()} />
         <ErrorState onRetry={refetch} />
       </SafeAreaView>
     );
@@ -194,7 +195,7 @@ export default function EditEventScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={["top"]}>
-      <AppHeader onBack={() => router.back()}  />
+      <AppHeader onBack={() => router.back()} />
 
       <ScrollView
         style={s.scroll}
@@ -212,6 +213,13 @@ export default function EditEventScreen() {
           onViewPress={() => router.push(`/events/${eventId}` as any)}
         />
 
+        {!isLoading && event?.isPublic === false && event?.accessKey && (
+          <AccessKeyDisplay
+            accessKey={event.accessKey}
+            eventId={eventId}
+            eventName={event.name}
+          />
+        )}
         {/* 2 -- RSVP */}
         <RsvpTrackerSection
           going={eventForCard.attendingCount}
@@ -916,4 +924,3 @@ const sec = StyleSheet.create({
     color: brand.primary,
   },
 });
-
