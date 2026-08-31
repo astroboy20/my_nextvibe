@@ -2,12 +2,10 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 import QRCode from "qrcode";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Platform,
@@ -19,18 +17,11 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 const SESSION_KEY_PREFIX = "private_event_access_";
 
 // ─── PrivateEventGuard ────────────────────────────────────────────────────────
-
-interface PrivateEventGuardProps {
-  eventId: string;
-  eventName?: string;
-  /** The correct access key from the already-fetched event payload */
-  correctAccessKey: string;
-  children: React.ReactNode;
-}
 
 /**
  * Wraps private event content. Compares the user's input directly against the
@@ -43,7 +34,12 @@ export function PrivateEventGuard({
   eventName,
   correctAccessKey,
   children,
-}: PrivateEventGuardProps) {
+}: {
+  eventId: string;
+  eventName?: string;
+  correctAccessKey: string;
+  children: React.ReactNode;
+}) {
   const storageKey = `${SESSION_KEY_PREFIX}${eventId}`;
 
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -155,18 +151,15 @@ export function PrivateEventGuard({
 
 // ─── AccessKeyDisplay ─────────────────────────────────────────────────────────
 
-interface AccessKeyDisplayProps {
-  accessKey: string;
-  eventId: string;
-  eventName?: string;
-}
-
 export function AccessKeyDisplay({
   accessKey,
   eventId,
   eventName,
-}: AccessKeyDisplayProps) {
-  const router = useRouter();
+}: {
+  accessKey: string;
+  eventId: string;
+  eventName?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
@@ -175,14 +168,15 @@ export function AccessKeyDisplay({
 
   const handleCopy = async () => {
     try {
-      const Clipboard =
-        require("@react-native-clipboard/clipboard")?.default ??
-        require("expo-clipboard");
-      await (Clipboard.setStringAsync ?? Clipboard.setString)(inviteText);
+      await Share.share(
+        Platform.OS === "ios"
+          ? { url: eventUrl, message: inviteText }
+          : { message: inviteText }
+      );
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      toast.alert("Error", "Could not copy to clipboard.");
+      Toast.show({ type: "error", text1: "Error", text2: "Could not share invite." });
     }
   };
 
@@ -249,15 +243,6 @@ export function AccessKeyDisplay({
 // Inline QR modal — encodes eventUrl so guests can scan and open the event.
 // The access key is shown below the QR so they have it ready on arrival.
 
-interface AccessKeyQRModalProps {
-  visible: boolean;
-  eventName?: string;
-  eventUrl: string;
-  accessKey: string;
-  onDismiss: () => void;
-  onShare: () => void;
-}
-
 async function generateQRDataUrl(url: string): Promise<string | null> {
   try {
     return await QRCode.toDataURL(url, {
@@ -278,7 +263,14 @@ function AccessKeyQRModal({
   accessKey,
   onDismiss,
   onShare,
-}: AccessKeyQRModalProps) {
+}: {
+  visible: boolean;
+  eventName?: string;
+  eventUrl: string;
+  accessKey: string;
+  onDismiss: () => void;
+  onShare: () => void;
+}) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [failed, setFailed] = useState(false);

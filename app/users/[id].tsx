@@ -7,6 +7,7 @@
 
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { useToggleFollowMutation } from '@/store/api/socialApi';
 import { useGetUserBasicQuery } from '@/store/api/usersApi';
 import { useAppSelector } from '@/store/hooks';

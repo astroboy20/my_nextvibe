@@ -16,35 +16,33 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useUploadIntentMutation } from "@/store/api/eventsApi";
 import {
-  useCreateTicketTierMutation,
-  useDeleteTicketTierMutation,
-  useGetTicketTiersQuery,
-  useUpdateTicketTierMutation,
-  type TicketTier,
+    useCreateTicketTierMutation,
+    useDeleteTicketTierMutation,
+    useGetTicketTiersQuery,
+    useUpdateTicketTierMutation,
 } from "@/store/api/ticketsApi";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import FieldInput from "./FieldInput";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_IMAGE_MB = 5;
 const CURRENCIES = ["NGN", "USD", "GBP", "EUR"] as const;
-type Currency = (typeof CURRENCIES)[number];
 
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
+const CURRENCY_SYMBOLS = {
   NGN: "₦",
   USD: "$",
   GBP: "£",
@@ -53,12 +51,12 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatPrice(price: number, currency = "NGN") {
-  const sym = CURRENCY_SYMBOLS[currency as Currency] ?? currency;
+function formatPrice(price, currency = "NGN") {
+  const sym = CURRENCY_SYMBOLS[currency] ?? currency;
   return `${sym}${price.toLocaleString()}`;
 }
 
-function isSoldOut(tier: TicketTier) {
+function isSoldOut(tier) {
   return (tier.quantity ?? 0) > 0 && tier.quantitySold >= (tier.quantity ?? 0);
 }
 
@@ -121,44 +119,22 @@ const sk = StyleSheet.create({
 
 // ─── Image upload ───────────────────────────────────────────────────────────────
 
-type UploadStatus = "idle" | "uploading" | "done" | "error";
-interface ImageUploadState {
-  status: UploadStatus;
-  uri: string | null;
-  remoteUrl: string | null;
-  progress: number;
-}
-const IDLE_UPLOAD: ImageUploadState = {
-  status: "idle",
-  uri: null,
-  remoteUrl: null,
-  progress: 0,
-};
-function fromUrl(url?: string | null): ImageUploadState {
+const IDLE_UPLOAD = { status: "idle", uri: null, remoteUrl: null, progress: 0 };
+
+function fromUrl(url) {
   return url
     ? { status: "done", uri: null, remoteUrl: url, progress: 100 }
-    : IDLE_UPLOAD;
+    : { ...IDLE_UPLOAD };
 }
 
-function TicketImagePicker({
-  state,
-  eventId,
-  onStateChange,
-}: {
-  state: ImageUploadState;
-  eventId: string;
-  onStateChange: (s: ImageUploadState) => void;
-}) {
+function TicketImagePicker({ state, eventId, onStateChange }) {
   const [uploadIntent] = useUploadIntentMutation();
   const displayUri = state.uri ?? state.remoteUrl;
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert(
-        "Permission needed",
-        "Allow photo access to upload a ticket image."
-      );
+      Toast.show({ type: "error", text1: "Permission needed", text2: "Allow photo access to upload a ticket image." });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -170,16 +146,11 @@ function TicketImagePicker({
     if (result.canceled) return;
     const asset = result.assets[0];
     if (asset.fileSize && asset.fileSize > MAX_IMAGE_MB * 1024 * 1024) {
-      Alert.alert("File too large", `Max ${MAX_IMAGE_MB} MB.`);
+      Toast.show({ type: "error", text1: "File too large", text2: `Max ${MAX_IMAGE_MB} MB.` });
       return;
     }
 
-    onStateChange({
-      status: "uploading",
-      uri: asset.uri,
-      remoteUrl: null,
-      progress: 0,
-    });
+    onStateChange({ status: "uploading", uri: asset.uri, remoteUrl: null, progress: 0 });
     try {
       const ext = asset.uri.split(".").pop() ?? "jpg";
       const mime = ext === "png" ? "image/png" : "image/jpeg";
@@ -201,25 +172,15 @@ function TicketImagePicker({
             progress: Math.round((e.loaded * 100) / e.total),
           });
       };
-      await new Promise<void>((res, rej) => {
+      await new Promise((res, rej) => {
         xhr.onload = () => (xhr.status < 300 ? res() : rej());
         xhr.onerror = rej;
         xhr.send(blob);
       });
-      onStateChange({
-        status: "done",
-        uri: asset.uri,
-        remoteUrl: intent.data.fileUrl,
-        progress: 100,
-      });
+      onStateChange({ status: "done", uri: asset.uri, remoteUrl: intent.data.fileUrl, progress: 100 });
     } catch {
-      onStateChange({
-        status: "error",
-        uri: null,
-        remoteUrl: null,
-        progress: 0,
-      });
-      Alert.alert("Upload failed", "Could not upload image. Please try again.");
+      onStateChange({ status: "error", uri: null, remoteUrl: null, progress: 0 });
+      Toast.show({ type: "error", text1: "Upload failed", text2: "Could not upload image. Please try again." });
     }
   };
 
@@ -235,17 +196,9 @@ function TicketImagePicker({
   if (displayUri) {
     return (
       <View style={ip.previewWrap}>
-        <Image
-          source={{ uri: displayUri }}
-          style={ip.preview}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: displayUri }} style={ip.preview} resizeMode="cover" />
         <View style={ip.overlay}>
-          <TouchableOpacity
-            style={ip.overlayBtn}
-            onPress={pick}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={ip.overlayBtn} onPress={pick} activeOpacity={0.8}>
             <Ionicons name="image-outline" size={14} color="#fff" />
             <Text style={ip.overlayBtnText}>Change</Text>
           </TouchableOpacity>
@@ -266,9 +219,7 @@ function TicketImagePicker({
     <TouchableOpacity style={ip.placeholder} onPress={pick} activeOpacity={0.8}>
       <Ionicons name="image-outline" size={26} color={neutral[400]} />
       <Text style={ip.placeholderText}>Upload ticket image</Text>
-      <Text style={ip.placeholderSub}>
-        PNG or JPEG · max {MAX_IMAGE_MB} MB (optional)
-      </Text>
+      <Text style={ip.placeholderSub}>PNG or JPEG · max {MAX_IMAGE_MB} MB (optional)</Text>
     </TouchableOpacity>
   );
 }
@@ -352,30 +303,20 @@ const BLANK = {
   perks: "",
   price: "",
   quantity: "",
-  currency: "NGN" as Currency,
+  currency: "NGN",
 };
 
-function CreateSheet({
-  eventId,
-  visible,
-  onDismiss,
-  onCreated,
-}: {
-  eventId: string;
-  visible: boolean;
-  onDismiss: () => void;
-  onCreated: (t: TicketTier) => void;
-}) {
+function CreateSheet({ eventId, visible, onDismiss, onCreated }) {
   const [form, setForm] = useState({ ...BLANK });
-  const [image, setImage] = useState<ImageUploadState>(IDLE_UPLOAD);
-  const [saleEndDate, setSaleEndDate] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
+  const [image, setImage] = useState({ ...IDLE_UPLOAD });
+  const [saleEndDate, setSaleEndDate] = useState("");
+  const [error, setError] = useState(null);
 
   const [createTicket, { isLoading }] = useCreateTicketTierMutation();
 
   const reset = () => {
     setForm({ ...BLANK });
-    setImage(IDLE_UPLOAD);
+    setImage({ ...IDLE_UPLOAD });
     setSaleEndDate("");
     setError(null);
   };
@@ -383,8 +324,7 @@ function CreateSheet({
     reset();
     onDismiss();
   };
-  const f = (k: keyof typeof BLANK) => (v: string) =>
-    setForm((p) => ({ ...p, [k]: v }));
+  const f = (k) => (v) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleCreate = async () => {
     if (!form.name.trim()) {
@@ -401,13 +341,12 @@ function CreateSheet({
     }
     setError(null);
     try {
-      const payload: any = {
+      const payload = {
         name: form.name.trim(),
         price: Number(form.price),
         currency: form.currency,
       };
-      if (form.description.trim())
-        payload.description = form.description.trim();
+      if (form.description.trim()) payload.description = form.description.trim();
       if (form.perks.trim()) payload.perks = form.perks.trim();
       if (form.quantity.trim()) payload.quantity = Number(form.quantity);
       if (saleEndDate) payload.ticketEndDate = saleEndDate;
@@ -419,18 +358,13 @@ function CreateSheet({
         reset();
         onDismiss();
       } else setError("Unexpected response. Please try again.");
-    } catch (e: any) {
+    } catch (e) {
       setError(e?.data?.message ?? "Failed to create ticket tier.");
     }
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={handleDismiss}
-    >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleDismiss}>
       <View style={sh.backdrop} />
       <View style={sh.sheet}>
         {/* Header */}
@@ -449,11 +383,7 @@ function CreateSheet({
         >
           {error && (
             <View style={sh.errorBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={14}
-                color={semantic.error}
-              />
+              <Ionicons name="alert-circle-outline" size={14} color={semantic.error} />
               <Text style={sh.errorText}>{error}</Text>
             </View>
           )}
@@ -497,19 +427,11 @@ function CreateSheet({
                 {CURRENCIES.map((c) => (
                   <TouchableOpacity
                     key={c}
-                    style={[
-                      sh.currencyPill,
-                      form.currency === c && sh.currencyPillActive,
-                    ]}
+                    style={[sh.currencyPill, form.currency === c && sh.currencyPillActive]}
                     onPress={() => setForm((p) => ({ ...p, currency: c }))}
                     activeOpacity={0.7}
                   >
-                    <Text
-                      style={[
-                        sh.currencyText,
-                        form.currency === c && sh.currencyTextActive,
-                      ]}
-                    >
+                    <Text style={[sh.currencyText, form.currency === c && sh.currencyTextActive]}>
                       {c}
                     </Text>
                   </TouchableOpacity>
@@ -537,26 +459,15 @@ function CreateSheet({
 
           {/* Image */}
           <Text style={[sh.fieldLabel, { marginTop: 8 }]}>Ticket Image</Text>
-          <TicketImagePicker
-            state={image}
-            eventId={eventId}
-            onStateChange={setImage}
-          />
+          <TicketImagePicker state={image} eventId={eventId} onStateChange={setImage} />
 
           {/* Actions */}
           <View style={sh.btnRow}>
-            <TouchableOpacity
-              style={sh.cancelBtn}
-              onPress={handleDismiss}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={sh.cancelBtn} onPress={handleDismiss} activeOpacity={0.7}>
               <Text style={sh.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                sh.saveBtn,
-                (isLoading || image.status === "uploading") && sh.btnDisabled,
-              ]}
+              style={[sh.saveBtn, (isLoading || image.status === "uploading") && sh.btnDisabled]}
               onPress={handleCreate}
               disabled={isLoading || image.status === "uploading"}
               activeOpacity={0.8}
@@ -576,25 +487,16 @@ function CreateSheet({
 
 // ─── EditSheet ─────────────────────────────────────────────────────────────────
 
-function EditSheet({
-  eventId,
-  tier,
-  onDismiss,
-  onUpdated,
-}: {
-  eventId: string;
-  tier: TicketTier | null;
-  onDismiss: () => void;
-  onUpdated: (t: TicketTier) => void;
-}) {
-  const [image, setImage] = useState<ImageUploadState>(fromUrl(tier?.imageUrl));
-  const [error, setError] = useState<string | null>(null);
+function EditSheet({ eventId, tier, onDismiss, onUpdated }) {
+  const [image, setImage] = useState(fromUrl(tier?.imageUrl));
+  const [error, setError] = useState(null);
   const [updateTicket, { isLoading }] = useUpdateTicketTierMutation();
 
   React.useEffect(() => {
     if (tier) setImage(fromUrl(tier.imageUrl));
     setError(null);
   }, [tier?.id]);
+
   if (!tier) return null;
 
   const handleSave = async () => {
@@ -613,7 +515,7 @@ function EditSheet({
         onUpdated(res.data);
         onDismiss();
       } else setError("Unexpected response.");
-    } catch (e: any) {
+    } catch (e) {
       setError(e?.data?.message ?? "Failed to update ticket.");
     }
   };
@@ -629,24 +531,17 @@ function EditSheet({
             <Ionicons name="close" size={20} color={neutral[500]} />
           </TouchableOpacity>
         </View>
-        <ScrollView
-          contentContainerStyle={sh.body}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={sh.body} keyboardShouldPersistTaps="handled">
           <View style={sh.lockBanner}>
             <Ionicons name="lock-closed-outline" size={14} color="#92400e" />
             <Text style={sh.lockText}>
-              Only the image can be changed after creation. To edit price or
-              quantity, delete and recreate (only if no sales yet).
+              Only the image can be changed after creation. To edit price or quantity, delete and
+              recreate (only if no sales yet).
             </Text>
           </View>
           {error && (
             <View style={sh.errorBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={14}
-                color={semantic.error}
-              />
+              <Ionicons name="alert-circle-outline" size={14} color={semantic.error} />
               <Text style={sh.errorText}>{error}</Text>
             </View>
           )}
@@ -656,11 +551,7 @@ function EditSheet({
               <FieldInput label="Price" value={String(tier.price)} disabled />
             </View>
             <View style={{ flex: 1 }}>
-              <FieldInput
-                label="Quantity"
-                value={tier.quantity ? String(tier.quantity) : "∞"}
-                disabled
-              />
+              <FieldInput label="Quantity" value={tier.quantity ? String(tier.quantity) : "∞"} disabled />
             </View>
           </View>
           <View style={sh.soldBox}>
@@ -670,24 +561,13 @@ function EditSheet({
             </Text>
           </View>
           <Text style={[sh.fieldLabel, { marginBottom: 8 }]}>Ticket Image</Text>
-          <TicketImagePicker
-            state={image}
-            eventId={eventId}
-            onStateChange={setImage}
-          />
+          <TicketImagePicker state={image} eventId={eventId} onStateChange={setImage} />
           <View style={sh.btnRow}>
-            <TouchableOpacity
-              style={sh.cancelBtn}
-              onPress={onDismiss}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={sh.cancelBtn} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={sh.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                sh.saveBtn,
-                (isLoading || image.status === "uploading") && sh.btnDisabled,
-              ]}
+              style={[sh.saveBtn, (isLoading || image.status === "uploading") && sh.btnDisabled]}
               onPress={handleSave}
               disabled={isLoading || image.status === "uploading"}
               activeOpacity={0.8}
@@ -707,17 +587,7 @@ function EditSheet({
 
 // ─── DeleteModal ───────────────────────────────────────────────────────────────
 
-function DeleteModal({
-  tier,
-  eventId,
-  onDismiss,
-  onDeleted,
-}: {
-  tier: TicketTier | null;
-  eventId: string;
-  onDismiss: () => void;
-  onDeleted: (id: string) => void;
-}) {
+function DeleteModal({ tier, eventId, onDismiss, onDeleted }) {
   const [deleteTicket, { isLoading }] = useDeleteTicketTierMutation();
   if (!tier) return null;
   const hasSales = (tier.quantitySold ?? 0) > 0;
@@ -728,8 +598,8 @@ function DeleteModal({
       await deleteTicket({ eventId, ticketId: tier.id }).unwrap();
       onDeleted(tier.id);
       onDismiss();
-    } catch (e: any) {
-      Alert.alert("Error", e?.data?.message ?? "Failed to delete.");
+    } catch (e) {
+      Toast.show({ type: "error", text1: "Error", text2: e?.data?.message ?? "Failed to delete." });
     }
   };
 
@@ -743,16 +613,11 @@ function DeleteModal({
             <Text style={dm.title}>Delete Ticket Type</Text>
           </View>
           <Text style={dm.body}>
-            Are you sure you want to delete{" "}
-            <Text style={dm.bold}>"{tier.name}"</Text>?
+            Are you sure you want to delete <Text style={dm.bold}>"{tier.name}"</Text>?
           </Text>
           {hasSales ? (
             <View style={dm.blockBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={14}
-                color={semantic.error}
-              />
+              <Ionicons name="alert-circle-outline" size={14} color={semantic.error} />
               <Text style={dm.blockText}>
                 Cannot delete: {tier.quantitySold} ticket
                 {tier.quantitySold !== 1 ? "s have" : " has"} already been sold.
@@ -762,11 +627,7 @@ function DeleteModal({
             <Text style={dm.warning}>This action cannot be undone.</Text>
           )}
           <View style={dm.btnRow}>
-            <TouchableOpacity
-              style={dm.cancelBtn}
-              onPress={onDismiss}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={dm.cancelBtn} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={dm.cancelText}>Cancel</Text>
             </TouchableOpacity>
             {!hasSales && (
@@ -790,36 +651,21 @@ function DeleteModal({
   );
 }
 
-// ─── TicketRow — matches the design image ──────────────────────────────────────
+// ─── TicketRow ─────────────────────────────────────────────────────────────────
 
-function TicketRow({
-  tier,
-  onEdit,
-  onDelete,
-}: {
-  tier: TicketTier;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
+function TicketRow({ tier, onEdit, onDelete }) {
   const soldOut = isSoldOut(tier);
   return (
     <View style={[tr.row, soldOut && tr.soldOutRow]}>
-      {/* Thumbnail */}
       {tier.imageUrl ? (
-        <Image
-          source={{ uri: tier.imageUrl }}
-          style={tr.thumb}
-          resizeMode="cover"
-        />
+        <Image source={{ uri: tier.imageUrl }} style={tr.thumb} resizeMode="cover" />
       ) : (
         <View style={tr.thumbPlaceholder}>
           <Ionicons name="ticket-outline" size={20} color={neutral[400]} />
         </View>
       )}
 
-      {/* Info block */}
       <View style={tr.info}>
-        {/* Row 1: name + price badge */}
         <View style={tr.nameRow}>
           <Text style={tr.name} numberOfLines={1}>
             {tier.name}
@@ -830,19 +676,16 @@ function TicketRow({
             </Text>
           </View>
         </View>
-        {/* Row 2: description */}
         {!!tier.description && (
           <Text style={tr.desc} numberOfLines={1}>
             {tier.description}
           </Text>
         )}
-        {/* Row 3: sold / qty */}
         <Text style={tr.sold}>
           {tier.quantitySold}/{tier.quantity ?? "∞"} sold
         </Text>
       </View>
 
-      {/* Action icons — right aligned, icon-only */}
       <View style={tr.actions}>
         <TouchableOpacity onPress={onEdit} hitSlop={8} activeOpacity={0.7}>
           <Ionicons name="pencil-outline" size={19} color={neutral[400]} />
@@ -921,20 +764,15 @@ const tr = StyleSheet.create({
 
 // ─── PayoutStrip ───────────────────────────────────────────────────────────────
 
-function PayoutStrip({ tiers }: { tiers: TicketTier[] }) {
-  const totalRevenue = tiers.reduce(
-    (s, t) => s + t.price * (t.quantitySold ?? 0),
-    0
-  );
+function PayoutStrip({ tiers }) {
+  const totalRevenue = tiers.reduce((s, t) => s + t.price * (t.quantitySold ?? 0), 0);
   const totalSold = tiers.reduce((s, t) => s + (t.quantitySold ?? 0), 0);
   return (
     <View style={ps.wrap}>
       <Text style={ps.title}>Event Earnings</Text>
       <View style={ps.grid}>
         <View style={[ps.box, { backgroundColor: `${semantic.success}12` }]}>
-          <Text style={[ps.value, { color: semantic.success }]}>
-            {formatPrice(totalRevenue)}
-          </Text>
+          <Text style={[ps.value, { color: semantic.success }]}>{formatPrice(totalRevenue)}</Text>
           <Text style={ps.label}>Total Revenue</Text>
         </View>
         <View style={[ps.box, { backgroundColor: `${brand.primary}10` }]}>
@@ -1200,17 +1038,11 @@ const dm = StyleSheet.create({
 
 // ─── Main ───────────────────────────────────────────────────────────────────────
 
-export default function TicketManager({
-  eventId,
-  eventStatus,
-}: {
-  eventId: string;
-  eventStatus?: string;
-}) {
+export default function TicketManager({ eventId, eventStatus }) {
   const { data: ticketsResponse, isLoading } = useGetTicketTiersQuery(eventId);
-  const serverTiers: TicketTier[] = ticketsResponse?.data ?? [];
+  const serverTiers = ticketsResponse?.data ?? [];
 
-  const [tiers, setTiers] = useState<TicketTier[] | null>(null);
+  const [tiers, setTiers] = useState(null);
   const displayTiers = tiers ?? serverTiers;
 
   React.useEffect(() => {
@@ -1218,22 +1050,15 @@ export default function TicketManager({
   }, [serverTiers]);
 
   const [showCreate, setShowCreate] = useState(false);
-  const [editingTier, setEditingTier] = useState<TicketTier | null>(null);
-  const [deletingTier, setDeletingTier] = useState<TicketTier | null>(null);
+  const [editingTier, setEditingTier] = useState(null);
+  const [deletingTier, setDeletingTier] = useState(null);
 
-  const totalRevenue = displayTiers?.reduce(
-    (s, t) => s + t.price * (t.quantitySold ?? 0),
-    0
-  );
-  const totalSold = displayTiers?.reduce(
-    (s, t) => s + (t.quantitySold ?? 0),
-    0
-  );
+  const totalRevenue = displayTiers?.reduce((s, t) => s + t.price * (t.quantitySold ?? 0), 0);
+  const totalSold = displayTiers?.reduce((s, t) => s + (t.quantitySold ?? 0), 0);
 
   if (isLoading) {
     return (
       <View style={tm.root}>
-        {/* Summary skeleton */}
         <View style={tm.summaryRow}>
           <View style={[tm.summaryBox, { backgroundColor: neutral[100] }]}>
             <View style={tm.summarySkLine} />
@@ -1253,30 +1078,20 @@ export default function TicketManager({
     <View style={tm.root}>
       {/* Revenue summary */}
       <View style={tm.summaryRow}>
-        <View
-          style={[tm.summaryBox, { backgroundColor: `${semantic.success}12` }]}
-        >
+        <View style={[tm.summaryBox, { backgroundColor: `${semantic.success}12` }]}>
           <Text style={[tm.summaryValue, { color: semantic.success }]}>
             {formatPrice(totalRevenue)}
           </Text>
           <Text style={tm.summaryLabel}>Total Revenue</Text>
         </View>
-        <View
-          style={[tm.summaryBox, { backgroundColor: `${brand.primary}10` }]}
-        >
-          <Text style={[tm.summaryValue, { color: brand.primary }]}>
-            {totalSold}
-          </Text>
+        <View style={[tm.summaryBox, { backgroundColor: `${brand.primary}10` }]}>
+          <Text style={[tm.summaryValue, { color: brand.primary }]}>{totalSold}</Text>
           <Text style={tm.summaryLabel}>Tickets Sold</Text>
         </View>
       </View>
 
       {/* Add button */}
-      <TouchableOpacity
-        style={tm.addBtn}
-        onPress={() => setShowCreate(true)}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={tm.addBtn} onPress={() => setShowCreate(true)} activeOpacity={0.8}>
         <Ionicons name="add-circle-outline" size={18} color="#fff" />
         <Text style={tm.addBtnText}>Add Ticket Type</Text>
       </TouchableOpacity>
@@ -1297,11 +1112,7 @@ export default function TicketManager({
         <View style={tm.empty}>
           <Ionicons name="ticket-outline" size={32} color={neutral[300]} />
           <Text style={tm.emptyTitle}>No ticket types yet</Text>
-          <TouchableOpacity
-            style={tm.emptyBtn}
-            onPress={() => setShowCreate(true)}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={tm.emptyBtn} onPress={() => setShowCreate(true)} activeOpacity={0.8}>
             <Text style={tm.emptyBtnText}>Create First Ticket</Text>
           </TouchableOpacity>
         </View>
@@ -1321,17 +1132,13 @@ export default function TicketManager({
         eventId={eventId}
         tier={editingTier}
         onDismiss={() => setEditingTier(null)}
-        onUpdated={(t) =>
-          setTiers((p) => (p ?? []).map((x) => (x.id === t.id ? t : x)))
-        }
+        onUpdated={(t) => setTiers((p) => (p ?? []).map((x) => (x.id === t.id ? t : x)))}
       />
       <DeleteModal
         eventId={eventId}
         tier={deletingTier}
         onDismiss={() => setDeletingTier(null)}
-        onDeleted={(id) =>
-          setTiers((p) => (p ?? []).filter((t) => t.id !== id))
-        }
+        onDeleted={(id) => setTiers((p) => (p ?? []).filter((t) => t.id !== id))}
       />
     </View>
   );
@@ -1353,7 +1160,6 @@ const tm = StyleSheet.create({
     fontSize: fontSize.xs,
     color: neutral[500],
   },
-  // skeleton summary
   summarySkLine: {
     width: 60,
     height: 22,

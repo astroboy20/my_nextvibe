@@ -1,23 +1,8 @@
-/**
- * QRModal.tsx
- *
- * Displays a scannable QR code for an event URL plus a share action.
- *
- * QR generation: uses the `qrcode` npm package (already in node_modules)
- * to render a data-URI PNG, then displays it via <Image>.
- *
- * Falls back to a placeholder icon if generation fails.
- */
-
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'qrcode';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    Modal,
     Platform,
     Share,
     StyleSheet,
@@ -25,7 +10,9 @@ import {
     TouchableOpacity,
     TouchableWithoutFeedback,
     View,
+    Modal,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,48 +23,9 @@ interface Props {
   onDismiss: () => void;
 }
 
-// ─── QR generation helper ──────────────────────────────────────────────────────
-
-async function generateQRDataUrl(url: string): Promise<string | null> {
-  try {
-    const dataUrl = await QRCode.toDataURL(url, {
-      width: 280,
-      margin: 2,
-      color: {
-        dark:  '#1a1a2e',
-        light: '#ffffff',
-      },
-      errorCorrectionLevel: 'M',
-    });
-    return dataUrl;
-  } catch {
-    return null;
-  }
-}
-
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export default function QRModal({ visible, eventName, eventUrl, onDismiss }: Props) {
-  const [qrDataUrl, setQrDataUrl]   = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [genFailed, setGenFailed]   = useState(false);
-
-  // Generate QR whenever the modal opens or the URL changes
-  useEffect(() => {
-    if (!visible || !eventUrl) return;
-    setGenFailed(false);
-    setQrDataUrl(null);
-    setIsGenerating(true);
-    generateQRDataUrl(eventUrl).then((result) => {
-      if (result) {
-        setQrDataUrl(result);
-      } else {
-        setGenFailed(true);
-      }
-      setIsGenerating(false);
-    });
-  }, [visible, eventUrl]);
-
   const handleShare = async () => {
     try {
       await Share.share(
@@ -132,25 +80,18 @@ export default function QRModal({ visible, eventName, eventUrl, onDismiss }: Pro
 
           {/* QR area */}
           <View style={s.qrContainer}>
-            {isGenerating ? (
-              <View style={s.qrPlaceholder}>
-                <ActivityIndicator size="large" color={brand.primary} />
-                <Text style={s.qrHint}>Generating QR…</Text>
-              </View>
-            ) : qrDataUrl ? (
-              <Image
-                source={{ uri: qrDataUrl }}
-                style={s.qrImage}
-                resizeMode="contain"
-                accessibilityLabel={`QR code for ${eventName ?? 'event'}`}
+            {eventUrl ? (
+              <QRCode
+                value={eventUrl}
+                size={210}
+                color="#1a1a2e"
+                backgroundColor="#ffffff"
+                ecl="M"
               />
             ) : (
-              /* Fallback placeholder */
+              /* Fallback placeholder when there's no URL to encode */
               <View style={s.qrPlaceholder}>
                 <Ionicons name="qr-code-outline" size={80} color={neutral[700]} />
-                {genFailed && (
-                  <Text style={s.qrHint}>Couldn't generate QR</Text>
-                )}
               </View>
             )}
           </View>
@@ -226,10 +167,6 @@ const s = StyleSheet.create({
     borderColor: neutral[200],
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  qrImage: {
-    width: 210,
-    height: 210,
   },
   qrPlaceholder: {
     alignItems: 'center',

@@ -301,7 +301,31 @@ export default function SocialScreen() {
   });
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const feedItems: PostcardItem[] = feedData?.data?.data ?? [];
+  // Normalize API shape → PostcardCard's expected shape.
+  // The feed API uses `likesCount` + `user` + `gallery_items`;
+  // PostcardCard expects `likeCount` + `author` + `media`.
+  const feedItems: PostcardItem[] = (feedData?.data?.data ?? []).map((raw: any) => ({
+    ...raw,
+    id: raw.id ?? raw._id ?? raw.post_id,
+    likeCount: raw.likeCount ?? raw.likesCount ?? 0,
+    commentsCount: raw.commentsCount ?? 0,
+    isLiked: raw.isLiked ?? false,
+    author: raw.author ?? raw.user
+      ? {
+          id: (raw.author ?? raw.user)?.id,
+          username: (raw.author ?? raw.user)?.username,
+          displayName: (raw.author ?? raw.user)?.displayName ?? (raw.author ?? raw.user)?.name,
+          avatarUrl: (raw.author ?? raw.user)?.avatarUrl ?? (raw.author ?? raw.user)?.avatar,
+        }
+      : null,
+    media: (raw.media ?? raw.gallery_items ?? []).map((m: any) => ({
+      mediaUrl: m.mediaUrl ?? m.url,
+      mediaType: (m.mediaType ?? m.type ?? "PHOTO").toUpperCase() === "VIDEO" ? "VIDEO" : "PHOTO",
+    })),
+    event: raw.event ?? (raw.event_id || raw.eventId)
+      ? { id: raw.event?.id ?? raw.event_id ?? raw.eventId, name: raw.event?.name ?? "" }
+      : null,
+  }));
 
   const peopleMap: Record<PeopleTab, SocialUser[]> = {
     following: followingData?.data ?? [],
