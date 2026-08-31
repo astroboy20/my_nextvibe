@@ -182,7 +182,7 @@ export function AccessKeyDisplay({
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      Alert.alert("Error", "Could not copy to clipboard.");
+      toast.alert("Error", "Could not copy to clipboard.");
     }
   };
 
