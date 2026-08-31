@@ -141,8 +141,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded) {
-      SplashScreen.hideAsync();
-      // Run token bootstrap as soon as fonts are ready
       store.dispatch(bootstrapAuth());
       store.dispatch(bootstrapTheme() as any);
     }
