@@ -14,6 +14,7 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
+import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
     type Notification,
     useGetNotificationsQuery,
