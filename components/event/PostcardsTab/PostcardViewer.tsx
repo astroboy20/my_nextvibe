@@ -183,6 +183,7 @@ function CommentSheet({
           contentContainerStyle={{ padding: 16, gap: 14 }}
           renderItem={({ item: c }) => {
             const name = c.author?.displayName ?? c.author?.username ?? "User";
+        
             return (
               <View style={cs.row}>
                 {c.author?.avatarUrl ? (
@@ -375,6 +376,7 @@ function PostcardCard({
     refetchOnMountOrArgChange: true,
   });
 
+
   const freshData = freshPostcard?.data ?? freshPostcard;
 
   const displayName =
@@ -384,6 +386,7 @@ function PostcardCard({
     postcard.author?.username?.trim() ||
     "User";
 
+
   // Keep like/comment/view counts in sync with fresh polled data
   const freshLikeCount = freshData?.likeCount ?? postcard.likeCount ?? 0;
   const freshCommentCount =
@@ -391,6 +394,7 @@ function PostcardCard({
     freshData?.commentsCount ??
     postcard.commentCount ??
     0;
+
   const freshViewCount = freshData?.viewCount ?? postcard.viewCount ?? 0;
   const freshIsLiked = freshData?.isLiked ?? postcard.isLiked ?? false;
 

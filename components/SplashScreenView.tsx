@@ -157,8 +157,8 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
   const screenOpacity = useSharedValue(1);
   const logoOpacity = useSharedValue(1);   // start fully visible — NO fade-in
   const logoScale = useSharedValue(0.94);
-  const tagOpacity = useSharedValue(0);
-  const tagTransY = useSharedValue(12);
+  const tagOpacity = useSharedValue(1);    // tagline also starts fully visible
+  const tagTransY = useSharedValue(8);
   const dot1 = useSharedValue(0.25);
   const dot2 = useSharedValue(0.25);
   const dot3 = useSharedValue(0.25);
@@ -170,15 +170,8 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
     // Logo: just a subtle scale-up (already fully opaque)
     logoScale.value = withTiming(1, { duration: 550, easing: ease });
 
-    // Tagline
-    tagOpacity.value = withDelay(
-      400,
-      withTiming(1, { duration: 500, easing: ease })
-    );
-    tagTransY.value = withDelay(
-      400,
-      withTiming(0, { duration: 500, easing: ease })
-    );
+    // Tagline: subtle slide-up (already fully opaque)
+    tagTransY.value = withTiming(0, { duration: 450, easing: ease });
 
     // Dots — staggered pulse
     const pulse = withRepeat(

@@ -19,7 +19,7 @@ import { useState } from "react";
 import Toast from "react-native-toast-message";
 
 const API_URL  = process.env.EXPO_PUBLIC_API_URL ?? "https://nextvibe-nest-backend-1b4o.onrender.com";
-const REDIRECT = "nextvibe://auth";   // must be on server's OAUTH_APP_REDIRECT_ALLOWLIST exactly
+const REDIRECT = "mynextvibe://auth";   // must match app.json scheme exactly
 
 export function useGoogleAuth() {
   const [loading, setLoading] = useState(false);
@@ -33,7 +33,7 @@ export function useGoogleAuth() {
 
     try {
       // ── Step 1: open system browser → Google consent screen ──────────────
-      const startUrl = `${API_URL}/v1/auth/oauth/google/start?redirect=${encodeURIComponent(REDIRECT)}`;
+      const startUrl = `${API_URL}/v1/auth/oauth/google/start`;
 
       const result = await WebBrowser.openAuthSessionAsync(startUrl, REDIRECT);
 
