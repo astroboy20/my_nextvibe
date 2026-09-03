@@ -6,10 +6,13 @@ import { bootstrapAuth } from "@/store/slices/authSlice";
 import { bootstrapTheme } from "@/store/slices/themeSlice";
 import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
+import * as Device from "expo-device";
 import { useFonts } from "expo-font";
+import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
+import { Platform } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { Provider, useSelector } from "react-redux";
@@ -52,6 +55,19 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+// ── Deep-link router — maps FCM payload to an app route ──────────────────────
+
+function routeTo(data: Record<string, string> | undefined, router: ReturnType<typeof useRouter>) {
+  if (!data) return;
+  switch (data.targetType) {
+    case "EVENT":    return router.push(`/events/${data.targetId}` as any);
+    case "POSTCARD": return router.push(`/postcards/${data.targetId}` as any);
+    case "USER":     return router.push(`/users/${data.targetId}` as any);
+    case "GAME":     return router.push(`/games/${data.targetId}` as any);
+    default:         return router.push("/notifications" as any);
+  }
+}
 
 // ── Auth gate — redirects between (auth) and (tabs) based on token state ──────
 
@@ -123,6 +139,116 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [isAuthenticated, isBootstrapped]);
+
+  // ── FCM token refresh ─────────────────────────────────────────────────────
+  // FCM rotates tokens on its own schedule. Without this handler, push
+  // silently stops for that device until the next cold start.
+  useEffect(() => {
+    if (!isAuthenticated || !Device.isDevice) return;
+
+    let messaging: any;
+    try {
+      messaging = require("@react-native-firebase/messaging").default;
+    } catch {
+      return;
+    }
+
+    const unsubscribe = messaging().onTokenRefresh(async (token: string) => {
+      try {
+        const accessToken = await tokenStore.get("accessToken");
+        if (!accessToken) return;
+        await fetch(
+          `${process.env.EXPO_PUBLIC_API_URL}/v1/notifications/devices`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              token,
+              platform: Platform.OS === "ios" ? "IOS" : "ANDROID",
+            }),
+          }
+        );
+        // Update SecureStore with the new token so unregisterPush works
+        await tokenStore.set("fcmToken", token);
+      } catch {
+        // Token refresh failure is non-fatal
+      }
+    });
+
+    return unsubscribe;
+  }, [isAuthenticated]);
+
+  // ── FCM foreground message handler ───────────────────────────────────────
+  // FCM does NOT show a tray notification while the app is in the foreground.
+  // We display one via expo-notifications so the user sees it regardless.
+  // Dedupe on notificationId — the WebSocket gateway delivers the same event.
+  const shownIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated || !Device.isDevice) return;
+
+    let messaging: any;
+    try {
+      messaging = require("@react-native-firebase/messaging").default;
+    } catch {
+      return;
+    }
+
+    const unsubscribe = messaging().onMessage(async (remoteMessage: any) => {
+      const { notificationId } = remoteMessage.data ?? {};
+
+      // Drop the duplicate that the WebSocket gateway already showed
+      if (notificationId && shownIds.current.has(notificationId)) return;
+      if (notificationId) shownIds.current.add(notificationId);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: remoteMessage.notification?.title ?? "NextVibe",
+          body: remoteMessage.notification?.body ?? "",
+          data: remoteMessage.data,
+        },
+        trigger: null, // show immediately
+      });
+    });
+
+    return unsubscribe;
+  }, [isAuthenticated]);
+
+  // ── Deep-link on notification tap — backgrounded app ─────────────────────
+  useEffect(() => {
+    let messaging: any;
+    try {
+      messaging = require("@react-native-firebase/messaging").default;
+    } catch {
+      return;
+    }
+
+    const unsubscribe = messaging().onNotificationOpenedApp(
+      (remoteMessage: any) => {
+        routeTo(remoteMessage.data, router);
+      }
+    );
+    return unsubscribe;
+  }, [router]);
+
+  // ── Deep-link on notification tap — app was fully quit ───────────────────
+  useEffect(() => {
+    let messaging: any;
+    try {
+      messaging = require("@react-native-firebase/messaging").default;
+    } catch {
+      return;
+    }
+
+    messaging()
+      .getInitialNotification()
+      .then((remoteMessage: any) => {
+        if (remoteMessage) routeTo(remoteMessage.data, router);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <>{children}</>;
 }

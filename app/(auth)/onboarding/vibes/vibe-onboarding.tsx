@@ -18,30 +18,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
-// ─── Colour cycle for tag cards ───────────────────────────────────────────────
-
-const COLOR_CYCLE: Array<{ bg: string; text: string; border: string }> = [
-  { bg: 'rgba(0,188,212,0.12)',  text: '#00BCD4', border: 'rgba(0,188,212,0.35)'  },
-  { bg: 'rgba(103,58,183,0.12)', text: '#7B5EA7', border: 'rgba(103,58,183,0.35)' },
-  { bg: 'rgba(255,101,132,0.12)',text: '#FF6584', border: 'rgba(255,101,132,0.35)'},
-  { bg: 'rgba(91,26,87,0.12)',   text: '#5B1A57', border: 'rgba(91,26,87,0.35)'   },
-];
-
-function colorAt(index: number) {
-  return COLOR_CYCLE[index % COLOR_CYCLE.length];
-}
+// Brand color constants
+const BRAND = '#5B1A57';
+const BRAND_BG_IDLE   = 'rgba(91,26,87,0.08)';
+const BRAND_BG_ACTIVE = 'rgba(91,26,87,0.14)';
+const BRAND_BORDER_IDLE = 'rgba(91,26,87,0.25)';
 
 // ─── Icon map for known tag names ─────────────────────────────────────────────
 
@@ -74,14 +67,11 @@ function iconFor(name: string): string {
 
 interface TagCardProps {
   tag: { id: string; name: string; imageUrl?: string | null };
-  index: number;
   selected: boolean;
   onToggle: (id: string) => void;
 }
 
-function TagCard({ tag, index, selected, onToggle }: TagCardProps) {
-  const colors = Colors.light;
-  const palette = colorAt(index);
+function TagCard({ tag, selected, onToggle }: TagCardProps) {
 
   return (
     <TouchableOpacity
@@ -93,15 +83,15 @@ function TagCard({ tag, index, selected, onToggle }: TagCardProps) {
       style={[
         styles.tagCard,
         {
-          borderColor:     selected ? colors.primary : palette.border,
-          backgroundColor: selected ? `${colors.primary}10` : palette.bg,
+          borderColor:     selected ? BRAND : BRAND_BORDER_IDLE,
+          backgroundColor: selected ? BRAND_BG_ACTIVE : BRAND_BG_IDLE,
         },
         selected && styles.tagCardSelected,
       ]}
     >
       {/* Checkmark */}
       {selected && (
-        <View style={[styles.check, { backgroundColor: colors.primary }]}>
+        <View style={[styles.check, { backgroundColor: BRAND }]}>
           <Ionicons name="checkmark" size={10} color="#fff" />
         </View>
       )}
@@ -115,17 +105,17 @@ function TagCard({ tag, index, selected, onToggle }: TagCardProps) {
           accessibilityLabel={tag.name}
         />
       ) : (
-        <View style={[styles.tagIconWrap, { backgroundColor: selected ? `${colors.primary}18` : palette.bg }]}>
+        <View style={[styles.tagIconWrap, { backgroundColor: selected ? BRAND_BG_ACTIVE : BRAND_BG_IDLE }]}>
           <Ionicons
             name={iconFor(tag.name) as any}
             size={26}
-            color={selected ? colors.primary : palette.text}
+            color={BRAND}
           />
         </View>
       )}
 
       <Text
-        style={[styles.tagLabel, { color: selected ? colors.primary : colors.text }]}
+        style={[styles.tagLabel, { color: BRAND }]}
         numberOfLines={2}
       >
         {tag.name}
@@ -230,7 +220,6 @@ export default function VibeOnboarding() {
             <TagCard
               key={tag.id}
               tag={tag}
-              index={index}
               selected={selected.includes(tag.id)}
               onToggle={toggleTag}
             />
@@ -308,7 +297,7 @@ const styles = StyleSheet.create({
   tagCardSelected: {
     // slight elevation on selected
     ...Platform.select({
-      ios: { shadowColor: '#5B1A57', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+      ios: { shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
       android: { elevation: 4 },
     }),
   },
