@@ -2,7 +2,6 @@ import SplashScreenView from "@/components/SplashScreenView";
 import { useColorScheme } from "@/components/useColorScheme";
 import { registerForPush } from "@/services/pushNotifications";
 import { tokenStore } from "@/store/baseQuery";
-import { resetAllApiCaches } from "@/store/resetCaches";
 import { bootstrapAuth } from "@/store/slices/authSlice";
 import { bootstrapTheme } from "@/store/slices/themeSlice";
 import type { RootState } from "@/store/store";
@@ -13,7 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
-import { Provider, useDispatch, useSelector } from "react-redux";
+import { Provider, useSelector } from "react-redux";
 
 // ── Theme gate — applies user preference over system scheme ──────────────────
 
@@ -59,12 +58,13 @@ SplashScreen.preventAutoHideAsync();
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
-  const dispatch = useDispatch();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const isBootstrapped = useSelector((s: RootState) => s.auth.isBootstrapped);
   const isNewUser = useSelector((s: RootState) => s.auth.isNewUser);
 
-  const prevAuthenticated = useRef<boolean | null>(null);
+  // Track navigation to prevent duplicate redirects
+  const navigationInProgress = useRef(false);
+  const lastRoute = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isBootstrapped) return;
@@ -73,29 +73,34 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     const inOnboarding =
       segments[0] === "(auth)" && segments[1] === "onboarding";
 
+    console.log('[AuthGate] segments=', segments, 'isAuth=', isAuthenticated, 'isNew=', isNewUser, 'inAuthGroup=', inAuthGroup, 'inOnboarding=', inOnboarding);
+
+    let targetRoute: string | null = null;
+
+    // Determine target route based on auth state
     if (isAuthenticated && isNewUser && !inOnboarding) {
-      router.replace("/(auth)/onboarding");
+      targetRoute = "/(auth)/onboarding";
     } else if (isAuthenticated && !isNewUser && inAuthGroup) {
-      router.replace("/(tabs)");
+      targetRoute = "/(tabs)";
     } else if (!isAuthenticated && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    }
-  }, [isAuthenticated, isBootstrapped, isNewUser, segments]);
-
-  // ── Reset ALL caches on every sign-in transition (false → true) ──────────
-  // This guarantees that logging in as any user always fetches fresh data,
-  // no matter whose session data was cached before.
-  useEffect(() => {
-    if (!isBootstrapped) return;
-    const wasAuth = prevAuthenticated.current;
-
-    if (isAuthenticated && wasAuth === false) {
-      // Transitioned from logged-out → logged-in: wipe every cache now
-      resetAllApiCaches(dispatch as any);
+      targetRoute = "/(auth)/login";
     }
 
-    prevAuthenticated.current = isAuthenticated;
-  }, [isAuthenticated, isBootstrapped, dispatch]);
+    // Only navigate if we have a target and it's different from last navigation
+    if (targetRoute && targetRoute !== lastRoute.current && !navigationInProgress.current) {
+      navigationInProgress.current = true;
+      lastRoute.current = targetRoute;
+      
+      console.log('[AuthGate] Navigating to:', targetRoute);
+      
+      router.replace(targetRoute as any);
+      
+      // Reset navigation lock after a short delay
+      setTimeout(() => {
+        navigationInProgress.current = false;
+      }, 100);
+    }
+  }, [isAuthenticated, isBootstrapped, isNewUser, segments, router]);
 
   // ── Register push token on sign-in ───────────────────────────────────────
   const pushRef = useRef<boolean | null>(null);
@@ -134,13 +139,15 @@ export default function RootLayout() {
     NunitoSans_800ExtraBold: require("../assets/fonts/NunitoSans_800ExtraBold.ttf"),
   });
   const [splashDone, setSplashDone] = useState(false);
+  const bootstrapStarted = useRef(false);
 
   useEffect(() => {
     if (fontError) throw fontError;
   }, [fontError]);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && !bootstrapStarted.current) {
+      bootstrapStarted.current = true;
       store.dispatch(bootstrapAuth());
       store.dispatch(bootstrapTheme() as any);
     }
@@ -149,10 +156,7 @@ export default function RootLayout() {
   if (!splashDone) {
     return (
       <Provider store={store}>
-        <SplashScreenView
-          fontsLoaded={fontsLoaded || !!fontError}
-          onFinished={() => setSplashDone(true)}
-        />
+        <SplashScreenWrapper onFinished={() => setSplashDone(true)} fontsLoaded={fontsLoaded || !!fontError} />
       </Provider>
     );
   }
@@ -164,5 +168,25 @@ export default function RootLayout() {
       </AuthGate>
       <Toast />
     </Provider>
+  );
+}
+
+// ── Wrapper to read isBootstrapped from Redux ─────────────────────────────────
+
+function SplashScreenWrapper({ 
+  fontsLoaded, 
+  onFinished 
+}: { 
+  fontsLoaded: boolean; 
+  onFinished: () => void; 
+}) {
+  const isBootstrapped = useSelector((s: RootState) => s.auth.isBootstrapped);
+  
+  return (
+    <SplashScreenView
+      fontsLoaded={fontsLoaded}
+      isBootstrapped={isBootstrapped}
+      onFinished={onFinished}
+    />
   );
 }

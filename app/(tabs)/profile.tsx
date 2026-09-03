@@ -150,6 +150,10 @@ function PostcardGrid({ items }: { items: PostcardItem[] }) {
 
   const renderCard = (item: PostcardItem, idx: number) => {
     const h = heights[idx % heights.length];
+    const isVideo = item.mediaType === 'VIDEO';
+    // For videos, use thumbnail if available, otherwise fall back to mediaUrl
+    const displayUrl = isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
+    
     return (
       <TouchableOpacity
         key={item.id}
@@ -157,11 +161,19 @@ function PostcardGrid({ items }: { items: PostcardItem[] }) {
         activeOpacity={0.85}
       >
         <View style={[pc.imgArea, { height: h }]}>
-          {item.mediaUrl ? (
-            <Image
-              source={{ uri: item.mediaUrl }}
-              style={StyleSheet.absoluteFillObject}
-            />
+          {displayUrl ? (
+            <>
+              <Image
+                source={{ uri: displayUrl }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              {/* Video play indicator */}
+              {isVideo && (
+                <View style={pc.playBadge}>
+                  <Ionicons name="play" size={16} color="#fff" />
+                </View>
+              )}
+            </>
           ) : (
             <View style={pc.imgFallback}>
               <Ionicons name="image-outline" size={28} color={neutral[300]} />
@@ -692,6 +704,17 @@ const pc = StyleSheet.create({
     justifyContent: "center",
   },
   imgFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
+  playBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   overlay: {
     position: "absolute",
     bottom: 0,

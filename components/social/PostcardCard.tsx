@@ -38,6 +38,8 @@ export interface PostcardItem {
   media?: Array<{
     mediaUrl?: string | null;
     mediaType?: 'PHOTO' | 'VIDEO' | null;
+    thumbnailUrl?: string | null;
+    vibeTagOverlayUrl?: string | null;
   }>;
 }
 
@@ -106,6 +108,7 @@ export default function PostcardCard({ item, onPress }: Props) {
   const username = author?.username ?? '';
   const primaryMedia = item.media?.find((m) => !!m.mediaUrl);
   const mediaUrl   = primaryMedia?.mediaUrl ?? null;
+  const thumbnailUrl = primaryMedia?.thumbnailUrl ?? null;
   const isVideo    = primaryMedia?.mediaType === 'VIDEO';
   const hasMultiple = (item.media?.filter((m) => !!m.mediaUrl).length ?? 0) > 1;
 
@@ -182,18 +185,33 @@ export default function PostcardCard({ item, onPress }: Props) {
       <TouchableOpacity activeOpacity={0.92} onPress={handleMediaPress} style={styles.mediaWrap}>
         {mediaUrl ? (
           isVideo ? (
-            // Dark thumbnail with play overlay — expo-av Video requires expo-video
-            // native module which isn't installed. First-frame preview happens in
-            // the full-screen viewer when opened.
-            <View style={styles.videoThumb}>
-              <View style={styles.videoOverlay} />
-              <View style={styles.playOverlay}>
-                <View style={styles.playBtn}>
-                  <Ionicons name="play" size={24} color="#fff" />
+            // Video: Show thumbnail if available, otherwise dark placeholder
+            thumbnailUrl ? (
+              <View style={styles.videoThumb}>
+                <Image
+                  source={{ uri: thumbnailUrl }}
+                  style={styles.media}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+                <View style={styles.playOverlay}>
+                  <View style={styles.playBtn}>
+                    <Ionicons name="play" size={24} color="#fff" />
+                  </View>
                 </View>
-                <Text style={styles.videoLabel}>Tap to play</Text>
               </View>
-            </View>
+            ) : (
+              // Fallback: dark placeholder when no thumbnail
+              <View style={styles.videoThumb}>
+                <View style={styles.videoOverlay} />
+                <View style={styles.playOverlay}>
+                  <View style={styles.playBtn}>
+                    <Ionicons name="play" size={24} color="#fff" />
+                  </View>
+                  <Text style={styles.videoLabel}>Tap to play</Text>
+                </View>
+              </View>
+            )
           ) : (
             <Image
               source={{ uri: mediaUrl }}

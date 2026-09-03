@@ -329,7 +329,6 @@ export default function SocialScreen() {
       : null,
   }));
 
-  console.log("feedItems:", feedItems);
 
   const peopleMap: Record<PeopleTab, SocialUser[]> = {
     following: followingData?.data ?? [],

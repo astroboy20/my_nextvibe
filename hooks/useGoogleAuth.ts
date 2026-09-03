@@ -19,7 +19,9 @@ import { useState } from "react";
 import Toast from "react-native-toast-message";
 
 const API_URL  = process.env.EXPO_PUBLIC_API_URL ?? "https://nextvibe-nest-backend-1b4o.onrender.com";
-const REDIRECT = "mynextvibe://auth";   // must match app.json scheme exactly
+
+// Use a redirect that won't cause navigation - just return to the app root
+const REDIRECT = "mynextvibe://";   // Root redirect, not a specific route
 
 export function useGoogleAuth() {
   const [loading, setLoading] = useState(false);
@@ -33,13 +35,19 @@ export function useGoogleAuth() {
 
     try {
       // ── Step 1: open system browser → Google consent screen ──────────────
-      const startUrl = `${API_URL}/v1/auth/oauth/google/start`;
+      const startUrl = `${API_URL}/v1/auth/oauth/google/start?redirect=${encodeURIComponent(REDIRECT)}`;
 
       const result = await WebBrowser.openAuthSessionAsync(startUrl, REDIRECT);
 
       // User tapped "Done" / dismissed — not an error
-      if (result.type === "cancel" || result.type === "dismiss") return;
-      if (result.type !== "success") return;
+      if (result.type === "cancel" || result.type === "dismiss") {
+        setLoading(false);
+        return;
+      }
+      if (result.type !== "success") {
+        setLoading(false);
+        return;
+      }
 
       // ── Step 2: parse the deep-link callback ──────────────────────────────
       // Use Linking.parse — RN's URL polyfill doesn't implement searchParams
@@ -48,27 +56,52 @@ export function useGoogleAuth() {
 
       // Handle error params delivered on the deep link
       if (params.error) {
-        if (params.error === "access_denied") return; // user backed out — no UI
+        if (params.error === "access_denied") {
+          setLoading(false);
+          return; // user backed out — no UI
+        }
         const msg =
           params.error === "auth_failed"
             ? "Google sign-in failed. Please try again."
             : "Google sign-in was interrupted. Please try again.";
         setError(msg);
         Toast.show({ type: "error", text1: "Google Sign-In failed", text2: msg, visibilityTime: 3500 });
+        setLoading(false);
         return;
       }
 
       const code = params.code;
       if (!code) {
         setError("Google sign-in failed: no code returned.");
+        setLoading(false);
         return;
       }
 
       // ── Step 3: exchange one-time code for NextVibe tokens ────────────────
       // Single-use, 120s TTL — never retry this call
-      await exchangeCode({ code }).unwrap();
+      const response = await exchangeCode({ code }).unwrap();
+      // console.log('[useGoogleAuth] Exchange success, response:', JSON.stringify(response, null, 2));
       // onQueryStarted in authApi persists tokens + dispatches setUser/setNewUser
       // AuthGate reacts to Redux state and routes to /(tabs) or /(auth)/onboarding
+      
+      // Show success toast
+      const isNewUser = response?.data?.isNewUser ?? response?.isNewUser ?? false;
+      // console.log('[useGoogleAuth] isNewUser =', isNewUser);
+      if (isNewUser) {
+        Toast.show({ 
+          type: "success", 
+          text1: "Account created! 🎉", 
+          text2: "Welcome to NextVibe", 
+          visibilityTime: 2500 
+        });
+      } else {
+        Toast.show({ 
+          type: "success", 
+          text1: "Welcome back! 🎉", 
+          text2: "You're logged in", 
+          visibilityTime: 2500 
+        });
+      }
 
     } catch (err: any) {
       const status  = err?.status ?? err?.originalStatus;

@@ -1,19 +1,18 @@
 /**
  * resetAllApiCaches
  *
- * Wipes every RTK Query slice immediately.
- * Accepts the store directly to avoid circular imports — authApi cannot import
- * this file because resetCaches imports authApi (for authApi.util.resetApiState
- * would create: authApi → resetCaches → authApi).
- *
- * Instead callers pass the store.dispatch or the RTK dispatch handle.
- * authApi is NOT reset here — its "User" tag becomes stale automatically once
- * clearAuth() removes isAuthenticated, and the fresh /v1/users/me is fetched
- * on the next authenticated render.
+ * Wipes every RTK Query cache immediately, including authApi.
+ * 
+ * Called on:
+ *  - Logout: Clear all previous user's data
+ *  - Login/Register: Clear all data BEFORE setting new user to prevent flash of old data
+ * 
+ * Accepts the store dispatch to avoid circular imports.
  */
 
 import { adminApi } from "./api/admin";
 import { analyticsApi } from "./api/analyticsApi";
+import { authApi } from "./api/authApi";
 import { campaignApi } from "./api/campaignApi";
 import { discoverApi } from "./api/discoverApi";
 import { eventsApi } from "./api/eventApi";
@@ -33,6 +32,8 @@ import { userApi } from "./api/userApi";
 type DispatchFn = (action: any) => any;
 
 export function resetAllApiCaches(dispatch: DispatchFn): void {
+  // Reset authApi FIRST to clear user queries immediately
+  dispatch(authApi.util.resetApiState());
   dispatch(eventsApi.util.resetApiState());
   dispatch(gamesApi.util.resetApiState());
   dispatch(userApi.util.resetApiState());

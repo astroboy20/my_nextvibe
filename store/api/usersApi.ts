@@ -14,12 +14,12 @@
 
 // ─── authApi hooks ────────────────────────────────────────────────────────────
 export {
-  useGetMeQuery, useGetOrganizerEventsQuery,
-  useGetUserActivityQuery,
-  useGetUserBasicQuery, useGetUserQuery,
-  // usersApi object — needed by useAuth.ts for resetApiState
-  // authApi is the primary owner of user data; expose it as "usersApi"
-  authApi as usersApi, useUpdateUserMutation
+    useGetMeQuery, useGetOrganizerEventsQuery,
+    useGetUserActivityQuery,
+    useGetUserBasicQuery, useGetUserQuery, useUpdateUserMutation,
+    // usersApi object — needed by useAuth.ts for resetApiState
+    // authApi is the primary owner of user data; expose it as "usersApi"
+    authApi as usersApi
 } from "./authApi";
 
 // ─── userApi hooks ────────────────────────────────────────────────────────────
@@ -48,6 +48,8 @@ export interface OrganizerEvent {
 export interface PostcardItem {
   id: string;
   mediaUrl?: string | null;
+  thumbnailUrl?: string | null;
+  mediaType?: 'PHOTO' | 'VIDEO' | null;
   likeCount?: number;
   caption?: string | null;
   createdAt?: string;

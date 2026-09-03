@@ -77,6 +77,7 @@ export default function LoginScreen() {
         contentContainerStyle={[styles.scroll, { minHeight: SCREEN_HEIGHT }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        pointerEvents={googleLoading ? "none" : "auto"}
       >
         <AuthHeader title="Welcome Back" subtitle="Sign in to continue your vibe" />
 
@@ -107,6 +108,7 @@ export default function LoginScreen() {
           onFocus={() => setFocused("email")}
           onBlur={() => setFocused(null)}
           onChangeText={(t) => { setEmail(t); setEmailErr(""); }}
+          editable={!googleLoading}
         />
         {emailErr ? <Text style={[textStyles.caption, styles.err, { color: colors.secondary }]}>{emailErr}</Text> : null}
 
@@ -123,8 +125,9 @@ export default function LoginScreen() {
             onFocus={() => setFocused("password")}
             onBlur={() => setFocused(null)}
             onChangeText={(t) => { setPassword(t); setPassErr(""); }}
+            editable={!googleLoading}
           />
-          <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)}>
+          <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)} disabled={googleLoading}>
             <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
           </Pressable>
         </View>
@@ -132,19 +135,19 @@ export default function LoginScreen() {
 
         {/* ── Forgot password ── */}
         <Link href="/(auth)/forgot-password" asChild>
-          <Pressable style={styles.forgotRow}>
+          <Pressable style={styles.forgotRow} disabled={googleLoading}>
             <Text style={[textStyles.bodySm, { color: colors.text, fontWeight: fontWeight.medium }]}>
               Forgot Password?
             </Text>
           </Pressable>
         </Link>
 
-        <PrimaryButton label="Login" loading={isLoading} onPress={handleLogin} backgroundColor={colors.primary} />
+        <PrimaryButton label="Login" loading={isLoading} onPress={handleLogin} backgroundColor={colors.primary} disabled={googleLoading} />
 
         <View style={styles.bottomRow}>
           <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>Don't have an account? </Text>
           <Link href="/(auth)/register" asChild>
-            <Pressable>
+            <Pressable disabled={googleLoading}>
               <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: "underline" }]}>
                 Sign up
               </Text>
@@ -152,6 +155,21 @@ export default function LoginScreen() {
           </Link>
         </View>
       </ScrollView>
+      
+      {/* Full-screen loading overlay during Google OAuth */}
+      {googleLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <Ionicons name="logo-google" size={48} color={colors.primary} />
+            <Text style={[textStyles.bodyLg, { color: colors.text, marginTop: space.md, fontWeight: fontWeight.semibold }]}>
+              Signing in with Google
+            </Text>
+            <Text style={[textStyles.bodySm, { color: colors.textSecondary, marginTop: space.xs, textAlign: "center" }]}>
+              Please wait...
+            </Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -188,4 +206,23 @@ const styles = StyleSheet.create({
   orRow:       { flexDirection: "row", alignItems: "center", marginVertical: space.xl },
   orLine:      { flex: 1, height: StyleSheet.hairlineWidth * 2 },
   bottomRow:   { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: space.lg },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 999,
+  },
+  loadingCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: radius.xl,
+    padding: space["2xl"],
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 200,
+  },
 });

@@ -87,6 +87,7 @@ const SLIDES = [
 
 interface Props {
   fontsLoaded: boolean;
+  isBootstrapped: boolean;
   onFinished: () => void;
 }
 
@@ -94,7 +95,7 @@ interface Props {
 // Root — decides which mode to render
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
+export default function SplashScreenView({ fontsLoaded, isBootstrapped, onFinished }: Props) {
   const [mode, setMode] = useState<"checking" | "intro" | "returning">(
     "checking"
   );
@@ -125,6 +126,7 @@ export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
     return (
       <IntroSplash
         fontsLoaded={fontsLoaded}
+        isBootstrapped={isBootstrapped}
         onFinished={() => {
           AsyncStorage.setItem(STORAGE_KEY, "true").catch(() => {});
           onFinishedRef.current();
@@ -136,6 +138,7 @@ export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
   return (
     <ReturningUserSplash
       fontsLoaded={fontsLoaded}
+      isBootstrapped={isBootstrapped}
       onFinished={() => onFinishedRef.current()}
     />
   );
@@ -145,7 +148,7 @@ export default function SplashScreenView({ fontsLoaded, onFinished }: Props) {
 // Returning user splash — clean and simple
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
+function ReturningUserSplash({ fontsLoaded, isBootstrapped, onFinished }: Props) {
   const onFinishedRef = useRef(onFinished);
   useEffect(() => {
     onFinishedRef.current = onFinished;
@@ -187,7 +190,7 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
     dot3.value = withDelay(700 + 360, pulse);
   }, []);
 
-  // ── Exit — wait for fonts then hold, then fade out ─────────────────────────
+  // ── Exit — wait for fonts AND bootstrap, then hold, then fade out ──────────
   useEffect(() => {
     function startExit() {
       if (exitStarted.current) return;
@@ -198,7 +201,8 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
 
     const fallback = setTimeout(startExit, MAX_WAIT_MS);
 
-    if (fontsLoaded) {
+    // Only exit once BOTH fonts and bootstrap are ready
+    if (fontsLoaded && isBootstrapped) {
       clearTimeout(fallback);
       const hold = setTimeout(startExit, MIN_HOLD_MS);
       return () => {
@@ -208,7 +212,7 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
     }
 
     return () => clearTimeout(fallback);
-  }, [fontsLoaded]);
+  }, [fontsLoaded, isBootstrapped]);
 
   // ── Animated styles ────────────────────────────────────────────────────────
   const screenStyle = useAnimatedStyle(() => ({
@@ -237,11 +241,7 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
           accessibilityLabel="NextVibe"
         />
       </Animated.View>
-
-      {/* Tagline */}
-      <Animated.View style={[styles.tagWrap, tagStyle]}>
-        <Text style={styles.tagline}>your vibe, your events</Text>
-      </Animated.View>
+    
 
       {/* Loading dots */}
       <View style={styles.dotsRow}>
@@ -263,7 +263,7 @@ function ReturningUserSplash({ fontsLoaded, onFinished }: Props) {
 // New-user intro splash (4 slides, manual navigation only)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function IntroSplash({ onFinished }: Props) {
+function IntroSplash({ fontsLoaded, isBootstrapped, onFinished }: Props) {
   const onFinishedRef = useRef(onFinished);
   useEffect(() => {
     onFinishedRef.current = onFinished;
@@ -332,6 +332,13 @@ function IntroSplash({ onFinished }: Props) {
 
   const doFinish = () => {
     if (exiting) return;
+    
+    // Wait for bootstrap to complete before allowing finish
+    if (!isBootstrapped) {
+      // Bootstrap not ready yet — user will have to wait
+      return;
+    }
+    
     setExiting(true);
     animateOut(() => {
       screenOpacity.value = withTiming(0, { duration: FADE_OUT_MS });
@@ -418,13 +425,16 @@ function IntroSplash({ onFinished }: Props) {
           style={({ pressed }) => [
             styles.nextButton,
             pressed && styles.nextButtonPressed,
+            // Disable button on last slide if bootstrap not ready
+            (isLast && !isBootstrapped) && styles.nextButtonDisabled,
           ]}
           onPress={goToNext}
+          disabled={isLast && !isBootstrapped}
           accessibilityLabel={isLast ? "Get started" : "Next slide"}
           accessibilityRole="button"
         >
           <Text style={styles.nextButtonText}>
-            {isLast ? "Get Started" : "Next"}
+            {isLast && !isBootstrapped ? "Loading..." : isLast ? "Get Started" : "Next"}
           </Text>
         </Pressable>
       </View>
@@ -593,6 +603,9 @@ const styles = StyleSheet.create({
   },
   nextButtonPressed: {
     opacity: 0.8,
+  },
+  nextButtonDisabled: {
+    opacity: 0.6,
   },
   nextButtonText: {
     fontFamily: fontFamily.semibold,

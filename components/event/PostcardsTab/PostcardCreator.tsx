@@ -12,9 +12,9 @@ import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuthModal } from '@/hooks/useAuthModal';
 import {
-  useCreatePostcardsMutation,
-  useGetEventPostcardsQuery,
-  useSwapPostcardMutation,
+    useCreatePostcardsMutation,
+    useGetEventPostcardsQuery,
+    useSwapPostcardMutation,
 } from '@/store/api/eventsApi';
 import { API_URL, tokenStore } from '@/store/baseQuery';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,19 +23,19 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -374,15 +374,19 @@ export function PostcardCreator({
       // ── Step 1: Stamp VibeTag onto every item before upload ─────────────
       // Images  → Skia composites photo + overlay → JPEG data URI
       // Videos  → returned unchanged; overlayUrl stored for playback-time rendering
+      // console.log('[PostcardCreator] Starting stamp process with overlay:', overlayUrl?.substring(0, 50));
       setUploadProgress(5);
       const stamped = await Promise.all(
         items.map((item) =>
           stampOverlay(item.uri, item.type, overlayUrl),
         ),
       );
+    
       setUploadProgress(15);
 
       // ── Step 2: Build FormData with stamped URIs ─────────────────────────
+      // For videos: upload both the raw video AND the composited thumbnail
+      // For photos: upload the composited image
       const token = await tokenStore.get('accessToken');
       const formData = new FormData();
 
@@ -390,19 +394,40 @@ export function PostcardCreator({
         const original = items[i];
         let uploadUri = result.uri;
 
-        // data: URIs (stamped images) — React Native FormData needs a file-like object
-        // with a uri field, not a raw data: string.  We pass it as-is; the native
-        // FormData implementation handles base64 data URIs correctly on iOS & Android.
-        const ext = original.uri.split('.').pop() ?? (original.type === 'video' ? 'mp4' : 'jpg');
-        const mime = result.mimeType;
-        const name = original.fileName ?? `postcard-${Date.now()}-${i}.${result.mimeType === 'video/mp4' ? 'mp4' : 'jpg'}`;
 
-        // For regular file URIs strip the file:// prefix on iOS
-        if (original.type !== 'video' && Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
-          uploadUri = uploadUri.replace('file://', '');
+        // Video: upload raw video file
+        if (original.type === 'video') {
+          const videoName = original.fileName ?? `postcard-video-${Date.now()}-${i}.mp4`;
+          (formData as any).append('files', { 
+            uri: uploadUri, 
+            name: videoName, 
+            type: 'video/mp4' 
+          } as any);
+
+          // Video: also upload the composited thumbnail if available
+          if (result.thumbnailUri) {
+            const thumbName = `postcard-thumb-${Date.now()}-${i}.jpg`;
+            (formData as any).append('files', { 
+              uri: result.thumbnailUri, 
+              name: thumbName, 
+              type: 'image/jpeg' 
+            } as any);
+          }
+        } else {
+          // Photo: composited image (data URI)
+          const mime = result.mimeType;
+          const ext = mime === 'image/png' ? 'png' : 'jpg';
+          const name = original.fileName
+            ? original.fileName.replace(/\.(jpg|jpeg)$/i, `.${ext}`)
+            : `postcard-photo-${Date.now()}-${i}.${ext}`;
+
+          // For regular file URIs strip the file:// prefix on iOS
+          if (Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
+            uploadUri = uploadUri.replace('file://', '');
+          }
+
+          (formData as any).append('files', { uri: uploadUri, name, type: mime } as any);
         }
-
-        (formData as any).append('files', { uri: uploadUri, name, type: mime } as any);
       });
 
       // ── Step 3: XHR upload with progress ────────────────────────────────
@@ -433,14 +458,38 @@ export function PostcardCreator({
         xhr.send(formData);
       });
 
-      // ── Step 4: Build media array — attach vibeTagOverlayUrl for videos ──
-      const uploaded = (uploadResult?.data ?? []).map((f: any, i: number) => ({
-        fileKey:           f.fileKey,
-        mediaType:         f.mediaType,
-        mediaUrl:          f.url,
-        // For video items, persist the overlay URL so the viewer renders it
-        vibeTagOverlayUrl: stamped[i]?.vibeTagOverlayUrl ?? null,
-      }));
+      // ── Step 4: Build media array — match uploaded files to original items ──
+      const uploadedFiles = uploadResult?.data ?? [];
+      let uploadIdx = 0;
+      const uploaded = stamped.map((result, i) => {
+        const original = items[i];
+        
+        if (original.type === 'video') {
+          // Video: next file is the video, file after that is the thumbnail (if exists)
+          const videoFile = uploadedFiles[uploadIdx++];
+          const thumbnailFile = result.thumbnailUri ? uploadedFiles[uploadIdx++] : null;
+         
+          return {
+            fileKey: videoFile?.fileKey,
+            mediaType: 'VIDEO',
+            mediaUrl: videoFile?.url,
+            thumbnailKey: thumbnailFile?.fileKey ?? null,
+            // For video items, persist the overlay URL so the viewer renders it live
+            vibeTagOverlayUrl: result.vibeTagOverlayUrl ?? null,
+          };
+        } else {
+          // Photo: next file is the composited photo
+          const photoFile = uploadedFiles[uploadIdx++];
+          
+          return {
+            fileKey: photoFile?.fileKey,
+            mediaType: 'PHOTO',
+            mediaUrl: photoFile?.url,
+            // Photos don't need vibeTagOverlayUrl - it's already baked in
+            vibeTagOverlayUrl: null,
+          };
+        }
+      });
 
       if (!uploaded.length) {
         Toast.show({ type: 'error', text1: 'Upload failed' });

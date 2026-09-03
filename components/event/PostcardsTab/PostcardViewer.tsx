@@ -2,32 +2,32 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-  useCommentOnPostcardMutation,
-  useGetPostcardCommentsQuery,
-  useGetPostcardQuery,
-  useToggleLikePostcardMutation,
-  useTrackPostcardViewMutation,
+    useCommentOnPostcardMutation,
+    useGetPostcardCommentsQuery,
+    useGetPostcardQuery,
+    useToggleLikePostcardMutation,
+    useTrackPostcardViewMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-  ViewToken
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+    ViewToken
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -36,7 +36,16 @@ import type { PostcardData, PostcardMediaItem } from "./types";
 const { width: W, height: H } = Dimensions.get("window");
 
 // ─── VideoPlayer ──────────────────────────────────────────────────────────────
-
+/**
+ * VideoPlayer component handles video playback with live VibeTag overlay.
+ * 
+ * When playing:
+ * - Renders the video element
+ * - If vibeTagOverlayUrl is present, layers it on top absolutely positioned
+ * 
+ * When not playing (controlled by parent via thumbnailUrl):
+ * - Parent renders thumbnailUrl as static image instead of this component
+ */
 function VideoPlayer({
   src,
   active,
@@ -77,10 +86,11 @@ function VideoPlayer({
         onReadyForDisplay={() => setBuffering(false)}
         onLoadStart={() => setBuffering(true)}
       />
+      {/* Live overlay during playback — only if vibeTagOverlayUrl is non-null */}
       {overlayUrl && (
         <Image
           source={{ uri: overlayUrl }}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { opacity: 0.65 }]}
           contentFit="cover"
           pointerEvents="none"
         />
@@ -512,12 +522,33 @@ function PostcardCard({
           {media.map((m, i) => (
             <View key={m.id ?? i} style={{ width: W, height: H }}>
               {m.mediaType === "VIDEO" ? (
-                <VideoPlayer
-                  src={m.mediaUrl!}
-                  active={active && i === mediaIdx}
-                  overlayUrl={m.vibeTagOverlayUrl}
-                />
+                active && i === mediaIdx ? (
+                  // VIDEO PLAYING: Render video with live overlay
+                  <VideoPlayer
+                    src={m.mediaUrl!}
+                    active={true}
+                    overlayUrl={m.vibeTagOverlayUrl}
+                  />
+                ) : (
+                  // VIDEO NOT PLAYING: Render thumbnail if present, otherwise fall back to video poster
+                  m.thumbnailUrl ? (
+                    <Image
+                      source={{ uri: m.thumbnailUrl }}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="contain"
+                      transition={200}
+                    />
+                  ) : (
+                    // Fallback to video's native poster frame
+                    <VideoPlayer
+                      src={m.mediaUrl!}
+                      active={false}
+                      overlayUrl={m.vibeTagOverlayUrl}
+                    />
+                  )
+                )
               ) : (
+                // PHOTO: Always render directly (overlay already baked in)
                 <Image
                   source={{ uri: m.mediaUrl! }}
                   style={StyleSheet.absoluteFillObject}

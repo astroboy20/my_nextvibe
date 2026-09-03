@@ -80,6 +80,7 @@ export default function RegisterScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        pointerEvents={googleLoading ? "none" : "auto"}
       >
         <AuthHeader title="Join NextVibe" subtitle="Create your account and start vibing" />
 
@@ -105,6 +106,7 @@ export default function RegisterScreen() {
             autoCapitalize="words"
             value={displayName}
             onChangeText={(t) => { setDisplayName(t); setErrors((e) => ({ ...e, displayName: "" })); }}
+            editable={!googleLoading}
           />
         </Field>
 
@@ -118,6 +120,7 @@ export default function RegisterScreen() {
             autoComplete="email"
             value={email}
             onChangeText={(t) => { setEmail(t); setErrors((e) => ({ ...e, email: "" })); }}
+            editable={!googleLoading}
           />
         </Field>
 
@@ -129,6 +132,7 @@ export default function RegisterScreen() {
             autoCapitalize="none"
             value={username}
             onChangeText={(t) => { setUsername(t); setErrors((e) => ({ ...e, username: "" })); }}
+            editable={!googleLoading}
           />
         </Field>
 
@@ -142,8 +146,9 @@ export default function RegisterScreen() {
               autoComplete="new-password"
               value={password}
               onChangeText={(t) => { setPassword(t); setErrors((e) => ({ ...e, password: "" })); }}
+              editable={!googleLoading}
             />
-            <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)} accessibilityLabel={showPass ? "Hide" : "Show"}>
+            <Pressable style={styles.eyeBtn} onPress={() => setShowPass((v) => !v)} accessibilityLabel={showPass ? "Hide" : "Show"} disabled={googleLoading}>
               <Ionicons name={showPass ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
             </Pressable>
           </View>
@@ -156,6 +161,7 @@ export default function RegisterScreen() {
             onPress={() => { setAgreed((v) => !v); setErrors((e) => ({ ...e, agreed: "" })); }}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreed }}
+            disabled={googleLoading}
           >
             {agreed ? <Text style={styles.checkMark}>✓</Text> : null}
           </Pressable>
@@ -163,7 +169,7 @@ export default function RegisterScreen() {
             {"I have read and agree to the "}
             <Text
               style={{ color: colors.primary, textDecorationLine: "underline" }}
-              onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/privacy")}
+              onPress={() => !googleLoading && WebBrowser.openBrowserAsync("https://www.mynextvibe.com/privacy")}
               accessibilityRole="link"
             >
               Privacy Policy
@@ -171,7 +177,7 @@ export default function RegisterScreen() {
             {" and "}
             <Text
               style={{ color: colors.primary, textDecorationLine: "underline" }}
-              onPress={() => WebBrowser.openBrowserAsync("https://www.mynextvibe.com/terms")}
+              onPress={() => !googleLoading && WebBrowser.openBrowserAsync("https://www.mynextvibe.com/terms")}
               accessibilityRole="link"
             >
               Terms of Service
@@ -187,12 +193,13 @@ export default function RegisterScreen() {
           onPress={handleSubmit}
           backgroundColor={agreed ? colors.primary : colors.primaryLight}
           marginTop={space.xl}
+          disabled={googleLoading}
         />
 
         <View style={styles.bottomRow}>
           <Text style={[textStyles.bodySm, { color: colors.textSecondary }]}>Already have an account? </Text>
           <Link href="/(auth)/login" asChild>
-            <Pressable>
+            <Pressable disabled={googleLoading}>
               <Text style={[textStyles.bodySm, { color: colors.primary, fontWeight: fontWeight.bold, textDecorationLine: "underline" }]}>
                 Sign in
               </Text>
@@ -200,6 +207,21 @@ export default function RegisterScreen() {
           </Link>
         </View>
       </ScrollView>
+      
+      {/* Full-screen loading overlay during Google OAuth */}
+      {googleLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingCard}>
+            <Ionicons name="logo-google" size={48} color={colors.primary} />
+            <Text style={[textStyles.bodyLg, { color: colors.text, marginTop: space.md, fontWeight: fontWeight.semibold }]}>
+              Signing up with Google
+            </Text>
+            <Text style={[textStyles.bodySm, { color: colors.textSecondary, marginTop: space.xs, textAlign: "center" }]}>
+              Please wait...
+            </Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -230,4 +252,23 @@ const styles = StyleSheet.create({
   checkbox:  { width: 20, height: 20, borderRadius: radius.xs, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 2 },
   checkMark: { color: "#fff", fontSize: 12, lineHeight: 16, fontWeight: "700" },
   bottomRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: space.xl },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 999,
+  },
+  loadingCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: radius.xl,
+    padding: space["2xl"],
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 200,
+  },
 });

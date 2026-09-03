@@ -67,10 +67,23 @@ export const authApi = createApi({
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
                     resetAllApiCaches(dispatch);
-                    const isNew = data?.data?.isNewUser ?? data?.isNewUser ?? false;
-                    if (user) isNew ? dispatch(setNewUser(user)) : dispatch(setUser(user));
-                } catch {}
+                    
+                    // Check multiple possible locations for isNewUser flag
+                    const isNew = data?.data?.isNewUser ?? data?.isNewUser ?? data?.user?.isNewUser ?? false;
+                    
+                    if (user) {
+                      if (isNew) {
+                        dispatch(setNewUser(user));
+                      } else {
+                        dispatch(setUser(user));
+                      }
+                    }
+                } catch (err) {
+                    console.error('[authApi] exchangeOAuthCode error:', err);
+                }
             },
+            // Transform the response so the hook can access isNewUser
+            transformResponse: (response: any) => response,
         }),
 
         // ── Google OAuth (Flow 1B — native ID token) ─────────────────────────

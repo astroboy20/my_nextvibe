@@ -9,6 +9,7 @@ export interface PostcardMediaItem {
   id?: string;
   mediaUrl?: string | null;
   mediaType?: string | null;
+  thumbnailUrl?: string | null;
   vibeTagOverlayUrl?: string | null;
 }
 
