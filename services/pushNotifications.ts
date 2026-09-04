@@ -56,6 +56,9 @@ function isPushSupported(): boolean {
  * Android < 13: granted at install time, nothing to request.
  */
 export async function requestPushPermission(): Promise<boolean> {
+  // Push notifications disabled on iOS temporarily
+  if (Platform.OS === 'ios') return false;
+
   if (Platform.OS === 'android') {
     if (Number(Platform.Version) < 33) return true;
 

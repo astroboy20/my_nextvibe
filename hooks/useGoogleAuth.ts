@@ -1,12 +1,8 @@
 /**
  * useGoogleAuth — Flow 1A (hosted redirect)
  *
- * Per MOBILE-INTEGRATION.md §1A:
- *   1. Opens GET /v1/auth/oauth/google/start?redirect=nextvibe://auth
- *      in a system browser via expo-web-browser (NOT Linking.openURL)
- *   2. Server handles Google OAuth, redirects back to nextvibe://auth?code=<one-time-code>
- *   3. App exchanges the code at POST /v1/auth/oauth/exchange
- *   4. Tokens + user are persisted; Redux is updated; AuthGate routes accordingly
+ * source = "login"    → on success, navigate to /(tabs)
+ * source = "register" → on success, navigate to /(auth)/onboarding/vibes
  *
  * The deep-link code is single-use and expires in 120s — never retry the exchange.
  * Parse callbacks with Linking.parse, not new URL() (RN URL polyfill is broken).
@@ -14,18 +10,23 @@
 
 import { useExchangeOAuthCodeMutation } from "@/store/api/authApi";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import Toast from "react-native-toast-message";
 
-const API_URL  = process.env.EXPO_PUBLIC_API_URL ?? "https://nextvibe-nest-backend-1b4o.onrender.com";
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://nextvibe-nest-backend-1b4o.onrender.com";
 
-// Use a redirect that won't cause navigation - just return to the app root
-const REDIRECT = "mynextvibe://";   // Root redirect, not a specific route
+// Each flow has its own redirect URI so the server can route callbacks correctly
+const REDIRECTS: Record<"login" | "register", string> = {
+  login:    "mynextvibe://auth/login",
+  register: "mynextvibe://auth/register",
+};
 
-export function useGoogleAuth() {
+export function useGoogleAuth(source: "login" | "register" = "login") {
   const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const [exchangeCode] = useExchangeOAuthCodeMutation();
 
@@ -35,11 +36,11 @@ export function useGoogleAuth() {
 
     try {
       // ── Step 1: open system browser → Google consent screen ──────────────
-      const startUrl = `${API_URL}/v1/auth/oauth/google/start?redirect=${encodeURIComponent(REDIRECT)}`;
+      const redirect = REDIRECTS[source];
+      const startUrl = `${API_URL}/v1/auth/oauth/google/start?redirect=${encodeURIComponent(redirect)}`;
 
-      const result = await WebBrowser.openAuthSessionAsync(startUrl, REDIRECT);
+      const result = await WebBrowser.openAuthSessionAsync(startUrl, redirect);
 
-      // User tapped "Done" / dismissed — not an error
       if (result.type === "cancel" || result.type === "dismiss") {
         setLoading(false);
         return;
@@ -54,11 +55,10 @@ export function useGoogleAuth() {
       const parsed = Linking.parse(result.url);
       const params = parsed.queryParams as Record<string, string> ?? {};
 
-      // Handle error params delivered on the deep link
       if (params.error) {
         if (params.error === "access_denied") {
           setLoading(false);
-          return; // user backed out — no UI
+          return;
         }
         const msg =
           params.error === "auth_failed"
@@ -79,32 +79,19 @@ export function useGoogleAuth() {
 
       // ── Step 3: exchange one-time code for NextVibe tokens ────────────────
       // Single-use, 120s TTL — never retry this call
-      const response = await exchangeCode({ code }).unwrap();
-      // console.log('[useGoogleAuth] Exchange success, response:', JSON.stringify(response, null, 2));
-      // onQueryStarted in authApi persists tokens + dispatches setUser/setNewUser
-      // AuthGate reacts to Redux state and routes to /(tabs) or /(auth)/onboarding
-      
-      // Show success toast
-      const isNewUser = response?.data?.isNewUser ?? response?.isNewUser ?? false;
-      // console.log('[useGoogleAuth] isNewUser =', isNewUser);
-      if (isNewUser) {
-        Toast.show({ 
-          type: "success", 
-          text1: "Account created! 🎉", 
-          text2: "Welcome to NextVibe", 
-          visibilityTime: 2500 
-        });
+      await exchangeCode({ code }).unwrap();
+
+      // ── Step 4: route based on which screen triggered this ────────────────
+      if (source === "register") {
+        Toast.show({ type: "success", text1: "Account created! 🎉", text2: "Welcome to NextVibe", visibilityTime: 2500 });
+        router.replace("/(auth)/onboarding/vibes" as any);
       } else {
-        Toast.show({ 
-          type: "success", 
-          text1: "Welcome back! 🎉", 
-          text2: "You're logged in", 
-          visibilityTime: 2500 
-        });
+        Toast.show({ type: "success", text1: "Welcome back! 🎉", text2: "You're logged in", visibilityTime: 2500 });
+        router.replace("/(tabs)");
       }
 
     } catch (err: any) {
-      const status  = err?.status ?? err?.originalStatus;
+      const status = err?.status ?? err?.originalStatus;
       const message = err?.data?.message ?? "";
 
       let msg = "Could not sign in with Google. Please try again.";

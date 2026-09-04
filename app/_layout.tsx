@@ -34,6 +34,8 @@ function ThemedStack() {
     >
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="auth/login" options={{ headerShown: false, presentation: "transparentModal", animation: "none" }} />
+      <Stack.Screen name="auth/register" options={{ headerShown: false, presentation: "transparentModal", animation: "none" }} />
       <Stack.Screen name="create" />
       <Stack.Screen name="edit-profile" />
       <Stack.Screen name="dashboard" />
@@ -76,9 +78,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const isBootstrapped = useSelector((s: RootState) => s.auth.isBootstrapped);
-  const isNewUser = useSelector((s: RootState) => s.auth.isNewUser);
 
-  // Track navigation to prevent duplicate redirects
   const navigationInProgress = useRef(false);
   const lastRoute = useRef<string | null>(null);
 
@@ -86,37 +86,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!isBootstrapped) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const inOnboarding =
-      segments[0] === "(auth)" && segments[1] === "onboarding";
-
-    console.log('[AuthGate] segments=', segments, 'isAuth=', isAuthenticated, 'isNew=', isNewUser, 'inAuthGroup=', inAuthGroup, 'inOnboarding=', inOnboarding);
 
     let targetRoute: string | null = null;
 
-    // Determine target route based on auth state
-    if (isAuthenticated && isNewUser && !inOnboarding) {
-      targetRoute = "/(auth)/onboarding";
-    } else if (isAuthenticated && !isNewUser && inAuthGroup) {
-      targetRoute = "/(tabs)";
+    if (isAuthenticated && inAuthGroup) {
+      // Authenticated user landed in auth screens (e.g. after bootstrap) — go to tabs
+      // But don't redirect if they're in onboarding — that's intentional
+      const inOnboarding = segments[1] === "onboarding";
+      if (!inOnboarding) targetRoute = "/(tabs)";
     } else if (!isAuthenticated && !inAuthGroup) {
       targetRoute = "/(auth)/login";
     }
 
-    // Only navigate if we have a target and it's different from last navigation
     if (targetRoute && targetRoute !== lastRoute.current && !navigationInProgress.current) {
       navigationInProgress.current = true;
       lastRoute.current = targetRoute;
-      
-      console.log('[AuthGate] Navigating to:', targetRoute);
-      
       router.replace(targetRoute as any);
-      
-      // Reset navigation lock after a short delay
-      setTimeout(() => {
-        navigationInProgress.current = false;
-      }, 100);
+      setTimeout(() => { navigationInProgress.current = false; }, 100);
     }
-  }, [isAuthenticated, isBootstrapped, isNewUser, segments, router]);
+  }, [isAuthenticated, isBootstrapped, segments, router]);
 
   // ── Register push token on sign-in ───────────────────────────────────────
   const pushRef = useRef<boolean | null>(null);

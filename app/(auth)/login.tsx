@@ -28,6 +28,7 @@ const SCREEN_HEIGHT = Dimensions.get("screen").height;
 
 export default function LoginScreen() {
   const colors = Colors.light;
+  const router = useRouter();
 
   // Flow 1A — hosted redirect via expo-web-browser, no native SDK needed
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
@@ -59,9 +60,8 @@ export default function LoginScreen() {
     if (!validate()) return;
     try {
       await login({ email: email.trim(), password }).unwrap();
-      // onQueryStarted persists tokens + dispatches setUser
-      // AuthGate reacts and replaces route to /(tabs)
       Toast.show({ type: "success", text1: "Welcome back! 🎉", text2: "You're logged in", visibilityTime: 2500 });
+      router.replace("/(tabs)");
     } catch (err: any) {
       const msg = err?.data?.message ?? err?.error ?? "Login failed. Please check your credentials.";
       Toast.show({ type: "error", text1: "Login failed", text2: msg, visibilityTime: 3500 });

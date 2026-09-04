@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "678250904928",
+    "project_id": "nextvibe-b9e1c",
+    "storage_bucket": "nextvibe-b9e1c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:678250904928:android:3acd23d4537f570ad73205",
+        "android_client_info": {
+          "package_name": "com.nextvibe2026.nextvibe"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC5ZzcR-aQuYKSLSm-kxeSaPvue5N_ESB8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

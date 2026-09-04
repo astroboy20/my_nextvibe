@@ -1,5 +1,11 @@
-import { layout, radius, space } from '@/constants/Spacing';
-import { ActivityIndicator, Image, Platform, Text, TouchableOpacity } from 'react-native';
+import { layout, radius, space } from "@/constants/Spacing";
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 
 // ─── PrimaryButton ────────────────────────────────────────────────────────────
 // Uses TouchableOpacity — the most reliable cross-platform pressable component.
@@ -31,19 +37,19 @@ export function PrimaryButton({
       accessibilityRole="button"
       style={{
         height: layout.buttonHeight,
-        width: '100%',
+        width: "100%",
         borderRadius: radius.lg,
         backgroundColor,
         marginTop: marginTop ?? 0,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         // iOS shadow
-        shadowColor: '#5B1A57',
+        shadowColor: "#5B1A57",
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.25,
         shadowRadius: 6,
         // Android — keep elevation low to avoid distortion with borderRadius
-        elevation: Platform.OS === 'android' ? 3 : 0,
+        elevation: Platform.OS === "android" ? 3 : 0,
       }}
     >
       {loading ? (
@@ -51,10 +57,10 @@ export function PrimaryButton({
       ) : (
         <Text
           style={{
-            fontFamily: 'NunitoSans_600SemiBold',
+            fontFamily: "NunitoSans_600SemiBold",
             fontSize: 15,
-            color: '#fff',
-            textAlign: 'center',
+            color: "#fff",
+            textAlign: "center",
             includeFontPadding: false,
           }}
         >
@@ -86,15 +92,15 @@ export function GoogleFallbackButton({
       accessibilityRole="button"
       style={{
         height: layout.buttonHeight,
-        width: '100%',
+        width: "100%",
         borderRadius: radius.lg,
         borderWidth: 1.5,
         borderColor: colors.border,
         backgroundColor: colors.surface,
-        marginBottom: space['2xl'],
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        marginBottom: space["2xl"],
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
       {loading ? (
@@ -102,13 +108,13 @@ export function GoogleFallbackButton({
       ) : (
         <>
           <Image
-            source={require('@/assets/images/google-logo.png')}
+            source={require("@/assets/images/google-logo.png")}
             style={{ width: 20, height: 20, marginRight: 10 }}
             resizeMode="contain"
           />
           <Text
             style={{
-              fontFamily: 'NunitoSans_500Medium',
+              fontFamily: "NunitoSans_500Medium",
               fontSize: 15,
               color: colors.textSecondary,
               includeFontPadding: false,

@@ -6,6 +6,7 @@ import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { useRegisterMutation } from "@/store/api/authApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
 import { Link } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { type ReactNode, useState } from "react";
@@ -23,9 +24,10 @@ import Toast from "react-native-toast-message";
 
 export default function RegisterScreen() {
   const colors = Colors.light;
+  const router = useRouter();
 
   // Flow 1A — hosted redirect via expo-web-browser, no native SDK needed
-  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleAuth("register");
 
   const [register, { isLoading }] = useRegisterMutation();
 
@@ -60,9 +62,8 @@ export default function RegisterScreen() {
         displayName: displayName.trim(),
         username: username.trim(),
       }).unwrap();
-      // onQueryStarted persists tokens + dispatches setNewUser
-      // AuthGate routes to /(auth)/onboarding → vibes selection → /(tabs)
       Toast.show({ type: "success", text1: "Account created! 🎉", text2: "Welcome to NextVibe", visibilityTime: 2500 });
+      router.replace("/(auth)/onboarding/vibes" as any);
     } catch (err: any) {
       const msg = err?.data?.message ?? err?.error ?? "Registration failed. Please try again.";
       Toast.show({ type: "error", text1: "Registration failed", text2: msg, visibilityTime: 3500 });
