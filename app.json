@@ -51,6 +51,7 @@
       [
         "expo-build-properties",
         {
+          "android": { "enableNewArch": false },
           "ios": { "useFrameworks": "static" }
         }
       ],
@@ -88,10 +89,7 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker",
-      "@react-native-firebase/app",
-      "@react-native-firebase/messaging",
-      "expo-build-properties"
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
