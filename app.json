@@ -50,6 +50,7 @@
       "expo-updates",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
+      "./plugins/withFirebaseMessagingManifest",
       [
         "expo-build-properties",
         {
