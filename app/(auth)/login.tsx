@@ -9,7 +9,7 @@ import { fontWeight, textStyles } from "@/constants/Typography";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { useLoginMutation } from "@/store/api/authApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { useState } from "react";
 import {
     Dimensions,

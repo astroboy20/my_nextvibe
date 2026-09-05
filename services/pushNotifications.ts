@@ -8,93 +8,73 @@
  *   - display a notification while the app is in the foreground
  *   - create the Android 'default' channel
  *
- * Rules (from MOBILE-PUSH-FCM.md):
- *   - Call registerForPush after sign-in with the user's access token
- *   - Call it on every app start — the backend endpoint upserts
- *   - Never use getDevicePushTokenAsync(): on iOS it returns a raw APNs token
- *     that FCM will not accept
- *   - Call unregisterPush BEFORE dropping the access token on sign-out
- *
- * Background message handler must live in the root index.js (see index.js),
- * not here, because this module is imported inside the component tree.
+ * All Firebase and expo-notifications imports are lazy (require inside
+ * functions) so this module is safe to import in Expo Go — the metro mock
+ * stubs out Firebase, and expo-notifications is only loaded when actually
+ * needed on a real device.
  */
 
 import { API_URL, tokenStore } from '@/store/baseQuery';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { PermissionsAndroid, Platform } from 'react-native';
 
-// Lazily imported so the module doesn't blow up on web / Expo Go
+// ── Lazy accessors ────────────────────────────────────────────────────────────
+
 function getMessaging() {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   return require('@react-native-firebase/messaging').default;
 }
 
+function getNotifications() {
+  return require('expo-notifications') as typeof import('expo-notifications');
+}
+
 // ── Expo Go / simulator guard ─────────────────────────────────────────────────
-// FCM requires a native dev/production build. Expo Go does not contain the
-// Firebase native code — any call to messaging() will throw.
 function isPushSupported(): boolean {
   if (!Device.isDevice) return false;
   try {
     const Constants = require('expo-constants').default;
     if (Constants.appOwnership === 'expo') return false;
   } catch {
-    // expo-constants not available — assume we're in a real build
+    // Not in Expo Go
   }
   return true;
 }
 
 // ── Permission ────────────────────────────────────────────────────────────────
 
-/**
- * Request push notification permission.
- *
- * iOS: messaging().requestPermission() shows the system prompt.
- * Android 13+ (API 33): needs POST_NOTIFICATIONS runtime permission.
- *   messaging().requestPermission() is a no-op on Android — always returns
- *   AUTHORIZED — so we must use PermissionsAndroid directly.
- * Android < 13: granted at install time, nothing to request.
- */
 export async function requestPushPermission(): Promise<boolean> {
-  // Push notifications disabled on iOS temporarily
-  if (Platform.OS === 'ios') return false;
+  if (Platform.OS === 'ios') {
+    const messaging = getMessaging();
+    const status = await messaging().requestPermission();
+    return (
+      status === messaging.AuthorizationStatus.AUTHORIZED ||
+      status === messaging.AuthorizationStatus.PROVISIONAL
+    );
+  }
 
   if (Platform.OS === 'android') {
+    // Below API 33, permission is granted at install time
     if (Number(Platform.Version) < 33) return true;
-
     const result = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
     );
     return result === PermissionsAndroid.RESULTS.GRANTED;
   }
 
-  const messaging = getMessaging();
-  const status = await messaging().requestPermission();
-  return (
-    status === messaging.AuthorizationStatus.AUTHORIZED ||
-    status === messaging.AuthorizationStatus.PROVISIONAL
-  );
+  return false;
 }
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-/**
- * Ask for permission, get an FCM registration token, create the Android
- * 'default' channel, POST the token to the backend, and persist it in
- * SecureStore so logout can unregister it.
- *
- * Safe to call on every app start — the backend endpoint upserts.
- * Returns the FCM token string, or null when push is unavailable / denied.
- */
 export async function registerForPush(accessToken: string): Promise<string | null> {
   if (!isPushSupported()) return null;
 
   const granted = await requestPushPermission();
   if (!granted) return null;
 
-  // Android requires a notification channel. The backend sends channelId
-  // 'default', so this id must match exactly.
+  // Android requires a notification channel matching the backend's channelId
   if (Platform.OS === 'android') {
+    const Notifications = getNotifications();
     await Notifications.setNotificationChannelAsync('default', {
       name:       'Default',
       importance: Notifications.AndroidImportance.DEFAULT,
@@ -116,19 +96,12 @@ export async function registerForPush(accessToken: string): Promise<string | nul
     }),
   });
 
-  // Persist so unregisterPush can find it without calling getToken() again
   await tokenStore.set('fcmToken', token);
-
   return token;
 }
 
 // ── Unregister ────────────────────────────────────────────────────────────────
 
-/**
- * Delete the FCM token from the backend and clear it from SecureStore.
- * Must be called BEFORE the access token is discarded — it's an authenticated
- * route that only deletes rows belonging to the calling user.
- */
 export async function unregisterPush(accessToken: string): Promise<void> {
   const token = await tokenStore.get('fcmToken');
   if (!token) return;
@@ -147,7 +120,7 @@ export async function unregisterPush(accessToken: string): Promise<void> {
   }
 }
 
-// ── Notification data types ───────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type NotificationType =
   | 'FOLLOW' | 'LIKE' | 'COMMENT' | 'TAG' | 'RSVP'
