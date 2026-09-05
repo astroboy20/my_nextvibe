@@ -1,108 +1,109 @@
 /**
  * useGoogleAuth — Flow 1A (hosted redirect)
  *
- * source = "login"    → on success, navigate to /(tabs)
- * source = "register" → on success, navigate to /(auth)/onboarding/vibes
+ * Responsibilities:
+ * 1. Open the system browser to start Google OAuth
+ * 2. Parse the deep-link callback and extract the code
+ * 3. Dispatch the RTK exchangeOAuthCode mutation
  *
- * The deep-link code is single-use and expires in 120s — never retry the exchange.
- * Parse callbacks with Linking.parse, not new URL() (RN URL polyfill is broken).
+ * Navigation is NOT handled here. The flow is:
+ * - onQueryStarted in authApi sets oauthPending=true immediately
+ * - On success it dispatches setUser/setNewUser (which sets oauthPending=false)
+ * - AuthGate in _layout.tsx watches oauthPending + isAuthenticated + isNewUser
+ *   and routes to the correct screen once the exchange completes
+ * - On failure, oauthPending=false and the user stays on the auth screen
+ *
+ * This means there is no race between navigation and Redux state updates.
  */
 
 import { useExchangeOAuthCodeMutation } from "@/store/api/authApi";
+import { useAppDispatch } from "@/store/hooks";
+import { setOAuthPending } from "@/store/slices/authSlice";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import Toast from "react-native-toast-message";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://nextvibe-nest-backend-1b4o.onrender.com";
 
-// Each flow has its own redirect URI so the server can route callbacks correctly
 const REDIRECTS: Record<"login" | "register", string> = {
   login:    "mynextvibe://auth/login",
   register: "mynextvibe://auth/register",
 };
 
 export function useGoogleAuth(source: "login" | "register" = "login") {
-  const [loading, setLoading] = useState(false);
+  const [browserLoading, setBrowserLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const dispatch = useAppDispatch();
 
-  const [exchangeCode] = useExchangeOAuthCodeMutation();
+  const [exchangeCode, { isLoading: isExchanging }] = useExchangeOAuthCodeMutation();
+
+  // Combined loading: browser open OR exchange in flight
+  const loading = browserLoading || isExchanging;
 
   async function signInWithGoogle() {
     setError(null);
-    setLoading(true);
+    setBrowserLoading(true);
 
     try {
-      // ── Step 1: open system browser → Google consent screen ──────────────
       const redirect = REDIRECTS[source];
       const startUrl = `${API_URL}/v1/auth/oauth/google/start?redirect=${encodeURIComponent(redirect)}`;
 
       const result = await WebBrowser.openAuthSessionAsync(startUrl, redirect);
+      setBrowserLoading(false);
 
-      if (result.type === "cancel" || result.type === "dismiss") {
-        setLoading(false);
-        return;
-      }
-      if (result.type !== "success") {
-        setLoading(false);
-        return;
-      }
+      if (result.type === "cancel" || result.type === "dismiss") return;
+      if (result.type !== "success") return;
 
-      // ── Step 2: parse the deep-link callback ──────────────────────────────
-      // Use Linking.parse — RN's URL polyfill doesn't implement searchParams
+      // ── Parse the deep-link callback ──────────────────────────────────────
       const parsed = Linking.parse(result.url);
-      const params = parsed.queryParams as Record<string, string> ?? {};
+      const params = (parsed.queryParams ?? {}) as Record<string, string>;
 
       if (params.error) {
-        if (params.error === "access_denied") {
-          setLoading(false);
-          return;
-        }
-        const msg =
-          params.error === "auth_failed"
+        if (params.error !== "access_denied") {
+          const msg = params.error === "auth_failed"
             ? "Google sign-in failed. Please try again."
             : "Google sign-in was interrupted. Please try again.";
-        setError(msg);
-        Toast.show({ type: "error", text1: "Google Sign-In failed", text2: msg, visibilityTime: 3500 });
-        setLoading(false);
+          setError(msg);
+          Toast.show({ type: "error", text1: "Google Sign-In failed", text2: msg, visibilityTime: 3500 });
+        }
         return;
       }
 
-      const code = params.code;
-      if (!code) {
+      if (!params.code) {
         setError("Google sign-in failed: no code returned.");
-        setLoading(false);
         return;
       }
 
-      // ── Step 3: exchange one-time code for NextVibe tokens ────────────────
-      // Single-use, 120s TTL — never retry this call
-      await exchangeCode({ code }).unwrap();
+      // ── Exchange code via RTK mutation ────────────────────────────────────
+      // onQueryStarted in authApi.ts:
+      //   - immediately sets oauthPending=true (blocks AuthGate routing)
+      //   - on success: persists tokens, dispatches setUser/setNewUser,
+      //     sets oauthPending=false → AuthGate routes to correct screen
+      //   - on failure: sets oauthPending=false → stays on auth screen
+      await exchangeCode({ code: params.code }).unwrap();
 
-      // ── Step 4: route based on which screen triggered this ────────────────
-      if (source === "register") {
-        Toast.show({ type: "success", text1: "Account created! 🎉", text2: "Welcome to NextVibe", visibilityTime: 2500 });
-        router.replace("/(auth)/onboarding/vibes" as any);
-      } else {
-        Toast.show({ type: "success", text1: "Welcome back! 🎉", text2: "You're logged in", visibilityTime: 2500 });
-        router.replace("/(tabs)");
-      }
+      // Toast only — no router.replace() here, AuthGate handles navigation
+      Toast.show({
+        type: "success",
+        text1: source === "register" ? "Account created! 🎉" : "Welcome back! 🎉",
+        text2: source === "register" ? "Welcome to NextVibe" : "You're logged in",
+        visibilityTime: 2500,
+      });
 
     } catch (err: any) {
-      const status = err?.status ?? err?.originalStatus;
+      // exchangeCode threw — oauthPending already cleared in onQueryStarted catch
+      dispatch(setOAuthPending(false));
+      const status  = err?.status ?? err?.originalStatus;
       const message = err?.data?.message ?? "";
 
       let msg = "Could not sign in with Google. Please try again.";
-      if (status === 401) msg = "Google sign-in expired or was already used. Please try again.";
-      if (status === 429) msg = "Too many attempts. Please wait a moment and try again.";
+      if (status === 401) msg = "Sign-in link expired or already used. Please try again.";
+      if (status === 429) msg = "Too many attempts. Please wait a moment.";
       if (message.includes("not allowed")) msg = "Redirect not configured. Contact support.";
 
       setError(msg);
       Toast.show({ type: "error", text1: "Google Sign-In failed", text2: msg, visibilityTime: 3500 });
-    } finally {
-      setLoading(false);
     }
   }
 

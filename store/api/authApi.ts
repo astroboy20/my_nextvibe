@@ -2,7 +2,7 @@ import { unregisterPush } from "@/services/pushNotifications";
 import { createApi } from "@reduxjs/toolkit/query/react";
 import { API_URL, tokenStore } from "../baseQuery";
 import { resetAllApiCaches } from "../resetCaches";
-import { clearAuth, setNewUser, setUser } from "../slices/authSlice";
+import { clearAuth, setNewUser, setOAuthPending, setUser } from "../slices/authSlice";
 import { baseQueryWithReauth } from "./baseQuery";
 
 // ─── AuthUser ─────────────────────────────────────────────────────────────────
@@ -61,28 +61,31 @@ export const authApi = createApi({
                 return { url: "/v1/auth/oauth/exchange", method: "POST", body };
             },
             async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+                // Block AuthGate from routing while exchange is in flight
+                dispatch(setOAuthPending(true));
                 try {
                     const { data } = await queryFulfilled;
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
                     resetAllApiCaches(dispatch);
-                    
-                    // Check multiple possible locations for isNewUser flag
+
                     const isNew = data?.data?.isNewUser ?? data?.isNewUser ?? data?.user?.isNewUser ?? false;
-                    
+
                     if (user) {
                       if (isNew) {
-                        dispatch(setNewUser(user));
+                        dispatch(setNewUser(user)); // clears oauthPending
                       } else {
-                        dispatch(setUser(user));
+                        dispatch(setUser(user));    // clears oauthPending
                       }
+                    } else {
+                      dispatch(setOAuthPending(false));
                     }
                 } catch (err) {
                     console.error('[authApi] exchangeOAuthCode error:', err);
+                    dispatch(setOAuthPending(false));
                 }
             },
-            // Transform the response so the hook can access isNewUser
             transformResponse: (response: any) => response,
         }),
 

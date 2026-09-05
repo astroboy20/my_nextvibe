@@ -33,6 +33,8 @@ interface AuthState {
   isNewUser: boolean;
   /** Bootstrap error for retry logic */
   bootstrapError: string | null;
+  /** OAuth exchange in progress — show loading screen, block AuthGate routing */
+  oauthPending: boolean;
 }
 
 const initialState: AuthState = {
@@ -41,6 +43,7 @@ const initialState: AuthState = {
   isAuthenticated: false,
   isNewUser:       false,
   bootstrapError:  null,
+  oauthPending:    false,
 };
 
 // ── Bootstrap thunk ───────────────────────────────────────────────────────────
@@ -135,6 +138,7 @@ const authSlice = createSlice({
       state.user            = action.payload;
       state.isAuthenticated = true;
       state.bootstrapError  = null;
+      state.oauthPending    = false;
     },
     /** Call after a successful registration — marks user as new for onboarding */
     setNewUser(state, action: PayloadAction<AuthUser>) {
@@ -142,6 +146,7 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.isNewUser       = true;
       state.bootstrapError  = null;
+      state.oauthPending    = false;
     },
     /** Clear the new-user flag once onboarding is complete */
     clearNewUser(state) {
@@ -153,10 +158,15 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.isNewUser       = false;
       state.bootstrapError  = null;
+      state.oauthPending    = false;
     },
     /** Retry bootstrap after network failure */
     retryBootstrap(state) {
       state.bootstrapError = null;
+    },
+    /** Mark OAuth exchange as in-progress — blocks AuthGate from routing */
+    setOAuthPending(state, action: PayloadAction<boolean>) {
+      state.oauthPending = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -175,5 +185,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setUser, setNewUser, clearNewUser, clearAuth, retryBootstrap } = authSlice.actions;
+export const { setUser, setNewUser, clearNewUser, clearAuth, retryBootstrap, setOAuthPending } = authSlice.actions;
 export default authSlice.reducer;

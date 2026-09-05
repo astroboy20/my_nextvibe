@@ -1,30 +1,26 @@
 'use strict';
 /**
- * firebase-mock.js
- *
- * No-op stub for @react-native-firebase/* when running in Expo Go.
- * All methods are safe no-ops — Firebase features simply don't work in Expo Go,
- * but the app won't crash.
+ * No-op stub for @react-native-firebase/messaging (v26 modular API).
+ * Matches the named export shape: getMessaging, getToken, onMessage, etc.
  */
 const noop = () => {};
 const noopAsync = async () => {};
-const noopUnsubscribe = () => noop;
+const noopUnsub = () => () => {};
 
-const messagingStub = {
-  setBackgroundMessageHandler: noop,
-  onMessage: noopUnsubscribe,
-  onNotificationOpenedApp: noopUnsubscribe,
-  getInitialNotification: noopAsync,
-  requestPermission: async () => 1,
-  getToken: async () => null,
-  onTokenRefresh: noopUnsubscribe,
+const messagingInstance = {};
+
+module.exports = {
+  getMessaging:                   () => messagingInstance,
+  getToken:                       noopAsync,
+  deleteToken:                    noopAsync,
+  onMessage:                      noopUnsub,
+  onNotificationOpenedApp:        noopUnsub,
+  onTokenRefresh:                 noopUnsub,
+  getInitialNotification:         noopAsync,
+  requestPermission:              async () => 1,
+  setBackgroundMessageHandler:    noop,
+  isDeviceRegisteredForRemoteMessages: noopAsync,
+  registerDeviceForRemoteMessages: noopAsync,
+  isSupported:                    async () => false,
   AuthorizationStatus: { AUTHORIZED: 1, PROVISIONAL: 2, NOT_DETERMINED: -1, DENIED: 0 },
 };
-
-const appStub = {
-  messaging: () => messagingStub,
-};
-
-module.exports = () => messagingStub;
-module.exports.default = () => messagingStub;
-module.exports.messaging = () => messagingStub;

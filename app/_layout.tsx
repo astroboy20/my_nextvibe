@@ -1,5 +1,6 @@
 import SplashScreenView from "@/components/SplashScreenView";
 import { useColorScheme } from "@/components/useColorScheme";
+import Colors from "@/constants/Colors";
 import { registerForPush } from "@/services/pushNotifications";
 import { tokenStore } from "@/store/baseQuery";
 import { bootstrapAuth } from "@/store/slices/authSlice";
@@ -12,7 +13,7 @@ import * as Notifications from "expo-notifications";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { Provider, useSelector } from "react-redux";
@@ -77,24 +78,30 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
-  const isBootstrapped = useSelector((s: RootState) => s.auth.isBootstrapped);
+  const isBootstrapped  = useSelector((s: RootState) => s.auth.isBootstrapped);
+  const isNewUser       = useSelector((s: RootState) => s.auth.isNewUser);
+  const oauthPending    = useSelector((s: RootState) => s.auth.oauthPending);
 
   const navigationInProgress = useRef(false);
   const lastRoute = useRef<string | null>(null);
+  const pushRef = useRef<boolean | null>(null);
+  const shownIds = useRef<Set<string>>(new Set());
 
+  // ── Routing ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isBootstrapped) return;
+    if (!isBootstrapped || oauthPending) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
+    const inAuthGroup  = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "(auth)" && segments[1] === "onboarding";
+    const inOAuthCb    = segments[0] === "auth";
 
     let targetRoute: string | null = null;
 
-    if (isAuthenticated && inAuthGroup) {
-      // Authenticated user landed in auth screens (e.g. after bootstrap) — go to tabs
-      // But don't redirect if they're in onboarding — that's intentional
-      const inOnboarding = segments[1] === "onboarding";
-      if (!inOnboarding) targetRoute = "/(tabs)";
-    } else if (!isAuthenticated && !inAuthGroup) {
+    if (isAuthenticated && isNewUser && !inOnboarding) {
+      targetRoute = "/(auth)/onboarding/vibes";
+    } else if (isAuthenticated && !isNewUser && (inAuthGroup || inOAuthCb)) {
+      targetRoute = "/(tabs)";
+    } else if (!isAuthenticated && !inAuthGroup && !inOAuthCb) {
       targetRoute = "/(auth)/login";
     }
 
@@ -104,139 +111,99 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace(targetRoute as any);
       setTimeout(() => { navigationInProgress.current = false; }, 100);
     }
-  }, [isAuthenticated, isBootstrapped, segments, router]);
+  }, [isAuthenticated, isBootstrapped, isNewUser, oauthPending, segments, router]);
 
   // ── Register push token on sign-in ───────────────────────────────────────
-  const pushRef = useRef<boolean | null>(null);
   useEffect(() => {
     if (!isBootstrapped) return;
-    if (!isAuthenticated) {
-      pushRef.current = false;
-      return;
-    }
+    if (!isAuthenticated) { pushRef.current = false; return; }
     if (pushRef.current === isAuthenticated) return;
     pushRef.current = isAuthenticated;
-
     (async () => {
       try {
         const accessToken = await tokenStore.get("accessToken");
         if (!accessToken) return;
         await registerForPush(accessToken);
-      } catch {
-        // Push failure must never crash the app
-      }
+      } catch { /* push failure must never crash the app */ }
     })();
   }, [isAuthenticated, isBootstrapped]);
 
   // ── FCM token refresh ─────────────────────────────────────────────────────
-  // FCM rotates tokens on its own schedule. Without this handler, push
-  // silently stops for that device until the next cold start.
   useEffect(() => {
     if (!isAuthenticated || !Device.isDevice) return;
-
-    let messaging: any;
+    let unsub: (() => void) | undefined;
     try {
-      messaging = require("@react-native-firebase/messaging").default;
-    } catch {
-      return;
-    }
-
-    const unsubscribe = messaging().onTokenRefresh(async (token: string) => {
-      try {
-        const accessToken = await tokenStore.get("accessToken");
-        if (!accessToken) return;
-        await fetch(
-          `${process.env.EXPO_PUBLIC_API_URL}/v1/notifications/devices`,
-          {
+      const { getMessaging, onTokenRefresh } = require("@react-native-firebase/messaging");
+      unsub = onTokenRefresh(getMessaging(), async (token: string) => {
+        try {
+          const accessToken = await tokenStore.get("accessToken");
+          if (!accessToken) return;
+          await fetch(`${process.env.EXPO_PUBLIC_API_URL}/v1/notifications/devices`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({
-              token,
-              platform: Platform.OS === "ios" ? "IOS" : "ANDROID",
-            }),
-          }
-        );
-        // Update SecureStore with the new token so unregisterPush works
-        await tokenStore.set("fcmToken", token);
-      } catch {
-        // Token refresh failure is non-fatal
-      }
-    });
-
-    return unsubscribe;
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ token, platform: Platform.OS === "ios" ? "IOS" : "ANDROID" }),
+          });
+          await tokenStore.set("fcmToken", token);
+        } catch { /* non-fatal */ }
+      });
+    } catch { return; }
+    return () => unsub?.();
   }, [isAuthenticated]);
 
   // ── FCM foreground message handler ───────────────────────────────────────
-  // FCM does NOT show a tray notification while the app is in the foreground.
-  // We display one via expo-notifications so the user sees it regardless.
-  // Dedupe on notificationId — the WebSocket gateway delivers the same event.
-  const shownIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!isAuthenticated || !Device.isDevice) return;
-
-    let messaging: any;
+    let unsub: (() => void) | undefined;
     try {
-      messaging = require("@react-native-firebase/messaging").default;
-    } catch {
-      return;
-    }
-
-    const unsubscribe = messaging().onMessage(async (remoteMessage: any) => {
-      const { notificationId } = remoteMessage.data ?? {};
-
-      // Drop the duplicate that the WebSocket gateway already showed
-      if (notificationId && shownIds.current.has(notificationId)) return;
-      if (notificationId) shownIds.current.add(notificationId);
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: remoteMessage.notification?.title ?? "NextVibe",
-          body: remoteMessage.notification?.body ?? "",
-          data: remoteMessage.data,
-        },
-        trigger: null, // show immediately
+      const { getMessaging, onMessage } = require("@react-native-firebase/messaging");
+      unsub = onMessage(getMessaging(), async (remoteMessage: any) => {
+        const { notificationId } = remoteMessage.data ?? {};
+        if (notificationId && shownIds.current.has(notificationId)) return;
+        if (notificationId) shownIds.current.add(notificationId);
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: remoteMessage.notification?.title ?? "NextVibe",
+            body: remoteMessage.notification?.body ?? "",
+            data: remoteMessage.data,
+          },
+          trigger: null,
+        });
       });
-    });
-
-    return unsubscribe;
+    } catch { return; }
+    return () => unsub?.();
   }, [isAuthenticated]);
 
   // ── Deep-link on notification tap — backgrounded app ─────────────────────
   useEffect(() => {
-    let messaging: any;
+    let unsub: (() => void) | undefined;
     try {
-      messaging = require("@react-native-firebase/messaging").default;
-    } catch {
-      return;
-    }
-
-    const unsubscribe = messaging().onNotificationOpenedApp(
-      (remoteMessage: any) => {
+      const { getMessaging, onNotificationOpenedApp } = require("@react-native-firebase/messaging");
+      unsub = onNotificationOpenedApp(getMessaging(), (remoteMessage: any) => {
         routeTo(remoteMessage.data, router);
-      }
-    );
-    return unsubscribe;
+      });
+    } catch { return; }
+    return () => unsub?.();
   }, [router]);
 
   // ── Deep-link on notification tap — app was fully quit ───────────────────
   useEffect(() => {
-    let messaging: any;
     try {
-      messaging = require("@react-native-firebase/messaging").default;
-    } catch {
-      return;
-    }
-
-    messaging()
-      .getInitialNotification()
-      .then((remoteMessage: any) => {
+      const { getMessaging, getInitialNotification } = require("@react-native-firebase/messaging");
+      getInitialNotification(getMessaging()).then((remoteMessage: any) => {
         if (remoteMessage) routeTo(remoteMessage.data, router);
       });
+    } catch { /* non-fatal */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── OAuth loading overlay — must be after all hooks ───────────────────────
+  if (oauthPending) {
+    return (
+      <View style={[styles.oauthOverlay, { backgroundColor: Colors.light.background }]}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+      </View>
+    );
+  }
 
   return <>{children}</>;
 }
@@ -304,3 +271,11 @@ function SplashScreenWrapper({
     />
   );
 }
+
+const styles = StyleSheet.create({
+  oauthOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
