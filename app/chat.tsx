@@ -25,7 +25,7 @@ import {
     useGetConversationsQuery,
     useGetMessagesQuery,
     useStartConversationMutation,
-    type Message,
+    type Message
 } from "@/store/api/messagingApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -137,6 +137,14 @@ export default function ChatScreen() {
 
   const { data: convsData } = useGetConversationsQuery();
   const [startConversation] = useStartConversationMutation();
+  const [markRead] = useMarkConversationReadMutation();
+
+  // Mark conversation as read whenever it becomes active
+  useEffect(() => {
+    if (conversationId) {
+      markRead(conversationId).catch(() => {});
+    }
+  }, [conversationId, markRead]);
 
   useEffect(() => {
     if (!id) return;

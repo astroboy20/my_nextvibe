@@ -191,7 +191,7 @@ export default function PostcardCard({ item, onPress }: Props) {
                 <Image
                   source={{ uri: thumbnailUrl }}
                   style={styles.media}
-                  contentFit="cover"
+                  contentFit="contain"
                   cachePolicy="memory-disk"
                 />
                 <View style={styles.playOverlay}>
@@ -216,7 +216,7 @@ export default function PostcardCard({ item, onPress }: Props) {
             <Image
               source={{ uri: mediaUrl }}
               style={styles.media}
-              contentFit="cover"
+              contentFit="contain"
               cachePolicy="memory-disk"
             />
           )
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   authorHandle: { fontFamily: fontFamily.regular,  fontSize: 11,           color: neutral[500] },
   time:         { fontFamily: fontFamily.regular,  fontSize: 11,           color: neutral[400] },
 
-  mediaWrap:    { width: '100%', aspectRatio: 1, backgroundColor: neutral[100] },
+  mediaWrap:    { width: '100%', aspectRatio: 4/5, backgroundColor: '#111' },
   media:        { width: '100%', height: '100%' },
   mediaFallback:{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: neutral[100] },
   videoThumb:   { width: '100%', height: '100%', backgroundColor: '#111' },

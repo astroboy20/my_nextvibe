@@ -82,6 +82,28 @@ export const messagingApi = createApi({
         { type: "Messages", id: `${eventId}-${section}` },
       ],
     }),
+
+    /** POST /v1/conversations/:id/messages — REST fallback for sending a DM */
+    sendMessage: build.mutation<{ success: boolean; data: Message }, { conversationId: string; body: string }>({
+      query: ({ conversationId, body }) => ({
+        url: `/v1/conversations/${conversationId}/messages`,
+        method: "POST",
+        body: { body },
+      }),
+      invalidatesTags: (_result, _err, { conversationId }) => [
+        { type: "Messages", id: conversationId },
+        "Conversations",
+      ],
+    }),
+
+    /** PATCH /v1/conversations/:id/read — mark all messages in conversation as read */
+    markConversationRead: build.mutation<void, string>({
+      query: (conversationId) => ({
+        url: `/v1/conversations/${conversationId}/read`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["Conversations"],
+    }),
   }),
 });
 
@@ -90,4 +112,6 @@ export const {
   useStartConversationMutation,
   useGetMessagesQuery,
   useGetEventChatQuery,
+  useSendMessageMutation,
+  useMarkConversationReadMutation,
 } = messagingApi;

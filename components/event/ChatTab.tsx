@@ -12,23 +12,23 @@ import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
-import { API_URL } from "@/store/baseQuery";
+import { API_URL, tokenStore } from "@/store/baseQuery";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
+import Toast from "react-native-toast-message";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -222,35 +222,54 @@ export default function ChatTab({ eventId }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const scrollRef = useRef<ScrollView>(null);
   const pendingRef = useRef<Map<string, string>>(new Map());
+
+  // ── Keyboard height tracking — works on both iOS and Android ─────────────
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Scroll to bottom so the last message stays visible above the keyboard
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // ── Socket — use shared hook ───────────────────────────────────────────────
   const { socketRef, isConnected } = useSocket("messaging", {
     enabled: !!eventId,
   });
 
-  // Join room on connect and when section changes
+  // Join the correct room whenever section changes or socket connects
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || !isConnected) return;
+    socket.emit("join:event-chat", {
+      eventId,
+      section: SECTION_KEY[section],
+    });
+  }, [eventId, section, isConnected, socketRef]);
+
+  // Listen for incoming messages (stable — only re-registers if eventId changes)
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
 
-    const join = () =>
-      socket.emit("join:event-chat", {
-        eventId,
-        section: SECTION_KEY[section],
-      });
-
-    socket.on("connect", join);
-    if (socket.connected) join();
-
     const handleMsg = (msg: ChatMessage) => {
       setMessages((prev) => {
-        // Dedupe
         if (msg.id && prev.some((m) => m.id === msg.id)) return prev;
-
-        // Replace optimistic bubble with real message
         const isMe = msg.sender?.id === user?.id || msg.senderId === user?.id;
         if (isMe) {
           const text = msgText(msg);
@@ -260,19 +279,15 @@ export default function ChatTab({ eventId }: Props) {
             return prev.map((m) => (m.id === optId ? msg : m));
           }
         }
-
-        // Append — messages are oldest→newest, newest at bottom
         return [...prev, msg];
       });
     };
 
     socket.on("new:event-chat", handleMsg);
-
     return () => {
-      socket.off("connect", join);
       socket.off("new:event-chat", handleMsg);
     };
-  }, [eventId, section, socketRef, user?.id]);
+  }, [eventId, socketRef, user?.id]);
 
   // ── History ────────────────────────────────────────────────────────────────
   const fetchHistory = useCallback(
@@ -282,7 +297,7 @@ export default function ChatTab({ eventId }: Props) {
       setMessages([]);
       pendingRef.current.clear();
       try {
-        const token = await AsyncStorage.getItem("accessToken");
+        const token = await tokenStore.get("accessToken");
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -356,11 +371,7 @@ export default function ChatTab({ eventId }: Props) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView
-      style={s.wrap}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
-    >
+    <View style={[s.wrap, { paddingBottom: keyboardHeight }]}>
       {/* Section tabs */}
       <View style={s.tabs}>
         {SECTIONS.map((sec) => {
@@ -460,7 +471,7 @@ export default function ChatTab({ eventId }: Props) {
           <Text style={s.signIn}>Sign in to join the conversation</Text>
         )}
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

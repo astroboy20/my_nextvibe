@@ -183,7 +183,7 @@ export default function NotificationsScreen() {
       await markOneRead(item.id).catch(() => {});
     }
     // Route on data fields per the integration guide
-    navigate(item, router);
+    // navigate(item, router);
   }, [markOneRead, router]);
 
   return (

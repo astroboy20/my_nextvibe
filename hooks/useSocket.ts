@@ -9,7 +9,6 @@
  *   const { socketRef, isConnected, status } = useSocket('messaging', { enabled: !!eventId });
  */
 import { API_URL } from '@/store/baseQuery';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
@@ -31,7 +30,7 @@ export function useSocket(
     let cancelled = false;
 
     const connect = async () => {
-      const token = await AsyncStorage.getItem('accessToken');
+      const token = await tokenStore.get('accessToken');
 
       // If component unmounted before token resolved, bail out
       if (cancelled) return;
