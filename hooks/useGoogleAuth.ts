@@ -75,12 +75,11 @@ export function useGoogleAuth(source: "login" | "register" = "login") {
         return;
       }
 
-      // ── Exchange code via RTK mutation ────────────────────────────────────
-      // onQueryStarted in authApi.ts:
-      //   - immediately sets oauthPending=true (blocks AuthGate routing)
-      //   - on success: persists tokens, dispatches setUser/setNewUser,
-      //     sets oauthPending=false → AuthGate routes to correct screen
-      //   - on failure: sets oauthPending=false → stays on auth screen
+      // Show spinner immediately — before the mutation fires
+      // This prevents any flicker from AuthGate reacting to stale state
+      dispatch(setOAuthPending(true));
+
+      // Exchange code via RTK mutation
       await exchangeCode({ code: params.code }).unwrap();
 
       // Toast only — no router.replace() here, AuthGate handles navigation

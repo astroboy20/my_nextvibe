@@ -86,10 +86,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const lastRoute = useRef<string | null>(null);
   const pushRef = useRef<boolean | null>(null);
   const shownIds = useRef<Set<string>>(new Set());
+  const prevOauthPending = useRef(false);
 
   // ── Routing ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isBootstrapped || oauthPending) return;
+
+    // If we just came out of oauthPending, reset lastRoute so the
+    // routing condition is guaranteed to fire regardless of prior navigation
+    if (prevOauthPending.current) {
+      lastRoute.current = null;
+      navigationInProgress.current = false;
+    }
+    prevOauthPending.current = oauthPending;
 
     const inAuthGroup  = segments[0] === "(auth)";
     const inOnboarding = segments[0] === "(auth)" && segments[1] === "onboarding";

@@ -36,10 +36,20 @@ export function useSocket(
       // If component unmounted before token resolved, bail out
       if (cancelled) return;
 
+      // No token — mark as error and skip connection (matches web behaviour)
+      if (!token) {
+        setStatus('error');
+        return;
+      }
+
+      console.log(`[socket/${namespace}] connecting to ${SOCKET_BASE}/${namespace}`);
+
       const url = `${SOCKET_BASE}/${namespace}`;
 
       socket = io(url, {
-        auth: token ? { token: `Bearer ${token}` } : undefined,
+        // Pass the raw token — backend expects "Bearer <token>" or raw depending
+        // on the auth middleware. Keep consistent with web version (raw token).
+        auth: { token },
         transports: ['websocket'],
         reconnection: true,
         reconnectionAttempts: 6,
@@ -50,18 +60,22 @@ export function useSocket(
       setStatus('connecting');
 
       socket.on('connect', () => {
+        console.log(`[socket/${namespace}] ✅ connected  id=${socket.id}`);
         if (!cancelled) setStatus('connected');
       });
 
-      socket.on('connect_error', () => {
+      socket.on('connect_error', (err) => {
+        console.error(`[socket/${namespace}] ❌ connect_error:`, err.message);
         if (!cancelled) setStatus('error');
       });
 
-      socket.on('disconnect', () => {
+      socket.on('disconnect', (reason) => {
+        console.warn(`[socket/${namespace}] 🔌 disconnected  reason=${reason}`);
         if (!cancelled) setStatus('disconnected');
       });
 
-      socket.on('reconnect', () => {
+      socket.on('reconnect', (attempt) => {
+        console.log(`[socket/${namespace}] 🔄 reconnected after ${attempt} attempt(s)`);
         if (!cancelled) setStatus('connected');
       });
     };

@@ -61,8 +61,6 @@ export const authApi = createApi({
                 return { url: "/v1/auth/oauth/exchange", method: "POST", body };
             },
             async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
-                // Block AuthGate from routing while exchange is in flight
-                dispatch(setOAuthPending(true));
                 try {
                     const { data } = await queryFulfilled;
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);

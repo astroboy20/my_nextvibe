@@ -124,12 +124,12 @@ export default function SettingsScreen() {
           icon: "notifications-outline",
           onPress: () => {},
         },
-        {
-          id: "appearance",
-          label: "Appearance",
-          icon: "color-palette-outline",
-          onPress: () => router.push("/appearance"),
-        },
+        // {
+        //   id: "appearance",
+        //   label: "Appearance",
+        //   icon: "color-palette-outline",
+        //   onPress: () => router.push("/appearance"),
+        // },
       ],
     },
     {

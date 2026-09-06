@@ -3,6 +3,7 @@ import { baseQueryWithReauth } from "./baseQuery";
 
 export interface Participant {
   username: string;
+  displayName?: string;
   avatarUrl: string;
 }
 
