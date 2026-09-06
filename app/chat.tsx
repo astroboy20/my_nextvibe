@@ -24,6 +24,7 @@ import { useSocket } from "@/hooks/useSocket";
 import {
     useGetConversationsQuery,
     useGetMessagesQuery,
+    useMarkConversationReadMutation,
     useStartConversationMutation,
     type Message
 } from "@/store/api/messagingApi";
