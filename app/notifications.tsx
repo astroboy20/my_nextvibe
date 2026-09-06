@@ -16,22 +16,22 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
-    type Notification,
-    useGetNotificationsQuery,
-    useMarkAllReadMutation,
-    useMarkOneReadMutation,
+  type Notification,
+  useGetNotificationsQuery,
+  useMarkAllReadMutation,
+  useMarkOneReadMutation,
 } from "@/store/api/notificationApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -40,36 +40,44 @@ import { SafeAreaView } from "react-native-safe-area-context";
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const TYPE_META: Record<string, { icon: IoniconName; color: string }> = {
-  FOLLOW:            { icon: "person-add-outline",       color: brand.primary   },
-  LIKE:              { icon: "heart-outline",             color: "#e11d48"       },
-  COMMENT:           { icon: "chatbubble-outline",        color: "#0284c7"       },
-  TAG:               { icon: "pricetag-outline",          color: "#9333ea"       },
-  RSVP:              { icon: "checkmark-circle-outline",  color: semantic.success },
-  GAME_RESULT:       { icon: "trophy-outline",            color: "#f59e0b"       },
-  EVENT_REMINDER:    { icon: "alarm-outline",             color: "#ea580c"       },
-  CHECK_IN:          { icon: "location-outline",          color: semantic.success },
-  PAYMENT_CONFIRMED: { icon: "card-outline",              color: semantic.success },
-  PAYMENT_FAILED:    { icon: "alert-circle-outline",      color: semantic.error  },
-  EVENT_PUBLISHED:   { icon: "megaphone-outline",         color: brand.primary   },
-  TICKET_PURCHASED:  { icon: "ticket-outline",            color: "#9333ea"       },
-  GAME_UNLOCKED:     { icon: "game-controller-outline",   color: "#ea580c"       },
-  VIBETAG_ACTIVATED: { icon: "sparkles-outline",          color: "#8B5CF6"       },
+  FOLLOW: { icon: "person-add-outline", color: brand.primary },
+  LIKE: { icon: "heart-outline", color: "#e11d48" },
+  COMMENT: { icon: "chatbubble-outline", color: "#0284c7" },
+  TAG: { icon: "pricetag-outline", color: "#9333ea" },
+  RSVP: { icon: "checkmark-circle-outline", color: semantic.success },
+  GAME_RESULT: { icon: "trophy-outline", color: "#f59e0b" },
+  EVENT_REMINDER: { icon: "alarm-outline", color: "#ea580c" },
+  CHECK_IN: { icon: "location-outline", color: semantic.success },
+  PAYMENT_CONFIRMED: { icon: "card-outline", color: semantic.success },
+  PAYMENT_FAILED: { icon: "alert-circle-outline", color: semantic.error },
+  EVENT_PUBLISHED: { icon: "megaphone-outline", color: brand.primary },
+  TICKET_PURCHASED: { icon: "ticket-outline", color: "#9333ea" },
+  GAME_UNLOCKED: { icon: "game-controller-outline", color: "#ea580c" },
+  VIBETAG_ACTIVATED: { icon: "sparkles-outline", color: "#8B5CF6" },
 };
 
 function getMeta(type: string) {
-  return TYPE_META[type] ?? { icon: "notifications-outline" as IoniconName, color: neutral[500] };
+  return (
+    TYPE_META[type] ?? {
+      icon: "notifications-outline" as IoniconName,
+      color: neutral[500],
+    }
+  );
 }
 
 function timeAgo(dateStr: string): string {
-  const diff  = Date.now() - new Date(dateStr).getTime();
-  const mins  = Math.floor(diff / 60_000);
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
-  const days  = Math.floor(diff / 86_400_000);
-  if (mins  <  1) return "just now";
-  if (mins  < 60) return `${mins}m ago`;
+  const days = Math.floor(diff / 86_400_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
   if (hours < 24) return `${hours}h ago`;
-  if (days  <  7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // ─── Single row ──────────────────────────────────────────────────────────────
@@ -82,7 +90,8 @@ function NotificationRow({
   onPress: (item: Notification) => void;
 }) {
   const { icon, color } = getMeta(item.type);
-  const actorName = item.actor?.displayName ?? item.actor?.username ?? "Someone";
+  const actorName =
+    item.actor?.displayName ?? item.actor?.username ?? "Someone";
 
   return (
     <TouchableOpacity
@@ -111,30 +120,45 @@ function NotificationRow({
 
 function buildDefaultMessage(type: string, actor: string): string {
   switch (type) {
-    case "FOLLOW":            return `${actor} started following you`;
-    case "LIKE":              return `${actor} liked your post`;
-    case "COMMENT":           return `${actor} commented on your post`;
-    case "TAG":               return `${actor} tagged you`;
-    case "RSVP":              return `${actor} RSVP'd to your event`;
-    case "GAME_RESULT":       return "Your game results are ready";
-    case "EVENT_REMINDER":    return "Reminder: an event is coming up";
-    case "CHECK_IN":          return `${actor} checked in to your event`;
-    case "PAYMENT_CONFIRMED": return "Payment confirmed";
-    case "PAYMENT_FAILED":    return "Payment failed — please retry";
-    case "EVENT_PUBLISHED":   return "Your event is now live";
-    case "TICKET_PURCHASED":  return `${actor} purchased a ticket`;
-    case "GAME_UNLOCKED":     return "A new game session was unlocked";
-    case "VIBETAG_ACTIVATED": return "A VibeTags session started";
-    default:                  return "You have a new notification";
+    case "FOLLOW":
+      return `${actor} started following you`;
+    case "LIKE":
+      return `${actor} liked your post`;
+    case "COMMENT":
+      return `${actor} commented on your post`;
+    case "TAG":
+      return `${actor} tagged you`;
+    case "RSVP":
+      return `${actor} RSVP'd to your event`;
+    case "GAME_RESULT":
+      return "Your game results are ready";
+    case "EVENT_REMINDER":
+      return "Reminder: an event is coming up";
+    case "CHECK_IN":
+      return `${actor} checked in to your event`;
+    case "PAYMENT_CONFIRMED":
+      return "Payment confirmed";
+    case "PAYMENT_FAILED":
+      return "Payment failed — please retry";
+    case "EVENT_PUBLISHED":
+      return "Your event is now live";
+    case "TICKET_PURCHASED":
+      return `${actor} purchased a ticket`;
+    case "GAME_UNLOCKED":
+      return "A new game session was unlocked";
+    case "VIBETAG_ACTIVATED":
+      return "A VibeTags session started";
+    default:
+      return "You have a new notification";
   }
 }
 
 const row = StyleSheet.create({
   container: {
-    flexDirection:  "row",
-    alignItems:     "center",
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical:   14,
+    paddingVertical: 14,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[100],
@@ -142,15 +166,26 @@ const row = StyleSheet.create({
   },
   unread: { backgroundColor: `${brand.primary}05` },
   iconCircle: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: "center", justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
-  body:    { flex: 1, gap: 3 },
-  message: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800], lineHeight: 19 },
-  time:    { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
+  body: { flex: 1, gap: 3 },
+  message: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+    lineHeight: 19,
+  },
+  time: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
   dot: {
-    width: 8, height: 8, borderRadius: 4, flexShrink: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
   },
 });
 
@@ -159,32 +194,30 @@ const row = StyleSheet.create({
 export default function NotificationsScreen() {
   const router = useRouter();
 
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isError,
-    refetch,
-  } = useGetNotificationsQuery();
+  const { data, isLoading, isFetching, isError, refetch } =
+    useGetNotificationsQuery();
 
-  const [markOneRead]  = useMarkOneReadMutation();
+  const [markOneRead] = useMarkOneReadMutation();
   const [markAllRead, { isLoading: markingAll }] = useMarkAllReadMutation();
 
-  const notifications  = data?.data?.data    ?? [];
-  const unreadCount    = data?.data?.meta?.unreadCount ?? 0;
-  const isFirstLoad    = isLoading && notifications.length === 0;
-  const isRefreshing   = isFetching && !isLoading;
+  const notifications = data?.data?.data ?? [];
+  const unreadCount = data?.data?.meta?.unreadCount ?? 0;
+  const isFirstLoad = isLoading && notifications.length === 0;
+  const isRefreshing = isFetching && !isLoading;
 
   useRefetchOnFocus(refetch);
 
   // Tap → mark read + deep-link
-  const handlePress = useCallback(async (item: Notification) => {
-    if (!item.isRead) {
-      await markOneRead(item.id).catch(() => {});
-    }
-    // Route on data fields per the integration guide
-    // navigate(item, router);
-  }, [markOneRead, router]);
+  const handlePress = useCallback(
+    async (item: Notification) => {
+      if (!item.isRead) {
+        await markOneRead(item.id).catch(() => {});
+      }
+      // Route on data fields per the integration guide
+      // navigate(item, router);
+    },
+    [markOneRead, router]
+  );
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
@@ -205,10 +238,11 @@ export default function NotificationsScreen() {
             disabled={markingAll}
             activeOpacity={0.75}
           >
-            {markingAll
-              ? <ActivityIndicator size="small" color={brand.primary} />
-              : <Text style={s.markAllText}>Mark all read</Text>
-            }
+            {markingAll ? (
+              <ActivityIndicator size="small" color={brand.primary} />
+            ) : (
+              <Text style={s.markAllText}>Mark all read</Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -223,9 +257,17 @@ export default function NotificationsScreen() {
       {/* ── Error state ── */}
       {isError && !isFirstLoad && (
         <View style={s.center}>
-          <Ionicons name="alert-circle-outline" size={44} color={neutral[300]} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={44}
+            color={neutral[300]}
+          />
           <Text style={s.emptyTitle}>Could not load notifications</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={refetch} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.retryBtn}
+            onPress={refetch}
+            activeOpacity={0.8}
+          >
             <Text style={s.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -250,9 +292,15 @@ export default function NotificationsScreen() {
           }
           ListEmptyComponent={
             <View style={s.center}>
-              <Ionicons name="notifications-off-outline" size={52} color={neutral[200]} />
+              <Ionicons
+                name="notifications-off-outline"
+                size={52}
+                color={neutral[200]}
+              />
               <Text style={s.emptyTitle}>No notifications yet</Text>
-              <Text style={s.emptySub}>Activity from your events and connections will appear here.</Text>
+              <Text style={s.emptySub}>
+                Activity from your events and connections will appear here.
+              </Text>
             </View>
           }
         />
@@ -267,40 +315,93 @@ function navigate(item: Notification, router: ReturnType<typeof useRouter>) {
   const { targetType, targetId } = item;
   if (!targetId) return;
   switch (targetType) {
-    case "EVENT":   router.push(`/events/${targetId}` as any);            break;
-    case "POSTCARD": router.push(`/events/postcards/${targetId}` as any); break;
+    case "EVENT":
+      router.push(`/events/${targetId}` as any);
+      break;
+    case "POSTCARD":
+      router.push(`/events/postcards/${targetId}` as any);
+      break;
     case "GAME":
     case "TICKET":
-    case "PAYMENT": router.push("/dashboard" as any);                     break;
-    case "USER":    router.push("/(tabs)/profile" as any);                break;
-    default:        break;
+    case "PAYMENT":
+      router.push("/dashboard" as any);
+      break;
+    case "USER":
+      router.push("/(tabs)/profile" as any);
+      break;
+    default:
+      break;
   }
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe:      { flex: 1, backgroundColor: "#fff" },
+  safe: { flex: 1, backgroundColor: "#fff" },
   titleRow: {
-    flexDirection: "row", alignItems: "flex-start",
+    flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  title:    { fontFamily: fontFamily.extrabold, fontSize: fontSize["2xl"], color: neutral[900] },
-  subtitle: { fontFamily: fontFamily.regular,  fontSize: fontSize.sm,    color: neutral[500], marginTop: 2 },
+  title: {
+    fontFamily: fontFamily.extrabold,
+    fontSize: fontSize["2xl"],
+    color: neutral[900],
+  },
+  subtitle: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[500],
+    marginTop: 2,
+  },
   markAllBtn: {
-    paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: `${brand.primary}40`,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${brand.primary}40`,
     backgroundColor: `${brand.primary}08`,
-    minWidth: 48, alignItems: "center",
+    minWidth: 48,
+    alignItems: "center",
   },
-  markAllText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: brand.primary },
+  markAllText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: brand.primary,
+  },
   center: {
-    flex: 1, alignItems: "center", justifyContent: "center",
-    gap: 10, paddingHorizontal: 32, paddingTop: 60,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: 32,
+    paddingTop: 60,
   },
-  emptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[700], textAlign: "center" },
-  emptySub:   { fontFamily: fontFamily.regular,  fontSize: fontSize.sm,  color: neutral[400], textAlign: "center" },
-  retryBtn:   { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, backgroundColor: brand.primary },
-  retryText:  { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: "#fff" },
+  emptyTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.base,
+    color: neutral[700],
+    textAlign: "center",
+  },
+  emptySub: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[400],
+    textAlign: "center",
+  },
+  retryBtn: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: brand.primary,
+  },
+  retryText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+  },
 });

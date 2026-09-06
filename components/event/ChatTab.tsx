@@ -56,7 +56,7 @@ interface ChatMessage {
   createdAt?: string;
   sender?: {
     id?: string;
-    displayName?: string;
+    displayName?: string | any;
     username?: string;
     avatarUrl?: string | null;
     role?: string;
@@ -359,9 +359,9 @@ export default function ChatTab({ eventId }: Props) {
       senderId: user?.id,
       sender: {
         id: user?.id,
-        displayName: user?.displayName,
-        username: user?.username,
-        avatarUrl: user?.avatarUrl,
+        displayName: user?.displayName ?? undefined,
+        username: user?.username ?? undefined,
+        avatarUrl: user?.avatarUrl ?? null,
       },
       createdAt: new Date().toISOString(),
     };

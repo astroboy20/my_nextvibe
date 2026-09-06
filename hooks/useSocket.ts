@@ -8,7 +8,7 @@
  * Usage:
  *   const { socketRef, isConnected, status } = useSocket('messaging', { enabled: !!eventId });
  */
-import { API_URL } from '@/store/baseQuery';
+import { API_URL, tokenStore } from '@/store/baseQuery';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
