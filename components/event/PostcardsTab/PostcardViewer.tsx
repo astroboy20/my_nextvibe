@@ -3,6 +3,7 @@ import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
     useCommentOnPostcardMutation,
+    useDeletePostcardMutation,
     useGetPostcardCommentsQuery,
     useGetPostcardQuery,
     useToggleLikePostcardMutation,
@@ -14,6 +15,7 @@ import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -32,6 +34,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import type { PostcardData, PostcardMediaItem } from "./types";
+import { useAuth } from "@/hooks/useAuth";
 
 const { width: W, height: H } = Dimensions.get("window");
 
