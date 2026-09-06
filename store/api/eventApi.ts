@@ -807,6 +807,20 @@ export const eventsApi = createApi({
       providesTags: (_, __, eventId) => [{ type: "PublishPreview", id: eventId }],
     }),
 
+    // ── Delete Postcard ───────────────────────────────────────────────────────
+    /**
+     * DELETE /v1/postcards/:id
+     * Permanently deletes a postcard. Only the postcard owner or an admin may do this.
+     * Invalidates the event's postcard gallery cache so the grid refreshes automatically.
+     */
+    deletePostcard: builder.mutation<void, { postcardId: string; eventId: string }>({
+      query: ({ postcardId }) => ({
+        url: `/v1/postcards/${postcardId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (_, __, { eventId }) => [{ type: "Gallery", id: eventId }],
+    }),
+
     // ── Postcard Swap ─────────────────────────────────────────────────────────
     /**
      * POST /v1/postcards/:id/swap
@@ -943,6 +957,7 @@ export const {
   useUpdateGameRewardTierMutation,
   useDeleteGameRewardTierMutation,
   useSwapPostcardMutation,
+  useDeletePostcardMutation,
   useRequestWithdrawalMutation,
   useGetWithdrawalsQuery,
 } = eventsApi;

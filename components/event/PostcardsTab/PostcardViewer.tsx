@@ -6,7 +6,7 @@ import {
     useGetPostcardCommentsQuery,
     useGetPostcardQuery,
     useToggleLikePostcardMutation,
-    useTrackPostcardViewMutation,
+    useTrackPostcardViewMutation
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
@@ -327,10 +327,12 @@ function PostcardCard({
   postcard,
   eventId,
   active,
+  onDeleted,
 }: {
   postcard: PostcardData;
   eventId: string;
   active: boolean;
+  onDeleted?: (postcardId: string) => void;
 }) {
   const [mediaIdx, setMediaIdx] = useState(0);
   const [liked, setLiked] = useState(postcard.isLiked ?? false);
@@ -347,6 +349,8 @@ function PostcardCard({
 
   const [toggleLike] = useToggleLikePostcardMutation();
   const [trackView] = useTrackPostcardViewMutation();
+  const [deletePostcard, { isLoading: isDeleting }] = useDeletePostcardMutation();
+  const { user } = useAuth();
 
   // ── View tracking — 1.5 s dwell when card is active ──────────────────────
   const viewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -388,6 +392,13 @@ function PostcardCard({
 
 
   const freshData = freshPostcard?.data ?? freshPostcard;
+
+  // Is the current user the author of this postcard?
+  const isOwner =
+    !!user?.id &&
+    (freshData?.author?.id === user.id ||
+      (postcard as any).authorId === user.id ||
+      (postcard as any).author?.id === user.id);
 
   const displayName =
     freshData?.author?.displayName?.trim() ||
@@ -501,6 +512,38 @@ function PostcardCard({
     }
     lastTapRef.current = now;
   }, [burstLike]);
+
+  const handleDelete = useCallback(() => {
+    if (!postcard.id) return;
+    Alert.alert(
+      "Delete Postcard",
+      "This will permanently delete this postcard and all its likes and comments. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deletePostcard({ postcardId: postcard.id!, eventId }).unwrap();
+              Toast.show({ type: "success", text1: "Postcard deleted" });
+              onDeleted?.(postcard.id!);
+            } catch (err: any) {
+              const status = err?.status ?? err?.data?.statusCode;
+              if (status === 403) {
+                Toast.show({ type: "error", text1: "You can only delete your own postcards." });
+              } else if (status === 404) {
+                Toast.show({ type: "error", text1: "Postcard not found." });
+                onDeleted?.(postcard.id!);
+              } else {
+                Toast.show({ type: "error", text1: err?.data?.message ?? "Delete failed." });
+              }
+            }
+          },
+        },
+      ],
+    );
+  }, [postcard.id, eventId, deletePostcard, onDeleted]);
 
   if (media.length === 0) return null;
 
@@ -648,6 +691,22 @@ function PostcardCard({
             <Ionicons name="eye-outline" size={24} color="#fff" />
             <Text style={ov.actionCount}>{freshViewCount}</Text>
           </View>
+
+          {/* Delete — only visible to the postcard owner */}
+          {isOwner && (
+            <TouchableOpacity
+              onPress={handleDelete}
+              style={[ov.actionBtn, { marginLeft: "auto" }]}
+              activeOpacity={0.8}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size={18} color="rgba(255,255,255,0.8)" />
+              ) : (
+                <Ionicons name="trash-outline" size={22} color="rgba(255,80,80,0.9)" />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -836,6 +895,7 @@ export interface PostcardViewerProps {
   initialIndex: number;
   eventId: string;
   onClose: () => void;
+  onDeletePostcard?: (postcardId: string) => void;
 }
 
 export function PostcardViewer({
@@ -843,6 +903,7 @@ export function PostcardViewer({
   initialIndex,
   eventId,
   onClose,
+  onDeletePostcard,
 }: PostcardViewerProps) {
   const listRef = useRef<FlatList<PostcardData>>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -877,9 +938,10 @@ export function PostcardViewer({
         postcard={item}
         eventId={eventId}
         active={index === activeIndex}
+        onDeleted={onDeletePostcard}
       />
     ),
-    [activeIndex, eventId]
+    [activeIndex, eventId, onDeletePostcard]
   );
 
   const getItemLayout = useCallback(

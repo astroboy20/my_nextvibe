@@ -488,6 +488,14 @@ export default function PostcardsTab({
                     initialIndex={viewerIndex}
                     eventId={eventId}
                     onClose={() => setShowViewer(false)}
+                    onDeletePostcard={(deletedId) => {
+                        const remaining = viewerPostcards.filter((p) => p.id !== deletedId);
+                        if (remaining.length === 0) {
+                            setShowViewer(false);
+                        } else {
+                            setViewerPostcards(remaining);
+                        }
+                    }}
                 />
             )}
 
