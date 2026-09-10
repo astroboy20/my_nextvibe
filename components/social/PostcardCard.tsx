@@ -115,7 +115,7 @@ export default function PostcardCard({ item, onPress }: Props) {
   const triggerLike = async () => {
     const wasLiked = liked;
     setLiked(true);
-    setLikeCount((c) => wasLiked ? c : c + 1);
+    setLikeCount((c:any) => wasLiked ? c : c + 1);
 
     // Burst heart animation
     heartScale.setValue(0);
@@ -133,7 +133,7 @@ export default function PostcardCard({ item, onPress }: Props) {
         if (res?.liked !== undefined) setLiked(res.liked);
       } catch {
         setLiked(wasLiked);
-        setLikeCount((c) => c - 1);
+        setLikeCount((c:any) => c - 1);
       }
     }
   };
@@ -141,14 +141,14 @@ export default function PostcardCard({ item, onPress }: Props) {
   const handleLike = async () => {
     const wasLiked = liked;
     setLiked(!wasLiked);
-    setLikeCount((c) => wasLiked ? c - 1 : c + 1);
+    setLikeCount((c:any) => wasLiked ? c - 1 : c + 1);
     try {
       const res = await toggleLike({ eventId: item.event?.id ?? '', postcardId: item.id }).unwrap();
       if (res?.currentLikes !== undefined) setLikeCount(res.currentLikes);
       if (res?.liked !== undefined) setLiked(res.liked);
     } catch {
       setLiked(wasLiked);
-      setLikeCount((c) => wasLiked ? c + 1 : c - 1);
+      setLikeCount((c:any) => wasLiked ? c + 1 : c - 1);
     }
   };
 
