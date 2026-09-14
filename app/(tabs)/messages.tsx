@@ -131,6 +131,7 @@ export default function MessagesScreen() {
     isFetching,
     isError,
     refetch,
+    fulfilledTimeStamp 
   } = useGetConversationsQuery();
 
   const conversations: Conversation[] = convsData?.data ?? [];
@@ -146,7 +147,12 @@ export default function MessagesScreen() {
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
 
   // Re-fetch when tab comes into focus
-  useRefetchOnFocus(refetch);
+  useRefetchOnFocus(() => {
+    // Only refetch if the query has actually initialized at least once
+    if (fulfilledTimeStamp !== undefined || convsData !== undefined) {
+      refetch();
+    }
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>

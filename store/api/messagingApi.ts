@@ -33,7 +33,7 @@ export interface ConversationsResponse {
 
 export interface MessagesResponse {
   success: boolean;
-  data: {data: Message[]};
+  data: { data: Message[] };
 }
 
 export interface StartConversationResponse {

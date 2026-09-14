@@ -28,7 +28,7 @@ function isExpoGo(): boolean {
 
 export function usePushNotifications() {
   const router = useRouter();
-  const seen   = useRef<Set<string>>(new Set());
+  const seen = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // Push listeners are only available in dev builds and production builds.
@@ -67,12 +67,12 @@ function handleDeepLink(
 ) {
   const { targetType, targetId } = data;
   switch (targetType) {
-    case 'EVENT':    router.push(`/events/${targetId}` as any);            break;
-    case 'POSTCARD': router.push(`/events/postcards/${targetId}` as any);  break;
-    case 'USER':     router.push('/(tabs)/profile' as any);                break;
+    case 'EVENT': router.push(`/events/${targetId}` as any); break;
+    case 'POSTCARD': router.push(`/events/postcards/${targetId}` as any); break;
+    case 'USER': router.push('/(tabs)/profile' as any); break;
     case 'GAME':
     case 'PAYMENT':
-    case 'TICKET':   router.push('/dashboard' as any);                     break;
-    default:         router.push('/(tabs)' as any);
+    case 'TICKET': router.push('/dashboard' as any); break;
+    default: router.push('/(tabs)' as any);
   }
 }
