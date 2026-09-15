@@ -304,10 +304,18 @@ export default function ProfileScreen() {
   // } = useGetMyTicketsQuery();
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const activity = activityData?.data;
+  // The activity endpoint may return data at either `data.postcards` (flat) or
+  // `data.data.postcards` (paginated envelope) depending on the backend version.
+  const activity = activityData?.data?.data ?? activityData?.data;
   const events = eventsData?.data?.data ?? [];
-  const postcards = activityData?.data?.postcards ?? [];
-  const tickets = activityData?.data?.tickets ?? [];
+  const postcards =
+    activityData?.data?.data?.postcards ??
+    activityData?.data?.postcards ??
+    [];
+  const tickets =
+    activityData?.data?.data?.tickets ??
+    activityData?.data?.tickets ??
+    [];
 
   // Header skeleton: only on true first load (no cached data yet)
   const activityStarted = !!userId; // becomes true once fired

@@ -10,7 +10,7 @@
  */
 import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
-import { useCreateGameMutation, useGenerateAiDraftMutation } from '@/store/api/gamesApi';
+import { useCreateGameMutation } from '@/store/api/gamesApi';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
@@ -40,6 +40,7 @@ import {
   SCHEDULE_TO_API,
   ScheduleMode,
 } from './types';
+import { useGenerateAIGamesMutation } from '@/store/api/gameApi';
 
 interface Props {
   onComplete: (game: any) => void;
@@ -61,7 +62,7 @@ export function GameCreationWizard({
   const totalSteps = 6;
 
   const [createGame]      = useCreateGameMutation();
-  const [generateAiDraft] = useGenerateAiDraftMutation();
+  const [generateAiDraft] = useGenerateAIGamesMutation();
 
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [step,            setStep]            = useState(1);

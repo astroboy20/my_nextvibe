@@ -42,7 +42,20 @@ export const store = configureStore({
         [payoutApi.reducerPath]: payoutApi.reducer,
     },
     middleware: (getDefaultMiddleware) => {
-        return getDefaultMiddleware().concat(
+        return getDefaultMiddleware({
+            serializableCheck: {
+                // RTK Query internally uses non-serializable values (e.g. Map, Set)
+                // in its action meta — ignore those paths to prevent false error #38.
+                ignoredActions: [
+                    'messagingApi/executeQuery/fulfilled',
+                    'messagingApi/executeQuery/pending',
+                    'messagingApi/executeMutation/fulfilled',
+                    'messagingApi/executeMutation/pending',
+                ],
+                ignoredActionPaths: ['meta.arg', 'meta.baseQueryMeta'],
+                ignoredPaths: ['messagingApi.queries', 'messagingApi.mutations'],
+            },
+        }).concat(
             authApi.middleware,
             gamesApi.middleware,
             eventsApi.middleware,

@@ -122,6 +122,15 @@ export const gamesApi = createApi({
     keepUnusedDataFor: 300,
     endpoints: (build) => ({
 
+
+        
+        generateAIGames: build.mutation<void, any>({
+            query: (body) => ({
+                url: "/v1/games/ai/generate-draft",
+                method: "POST",
+                body,
+            }),
+        }),
         generateTrivia: build.mutation<GenerateTriviaResponse, GenerateTriviaRequest>({
             query: (body) => ({
                 url: "/v1/games/trivia/generate",
@@ -129,7 +138,6 @@ export const gamesApi = createApi({
                 body,
             }),
         }),
-
         generateWordPuzzle: build.mutation<GenerateWordPuzzleResponse, GenerateWordPuzzleRequest>({
             query: (body) => ({
                 url: "/v1/games/word-puzzle/generate",
@@ -296,6 +304,7 @@ export const gamesApi = createApi({
 });
 
 export const {
+    useGenerateAIGamesMutation,
     useGenerateTriviaMutation,
     useGenerateWordPuzzleMutation,
     useGenerateWordPuzzleFromWordsMutation,
