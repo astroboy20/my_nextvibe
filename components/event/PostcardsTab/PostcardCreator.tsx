@@ -12,30 +12,31 @@ import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useAuthModal } from '@/hooks/useAuthModal';
 import {
-    useCreatePostcardsMutation,
-    useGetEventPostcardsQuery,
-    useSwapPostcardMutation,
+  useCreatePostcardsMutation,
+  useGetEventPostcardsQuery,
+  useSwapPostcardMutation,
 } from '@/store/api/eventsApi';
 import { API_URL, tokenStore } from '@/store/baseQuery';
 import { Ionicons } from '@expo/vector-icons';
 import { ResizeMode, Video } from 'expo-av';
+import { File as EFSFile, Paths } from 'expo-file-system';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -275,7 +276,10 @@ export function PostcardCreator({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<'stamping' | 'uploading' | 'saving'>('stamping');
+  // Bug 3 fix: camera rendered inline (no nested Modal), controlled by this flag
   const [showCamera, setShowCamera] = useState(false);
+  // Bug 3 fix: temporarily hide the creator modal while the system image picker is presented
+  const [creatorVisible, setCreatorVisible] = useState(true);
   const [showSwapPicker, setShowSwapPicker] = useState(false);
   const [showSwapConfirm, setShowSwapConfirm] = useState(false);
   const [pendingSwap, setPendingSwap] = useState<any>(null);
@@ -317,14 +321,29 @@ export function PostcardCreator({
       Toast.show({ type: 'info', text1: `Max ${MAX_ITEMS} items reached` });
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'] as any,
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
-      quality: 0.85,
-      videoMaxDuration: 125,
-      orderedSelection: true,
-    });
+
+    // Bug 3 fix: hide the creator Modal before launching the system image picker
+    // so that iOS does not freeze due to presenting a picker from inside an active Modal.
+    setCreatorVisible(false);
+
+    // Give the modal time to dismiss before launching the picker
+    await new Promise<void>((resolve) => setTimeout(resolve, 350));
+
+    let result: ImagePicker.ImagePickerResult;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'] as any,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
+        quality: 0.85,
+        videoMaxDuration: 125,
+        orderedSelection: true,
+      });
+    } finally {
+      // Restore the modal regardless of outcome
+      setCreatorVisible(true);
+    }
+
     if (result.canceled) return;
     const newItems: PickedItem[] = result.assets.map((a) => ({
       uri: a.uri,
@@ -339,6 +358,7 @@ export function PostcardCreator({
 
   const onCameraCapture = (captured: CapturedMedia[]) => {
     setShowCamera(false);
+    setCreatorVisible(true);
     if (!captured.length) return;
     const newItems: PickedItem[] = captured.map((c) => ({
       uri: c.uri, type: c.type, mimeType: c.mimeType,
@@ -361,6 +381,20 @@ export function PostcardCreator({
 
   // ── Upload ────────────────────────────────────────────────────────────────
 
+  /**
+   * Bug 2 fix (2c / 2e): Write a data: URI to a temp file and return a
+   * file:// URI that React Native's XHR FormData can handle reliably on
+   * both iOS and Android.
+   */
+  const dataUriToTempFile = async (dataUri: string, fileName: string): Promise<string> => {
+    // dataUri is "data:<mime>;base64,<b64data>"
+    const commaIdx = dataUri.indexOf(',');
+    const base64 = dataUri.slice(commaIdx + 1);
+    const tempFile = new EFSFile(Paths.cache, fileName);
+    tempFile.write(base64, { encoding: 'base64' });
+    return tempFile.uri;
+  };
+
   const doSubmit = async (targetSwapId?: string) => {
     if (!items.length || !eventId) return;
     setIsSubmitting(true);
@@ -372,9 +406,8 @@ export function PostcardCreator({
 
     try {
       // ── Step 1: Stamp VibeTag onto every item before upload ─────────────
-      // Images  → Skia composites photo + overlay → JPEG data URI
+      // Images  → Skia composites photo + overlay → PNG data URI
       // Videos  → returned unchanged; overlayUrl stored for playback-time rendering
-      // console.log('[PostcardCreator] Starting stamp process with overlay:', overlayUrl?.substring(0, 50));
       setUploadProgress(5);
       const stamped = await Promise.all(
         items.map((item) =>
@@ -385,61 +418,71 @@ export function PostcardCreator({
       setUploadProgress(15);
 
       // ── Step 2: Build FormData with stamped URIs ─────────────────────────
-      // For videos: upload both the raw video AND the composited thumbnail
-      // For photos: upload the composited image
+      // Bug 2 fix (2c / 2e): For composited PNG data: URIs, write to a temp
+      // file first so XHR FormData gets a file:// URI instead of a raw data:
+      // URI, which is unreliable on Android and stalls the upload.
       const token = await tokenStore.get('accessToken');
       const formData = new FormData();
 
-      stamped.forEach((result, i) => {
+      for (let i = 0; i < stamped.length; i++) {
+        const result = stamped[i];
         const original = items[i];
-        let uploadUri = result.uri;
 
-
-        // Video: upload raw video file
         if (original.type === 'video') {
           const videoName = original.fileName ?? `postcard-video-${Date.now()}-${i}.mp4`;
-          (formData as any).append('files', { 
-            uri: uploadUri, 
-            name: videoName, 
-            type: 'video/mp4' 
+          (formData as any).append('files', {
+            uri: result.uri,
+            name: videoName,
+            type: 'video/mp4',
           } as any);
 
-          // Video: also upload the composited thumbnail if available
           if (result.thumbnailUri) {
-            const thumbName = `postcard-thumb-${Date.now()}-${i}.jpg`;
-            (formData as any).append('files', { 
-              uri: result.thumbnailUri, 
-              name: thumbName, 
-              type: 'image/jpeg' 
+            // Thumbnail is also a data: URI from Skia — write it to a temp file too
+            const thumbFileName = `postcard-thumb-${Date.now()}-${i}.jpg`;
+            let thumbUri = result.thumbnailUri;
+            if (thumbUri.startsWith('data:')) {
+              thumbUri = await dataUriToTempFile(thumbUri, thumbFileName);
+            }
+            (formData as any).append('files', {
+              uri: thumbUri,
+              name: thumbFileName,
+              type: 'image/jpeg',
             } as any);
           }
         } else {
-          // Photo: composited image (data URI)
+          // Photo: composited image — may be a data: URI from Skia
           const mime = result.mimeType;
           const ext = mime === 'image/png' ? 'png' : 'jpg';
           const name = original.fileName
             ? original.fileName.replace(/\.(jpg|jpeg)$/i, `.${ext}`)
             : `postcard-photo-${Date.now()}-${i}.${ext}`;
 
-          // For regular file URIs strip the file:// prefix on iOS
-          if (Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
+          let uploadUri = result.uri;
+          if (uploadUri.startsWith('data:')) {
+            // Write data: URI to a temp file for reliable FormData on all platforms
+            uploadUri = await dataUriToTempFile(uploadUri, name);
+          } else if (Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
             uploadUri = uploadUri.replace('file://', '');
           }
 
           (formData as any).append('files', { uri: uploadUri, name, type: mime } as any);
         }
-      });
+      }
 
       // ── Step 3: XHR upload with progress ────────────────────────────────
       setUploadStage('uploading');
+      // Bug 2 fix (2a): set a synthetic midpoint so the bar visibly advances
+      // even when onprogress events are sparse for large in-memory payloads.
+      setUploadProgress(20);
+
       const uploadResult = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_URL}/v1/storage/upload-multiple`);
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable)
-            // Reserve 15–85% of progress bar for the upload
-            setUploadProgress(15 + Math.round((e.loaded / e.total) * 70));
+            // Reserve 20–85% of progress bar for the upload
+            setUploadProgress(20 + Math.round((e.loaded / e.total) * 65));
         };
         xhr.onload = () => {
           if (xhr.status === 401) {
@@ -456,6 +499,9 @@ export function PostcardCreator({
         };
         xhr.onerror = () => reject(new Error('Network error'));
         xhr.send(formData);
+        // Bug 2 fix (2a): ensure progress advances to at least 50% once the
+        // request has been sent, covering cases where onprogress never fires.
+        setUploadProgress((prev) => Math.max(prev, 50));
       });
 
       // ── Step 4: Build media array — match uploaded files to original items ──
@@ -465,7 +511,6 @@ export function PostcardCreator({
         const original = items[i];
         
         if (original.type === 'video') {
-          // Video: next file is the video, file after that is the thumbnail (if exists)
           const videoFile = uploadedFiles[uploadIdx++];
           const thumbnailFile = result.thumbnailUri ? uploadedFiles[uploadIdx++] : null;
          
@@ -478,7 +523,6 @@ export function PostcardCreator({
             vibeTagOverlayUrl: result.vibeTagOverlayUrl ?? null,
           };
         } else {
-          // Photo: next file is the composited photo
           const photoFile = uploadedFiles[uploadIdx++];
           
           return {
@@ -511,6 +555,8 @@ export function PostcardCreator({
         text1: targetSwapId ? 'Postcard replaced!' : `${items.length} item${items.length > 1 ? 's' : ''} posted!`,
       });
       onSubmit?.();
+      // Bug 2 fix (2b): keep isSubmitting=true until after onClose() so the
+      // post button cannot flash back visible between completion and dismissal.
       onClose();
     } catch (err: any) {
       const status = err?.status ?? err?.data?.statusCode;
@@ -519,7 +565,7 @@ export function PostcardCreator({
       if (status === 401) {
         pendingSubmitSwapRef.current = targetSwapId;
         showAuthModal();
-        return; // keep isSubmitting=false via finally, modal takes over
+        return; // keep isSubmitting=true via the guard below; modal takes over
       }
 
       // ── Domain errors ──────────────────────────────────────────────────
@@ -530,7 +576,9 @@ export function PostcardCreator({
       } else {
         Toast.show({ type: 'error', text1: err?.data?.message ?? err?.message ?? 'Post failed.' });
       }
-    } finally {
+
+      // Bug 2 fix (2b): only reset submitting state on error (not on success,
+      // where we want the button to stay hidden until after onClose()).
       setIsSubmitting(false);
       setUploadProgress(0);
       setShowSwapConfirm(false);
@@ -551,8 +599,9 @@ export function PostcardCreator({
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
+    <>
     <Modal
-      visible
+      visible={creatorVisible}
       animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}
@@ -615,7 +664,7 @@ export function PostcardCreator({
             <View style={s.chooseActions}>
               <TouchableOpacity
                 style={s.cameraBtn}
-                onPress={() => setShowCamera(true)}
+                onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
                 activeOpacity={0.85}
               >
                 <View style={s.cameraBtnIcon}>
@@ -677,7 +726,7 @@ export function PostcardCreator({
                 {/* Add more — camera */}
                 {items.length < MAX_ITEMS ? (
                   <TouchableOpacity
-                    onPress={() => setShowCamera(true)}
+                    onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
                     hitSlop={10}
                     style={s.headerBtn}
                   >
@@ -732,7 +781,7 @@ export function PostcardCreator({
                         <Image
                           source={{ uri: vibeTagOverlay.imageUrl }}
                           style={[StyleSheet.absoluteFillObject, { opacity: 0.65 }]}
-                          contentFit="cover"
+                          contentFit="contain"
                           cachePolicy="memory-disk"
                           pointerEvents="none"
                         />
@@ -818,7 +867,7 @@ export function PostcardCreator({
                       <View style={s.thumbAddWrap}>
                         <TouchableOpacity
                           style={s.thumbAdd}
-                          onPress={() => setShowCamera(true)}
+                          onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
                           activeOpacity={0.8}
                         >
                           <Ionicons name="camera-outline" size={17} color={neutral[500]} />
@@ -916,16 +965,6 @@ export function PostcardCreator({
         )}
       </SafeAreaView>
 
-      {/* Camera overlay */}
-      {showCamera && (
-        <PostcardCamera
-          vibeTagOverlay={vibeTagOverlay}
-          vibeTagName={vibeTagName}
-          onCapture={onCameraCapture}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
-
       {/* Swap picker overlay */}
       {showSwapPicker && eventId && (
         <SwapPicker
@@ -957,6 +996,19 @@ export function PostcardCreator({
       />
       </View>
     </Modal>
+
+      {/* Bug 3 fix: PostcardCamera rendered OUTSIDE the creator Modal so there
+          are never two Modals nested simultaneously. The creator Modal is hidden
+          (creatorVisible=false) before this mounts. */}
+      {showCamera && (
+        <PostcardCamera
+          vibeTagOverlay={vibeTagOverlay}
+          vibeTagName={vibeTagName}
+          onCapture={onCameraCapture}
+          onClose={() => { setShowCamera(false); setCreatorVisible(true); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -1050,10 +1102,11 @@ const s = StyleSheet.create({
   vibeBannerText: { fontFamily: fontFamily.semibold, fontSize: 12, color: brand.primary, flex: 1 },
   vibeBannerSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
 
-  // Media preview — full width, 4:3 aspect, overlay stacked on top
+  // Bug 1 fix: preview container uses 9:16 portrait ratio to match the
+  // 1080×1920 composited output dimensions, so the overlay is not zoomed.
   mediaPreview: {
     width: '100%',
-    aspectRatio: 4 / 3,
+    aspectRatio: 9 / 16,
     backgroundColor: '#000',
     position: 'relative',
     overflow: 'hidden',

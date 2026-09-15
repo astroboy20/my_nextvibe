@@ -96,7 +96,7 @@ function composite(photoImg: SkImage, overlayImg: SkImage): string | null {
     console.error('[stampOverlay] encodeToBase64 returned null');
     return null;
   }
-f
+
   return `data:image/png;base64,${encoded}`;
 }
 
