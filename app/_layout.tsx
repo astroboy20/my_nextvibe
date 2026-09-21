@@ -10,6 +10,7 @@ import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";

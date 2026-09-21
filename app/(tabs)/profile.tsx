@@ -1,33 +1,33 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
-    EventRowSkeleton,
-    PostcardGridSkeleton,
-    ProfileHeaderSkeleton,
-    TicketRowSkeleton,
+  EventRowSkeleton,
+  PostcardGridSkeleton,
+  ProfileHeaderSkeleton,
+  TicketRowSkeleton,
 } from "@/components/ui/Skeleton";
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
-    useGetMeQuery,
-    useGetOrganizerEventsQuery,
-    useGetUserActivityQuery,
-    type OrganizerEvent,
-    type PostcardItem,
-    type UserTicket,
+  useGetMeQuery,
+  useGetOrganizerEventsQuery,
+  useGetUserActivityQuery,
+  type OrganizerEvent,
+  type PostcardItem,
+  type UserTicket,
 } from "@/store/api/usersApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -308,10 +308,26 @@ export default function ProfileScreen() {
   // `data.data.postcards` (paginated envelope) depending on the backend version.
   const activity = activityData?.data?.data ?? activityData?.data;
   const events = eventsData?.data?.data ?? [];
-  const postcards =
+  const rawPostcards: any[] =
     activityData?.data?.data?.postcards ??
     activityData?.data?.postcards ??
     [];
+  // The activity endpoint nests media inside a `media` array on each postcard.
+  // Flatten so PostcardGrid can read item.mediaUrl / item.mediaType directly.
+  const postcards: PostcardItem[] = rawPostcards.map((p: any) => {
+    const firstMedia = p?.media?.[0];
+    return {
+      id: p.id,
+      mediaUrl: firstMedia?.mediaUrl ?? null,
+      thumbnailUrl: firstMedia?.thumbnailKey
+        ? firstMedia?.mediaUrl  // use mediaUrl as fallback if no separate thumbnail
+        : null,
+      mediaType: firstMedia?.mediaType ?? null,
+      likeCount: p.likeCount ?? 0,
+      caption: p.caption ?? null,
+      createdAt: p.createdAt,
+    };
+  });
   const tickets =
     activityData?.data?.data?.tickets ??
     activityData?.data?.tickets ??
