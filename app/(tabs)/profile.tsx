@@ -1,3 +1,5 @@
+import { PostcardViewer } from "@/components/event/PostcardsTab/PostcardViewer";
+import type { PostcardData } from "@/components/event/PostcardsTab/types";
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
   EventRowSkeleton,
@@ -143,15 +145,22 @@ function EventRow({ item }: { item: OrganizerEvent }) {
   );
 }
 
-function PostcardGrid({ items }: { items: PostcardItem[] }) {
+function PostcardGrid({
+  items,
+  rawPostcards,
+  onPressCard,
+}: {
+  items: PostcardItem[];
+  rawPostcards: PostcardData[];
+  onPressCard: (index: number) => void;
+}) {
   const left = items.filter((_, i) => i % 2 === 0);
   const right = items.filter((_, i) => i % 2 !== 0);
   const heights = [180, 240, 160, 210, 190, 230];
 
-  const renderCard = (item: PostcardItem, idx: number) => {
-    const h = heights[idx % heights.length];
+  const renderCard = (item: PostcardItem, flatIdx: number) => {
+    const h = heights[flatIdx % heights.length];
     const isVideo = item.mediaType === 'VIDEO';
-    // For videos, use thumbnail if available, otherwise fall back to mediaUrl
     const displayUrl = isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
     
     return (
@@ -159,6 +168,7 @@ function PostcardGrid({ items }: { items: PostcardItem[] }) {
         key={item.id}
         style={[pc.card, { height: h }]}
         activeOpacity={0.85}
+        onPress={() => onPressCard(flatIdx)}
       >
         <View style={[pc.imgArea, { height: h }]}>
           {displayUrl ? (
@@ -262,6 +272,7 @@ function EmptyState({
 export default function ProfileScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("events");
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   // ── API ────────────────────────────────────────────────────────────────────
   const {
@@ -312,22 +323,42 @@ export default function ProfileScreen() {
     activityData?.data?.data?.postcards ??
     activityData?.data?.postcards ??
     [];
-  // The activity endpoint nests media inside a `media` array on each postcard.
-  // Flatten so PostcardGrid can read item.mediaUrl / item.mediaType directly.
+
+  // Flattened shape for grid thumbnail display (PostcardItem — flat mediaUrl/mediaType)
   const postcards: PostcardItem[] = rawPostcards.map((p: any) => {
     const firstMedia = p?.media?.[0];
     return {
       id: p.id,
       mediaUrl: firstMedia?.mediaUrl ?? null,
-      thumbnailUrl: firstMedia?.thumbnailKey
-        ? firstMedia?.mediaUrl  // use mediaUrl as fallback if no separate thumbnail
-        : null,
+      thumbnailUrl: firstMedia?.thumbnailUrl ?? null,
       mediaType: firstMedia?.mediaType ?? null,
       likeCount: p.likeCount ?? 0,
       caption: p.caption ?? null,
       createdAt: p.createdAt,
     };
   });
+
+  // Full shape for the PostcardViewer (PostcardData — media array intact)
+  const viewerPostcards: PostcardData[] = rawPostcards.map((p: any) => ({
+    id: p.id,
+    caption: p.caption ?? null,
+    likeCount: p.likeCount ?? 0,
+    commentCount: p.commentCount ?? 0,
+    viewCount: p.viewCount ?? 0,
+    isLiked: p.isLiked ?? false,
+    eventId: p.eventId ?? undefined,
+    vibeTagId: p.vibeTagId ?? null,
+    createdAt: p.createdAt,
+    author: p.author ?? undefined,
+    media: (p.media ?? []).map((m: any) => ({
+      id: m.id,
+      mediaUrl: m.mediaUrl ?? null,
+      mediaType: m.mediaType ?? null,
+      thumbnailUrl: m.thumbnailUrl ?? null,
+      vibeTagOverlayUrl: m.vibeTagOverlayUrl ?? null,
+    })),
+  }));
+
   const tickets =
     activityData?.data?.data?.tickets ??
     activityData?.data?.tickets ??
@@ -490,7 +521,11 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               <PostcardGridSkeleton />
             ) : postcards.length > 0 ? (
-              <PostcardGrid items={postcards} />
+              <PostcardGrid
+                items={postcards}
+                rawPostcards={viewerPostcards}
+                onPressCard={(index) => setViewerIndex(index)}
+              />
             ) : (
               <EmptyState icon="images-outline" message="No postcards yet" />
             ))}
@@ -506,6 +541,22 @@ export default function ProfileScreen() {
             ))}
         </View>
       </ScrollView>
+
+      {/* ── Postcard Viewer ── */}
+      {viewerIndex !== null && viewerPostcards.length > 0 && (
+        <PostcardViewer
+          postcards={viewerPostcards}
+          initialIndex={viewerIndex}
+          eventId={viewerPostcards[viewerIndex]?.eventId ?? ""}
+          onClose={() => setViewerIndex(null)}
+          onDeletePostcard={(_deletedId: string) => {
+            // If the deleted card was the last one, close the viewer
+            if (viewerPostcards.length <= 1) {
+              setViewerIndex(null);
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
