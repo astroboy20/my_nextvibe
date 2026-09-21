@@ -3,6 +3,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useAppReady } from "@/hooks/useAppReady";
 import { useAuthRouting } from "@/hooks/useAuthRouting";
+import checkForUpdate from "@/hooks/useCheckUpdates";
 import { useFcmSync } from "@/hooks/useFcmSync";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import type { RootState } from "@/store/store";
@@ -70,15 +71,17 @@ function ThemedStack() {
 }
 
 function App() {
-
   const { oauthPending } = useAuthRouting();
   const { isAuthenticated, isBootstrapped } = useSelector(
     (s: RootState) => s.auth
   );
   usePushRegistration(isAuthenticated, isBootstrapped);
-  
 
   useFcmSync(isAuthenticated);
+
+  useEffect(() => {
+    checkForUpdate();
+  }, []);
 
   return (
     <>
