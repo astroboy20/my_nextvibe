@@ -2,34 +2,34 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import {
-    useCommentOnPostcardMutation,
-    useDeletePostcardMutation,
-    useGetPostcardCommentsQuery,
-    useGetPostcardQuery,
-    useToggleLikePostcardMutation,
-    useTrackPostcardViewMutation
+  useCommentOnPostcardMutation,
+  useDeletePostcardMutation,
+  useGetPostcardCommentsQuery,
+  useGetPostcardQuery,
+  useToggleLikePostcardMutation,
+  useTrackPostcardViewMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Dimensions,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
-    ViewToken
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
+  ViewToken,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -41,11 +41,11 @@ const { width: W, height: H } = Dimensions.get("window");
 // ─── VideoPlayer ──────────────────────────────────────────────────────────────
 /**
  * VideoPlayer component handles video playback with live VibeTag overlay.
- * 
+ *
  * When playing:
  * - Renders the video element
  * - If vibeTagOverlayUrl is present, layers it on top absolutely positioned
- * 
+ *
  * When not playing (controlled by parent via thumbnailUrl):
  * - Parent renders thumbnailUrl as static image instead of this component
  */
@@ -196,7 +196,7 @@ function CommentSheet({
           contentContainerStyle={{ padding: 16, gap: 14 }}
           renderItem={({ item: c }) => {
             const name = c.author?.displayName ?? c.author?.username ?? "User";
-        
+
             return (
               <View style={cs.row}>
                 {c.author?.avatarUrl ? (
@@ -347,12 +347,13 @@ function PostcardCard({
   // ── Double-tap heart burst ────────────────────────────────────────────────
   const lastTapRef = useRef(0);
   const doubleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heartScale   = useRef(new Animated.Value(0)).current;
+  const heartScale = useRef(new Animated.Value(0)).current;
   const heartOpacity = useRef(new Animated.Value(0)).current;
 
   const [toggleLike] = useToggleLikePostcardMutation();
   const [trackView] = useTrackPostcardViewMutation();
-  const [deletePostcard, { isLoading: isDeleting }] = useDeletePostcardMutation();
+  const [deletePostcard, { isLoading: isDeleting }] =
+    useDeletePostcardMutation();
   const { user } = useAuth();
 
   // ── View tracking — 1.5 s dwell when card is active ──────────────────────
@@ -393,7 +394,6 @@ function PostcardCard({
     refetchOnMountOrArgChange: true,
   });
 
-
   const freshData = freshPostcard?.data ?? freshPostcard;
 
   // Is the current user the author of this postcard?
@@ -409,7 +409,6 @@ function PostcardCard({
     postcard.author?.displayName?.trim() ||
     postcard.author?.username?.trim() ||
     "User";
-
 
   // Keep like/comment/view counts in sync with fresh polled data
   const freshLikeCount = freshData?.likeCount ?? postcard.likeCount ?? 0;
@@ -493,7 +492,10 @@ function PostcardCard({
     setLiked(true);
     setLikeCount((c) => c + 1);
     try {
-      const res = await toggleLike({ eventId, postcardId: postcard.id }).unwrap();
+      const res = await toggleLike({
+        eventId,
+        postcardId: postcard.id,
+      }).unwrap();
       if (res?.currentLikes !== undefined) setLikeCount(res.currentLikes);
       if (res?.liked !== undefined) setLiked(res.liked);
     } catch {
@@ -528,23 +530,32 @@ function PostcardCard({
           style: "destructive",
           onPress: async () => {
             try {
-              await deletePostcard({ postcardId: postcard.id!, eventId }).unwrap();
+              await deletePostcard({
+                postcardId: postcard.id!,
+                eventId,
+              }).unwrap();
               Toast.show({ type: "success", text1: "Postcard deleted" });
               onDeleted?.(postcard.id!);
             } catch (err: any) {
               const status = err?.status ?? err?.data?.statusCode;
               if (status === 403) {
-                Toast.show({ type: "error", text1: "You can only delete your own postcards." });
+                Toast.show({
+                  type: "error",
+                  text1: "You can only delete your own postcards.",
+                });
               } else if (status === 404) {
                 Toast.show({ type: "error", text1: "Postcard not found." });
                 onDeleted?.(postcard.id!);
               } else {
-                Toast.show({ type: "error", text1: err?.data?.message ?? "Delete failed." });
+                Toast.show({
+                  type: "error",
+                  text1: err?.data?.message ?? "Delete failed.",
+                });
               }
             }
           },
         },
-      ],
+      ]
     );
   }, [postcard.id, eventId, deletePostcard, onDeleted]);
 
@@ -575,23 +586,21 @@ function PostcardCard({
                     active={true}
                     overlayUrl={m.vibeTagOverlayUrl}
                   />
+                ) : // VIDEO NOT PLAYING: Render thumbnail if present, otherwise fall back to video poster
+                m.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: m.thumbnailUrl }}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="contain"
+                    transition={200}
+                  />
                 ) : (
-                  // VIDEO NOT PLAYING: Render thumbnail if present, otherwise fall back to video poster
-                  m.thumbnailUrl ? (
-                    <Image
-                      source={{ uri: m.thumbnailUrl }}
-                      style={StyleSheet.absoluteFillObject}
-                      contentFit="contain"
-                      transition={200}
-                    />
-                  ) : (
-                    // Fallback to video's native poster frame
-                    <VideoPlayer
-                      src={m.mediaUrl!}
-                      active={false}
-                      overlayUrl={m.vibeTagOverlayUrl}
-                    />
-                  )
+                  // Fallback to video's native poster frame
+                  <VideoPlayer
+                    src={m.mediaUrl!}
+                    active={false}
+                    overlayUrl={m.vibeTagOverlayUrl}
+                  />
                 )
               ) : (
                 // PHOTO: Always render directly (overlay already baked in)
@@ -609,7 +618,10 @@ function PostcardCard({
 
       {/* ── Double-tap heart burst ──────────────────────────────────── */}
       <Animated.View
-        style={[ov.heartBurst, { opacity: heartOpacity, transform: [{ scale: heartScale }] }]}
+        style={[
+          ov.heartBurst,
+          { opacity: heartOpacity, transform: [{ scale: heartScale }] },
+        ]}
         pointerEvents="none"
       >
         <Ionicons name="heart" size={120} color={brand.primary} />
@@ -631,7 +643,9 @@ function PostcardCard({
 
         {/* Author */}
         <View style={ov.authorRow}>
-          {freshData?.author?.avatarUrl ? (
+          {isLoading ? (
+            <Skeleton width={36} height={36} borderRadius={19} />
+          ) : freshData?.author?.avatarUrl ? (
             <Image
               source={{ uri: freshData?.author?.avatarUrl }}
               style={ov.avatar}
@@ -653,7 +667,6 @@ function PostcardCard({
             {timeAgo ? <Text style={ov.timeAgo}>{timeAgo}</Text> : null}
           </View>
         </View>
-
         {/* Caption */}
         {caption ? (
           <Text style={ov.caption}>
@@ -706,7 +719,11 @@ function PostcardCard({
               {isDeleting ? (
                 <ActivityIndicator size={18} color="rgba(255,255,255,0.8)" />
               ) : (
-                <Ionicons name="trash-outline" size={22} color="rgba(255,80,80,0.9)" />
+                <Ionicons
+                  name="trash-outline"
+                  size={22}
+                  color="rgba(255,80,80,0.9)"
+                />
               )}
             </TouchableOpacity>
           )}
