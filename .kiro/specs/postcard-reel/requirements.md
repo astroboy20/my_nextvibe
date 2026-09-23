@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Postcard Reel is a new full-screen viewing mode for the PostcardsTab in the NextVibe React Native / Expo app. It compiles all event postcards into a continuous, auto-advancing slideshow — similar to Instagram Stories / Reels — and is accessed via a "Watch Reel" button in the "Event Postcards" section header. Photo postcards display for 3 seconds; video postcards play for up to 10 seconds before auto-advancing. The reel loops continuously, and users can navigate, pause, and resume using gesture interactions. The existing 2-column grid and PostcardViewer are not affected.
+The Postcard Reel is a new full-screen viewing mode for the PostcardsTab in the NextVibe React Native / Expo app. It compiles event postcards into a continuous, auto-advancing slideshow — similar to Instagram Stories / Reels. There are three separate reels, one per event phase: Pre-Event, Main Event, and Post-Event. Each reel is accessed via a "Watch Reel" button placed within its corresponding timing section. Photo postcards display for 3 seconds; video postcards play for up to 10 seconds before auto-advancing. The reel loops continuously, and users can navigate, pause, and resume using gesture interactions. The existing 2-column grid and PostcardViewer are not affected.
 
 ## Glossary
 
@@ -18,7 +18,8 @@ The Postcard Reel is a new full-screen viewing mode for the PostcardsTab in the 
 - **PostcardMediaItem**: A single media item within a `PostcardData`, with fields `mediaUrl`, `mediaType`, `thumbnailUrl`, `vibeTagOverlayUrl`.
 - **PostcardsTab**: The existing tab component (`components/event/PostcardsTab/index.tsx`) containing the timing tabs, VibeTag card, 2-column grid, and section header.
 - **PostcardViewer**: The existing TikTok-style vertical FlatList viewer — must not be modified by this feature.
-- **Watch_Reel_Button**: The pressable element in the "Event Postcards" section header that opens the Reel_Modal.
+- **Reel_Phase**: One of three event phases — `PRE_EVENT`, `DURING_EVENT`, or `POST_EVENT` — that determines which postcards a given Reel contains.
+- **Watch_Reel_Button**: The pressable element rendered within each timing section of the PostcardsTab that opens the Reel_Modal for that phase's postcards.
 - **Gesture_Zone**: Either the left or right half of the Reel screen used for tap navigation.
 - **VibeTag_Overlay**: The semi-transparent overlay image (`vibeTagOverlayUrl`) composited on top of media during playback, consistent with the existing PostcardViewer.
 - **RTK_Query**: The Redux Toolkit Query layer used to fetch data (`useGetEventPostcardsQuery`).
@@ -27,31 +28,33 @@ The Postcard Reel is a new full-screen viewing mode for the PostcardsTab in the 
 
 ## Requirements
 
-### Requirement 1: Watch Reel Entry Point
+### Requirement 1: Watch Reel Entry Point (Per Phase)
 
-**User Story:** As an event attendee, I want a "Watch Reel" button in the Event Postcards section header, so that I can launch the full-screen Reel experience without leaving the grid view.
+**User Story:** As an event attendee, I want a "Watch Reel" button within each event phase section (Pre-Event, Main Event, Post-Event), so that I can launch a reel for that specific phase without leaving the grid view.
 
 #### Acceptance Criteria
 
-1. THE PostcardsTab SHALL render a Watch_Reel_Button in the "Event Postcards" section header, positioned to the right of the "Event Postcards" title text.
-2. WHILE the total count of postcards with at least one valid `mediaUrl` is zero, THE PostcardsTab SHALL hide the Watch_Reel_Button.
-3. WHEN the Watch_Reel_Button is pressed, THE Reel_Modal SHALL open in full-screen over the PostcardsTab.
-4. WHEN the Reel_Modal is opened, THE Reel_Controller SHALL begin playback from the first Slide (index 0).
+1. THE PostcardsTab SHALL render a Watch_Reel_Button inside the VibeTag card for the currently active timing tab (PRE_EVENT, DURING_EVENT, or POST_EVENT).
+2. WHILE the count of valid postcards for the active timing phase is zero, THE PostcardsTab SHALL hide the Watch_Reel_Button for that phase.
+3. WHEN the Watch_Reel_Button is pressed, THE Reel_Modal SHALL open in full-screen showing only the postcards belonging to the active timing phase.
+4. WHEN the Reel_Modal is opened, THE Reel_Controller SHALL begin playback from the first Slide (index 0) of the phase-filtered postcard list.
 5. THE PostcardsTab SHALL continue to render the 2-column grid and timing tabs beneath the Reel_Modal without modification.
+6. THE PostcardsTab SHALL render a separate Watch_Reel_Button for each phase; switching the active timing tab changes which phase's reel is accessible.
 
 ---
 
-### Requirement 2: Postcard Data Loading
+### Requirement 2: Postcard Data Loading (Phase-Scoped)
 
-**User Story:** As an event attendee, I want the Reel to show all event postcards regardless of which timing tab is active in the grid, so that I see the complete event story.
+**User Story:** As an event attendee, I want each phase reel to show only postcards from that phase, so that the Pre-Event, Main Event, and Post-Event reels tell distinct stories.
 
 #### Acceptance Criteria
 
-1. THE Reel_Controller SHALL load postcards using `useGetEventPostcardsQuery({ eventId, limit: 100 })` with no `phase` filter applied.
+1. THE Reel_Controller SHALL load postcards using `useGetEventPostcardsQuery({ eventId, limit: 100 })` and filter client-side to only those whose associated VibeTag has an `activityTiming` matching the Reel_Phase passed as a prop.
 2. THE Reel_Controller SHALL include only postcards that contain at least one `PostcardMediaItem` with a non-null, non-empty `mediaUrl`.
 3. THE Reel_Controller SHALL use the same `vibeTagMap` resolution logic as the PostcardsTab to enrich each Slide's `vibeTagOverlayUrl` before playback begins.
 4. WHILE the postcard query is loading, THE Reel_Modal SHALL display a full-screen loading indicator in place of slide content.
-5. IF the postcard query returns zero valid postcards, THEN THE Reel_Modal SHALL display an empty-state message and a close button.
+5. IF the phase-filtered postcard list contains zero valid postcards, THEN THE Reel_Modal SHALL display an empty-state message and a close button.
+6. THE `phase` prop passed to `PostcardReel` SHALL be one of `'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT'`.
 
 ---
 
@@ -174,7 +177,7 @@ The Postcard Reel is a new full-screen viewing mode for the PostcardsTab in the 
 
 #### Acceptance Criteria
 
-1. THE PostcardsTab SHALL render the Watch_Reel_Button as an addition to the existing section header without altering any existing layout, style, or behaviour of the header.
+1. THE PostcardsTab SHALL render the Watch_Reel_Button as an addition inside the VibeTag card for the active timing tab without altering any existing layout, style, or behaviour of that card.
 2. THE PostcardViewer component SHALL NOT be modified to support the Reel.
 3. THE Reel_Modal SHALL be implemented as a new, self-contained component tree separate from the PostcardViewer component.
 4. THE existing `useGetEventPostcardsQuery` call in `PhaseGrid` SHALL NOT be altered by this feature.

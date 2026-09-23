@@ -7,22 +7,22 @@
  *
  * Design: clean Instagram-style with the VibeTag always visibly applied.
  */
-import AuthModal from '@/components/auth/AuthModal';
-import { brand, neutral, semantic } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
-import { useAuthModal } from '@/hooks/useAuthModal';
+import AuthModal from "@/components/auth/AuthModal";
+import { brand, neutral, semantic } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
+import { useAuthModal } from "@/hooks/useAuthModal";
 import {
   useCreatePostcardsMutation,
   useGetEventPostcardsQuery,
   useSwapPostcardMutation,
-} from '@/store/api/eventsApi';
-import { API_URL, tokenStore } from '@/store/baseQuery';
-import { Ionicons } from '@expo/vector-icons';
-import { ResizeMode, Video } from 'expo-av';
-import { File as EFSFile, Paths } from 'expo-file-system';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import React, { useRef, useState } from 'react';
+} from "@/store/api/eventsApi";
+import { API_URL, tokenStore } from "@/store/baseQuery";
+import { Ionicons } from "@expo/vector-icons";
+import { ResizeMode, Video } from "expo-av";
+import { File as EFSFile, Paths } from "expo-file-system";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -36,15 +36,16 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
-import { PostcardCamera, type CapturedMedia } from './PostcardCamera';
-import { stampOverlay } from './stampOverlay';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import { PostcardCamera, type CapturedMedia } from "./PostcardCamera";
+import { stampOverlay } from "./stampOverlay";
+import { SwapConfirm, SwapPicker } from "./Swap";
 
-const { width: W, height: H } = Dimensions.get('window');
-const TILE_W = (W - 28 - 8) / 2;   // two-column swap grid
+const { width: W, height: H } = Dimensions.get("window");
+const TILE_W = (W - 28 - 8) / 2; // two-column swap grid
 const MAX_ITEMS = 20;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ interface VibeTagOverlay {
 
 interface PickedItem {
   uri: string;
-  type: 'image' | 'video';
+  type: "image" | "video";
   mimeType?: string;
   fileName?: string;
 }
@@ -75,189 +76,13 @@ export interface PostcardCreatorProps {
   swapCommentCount?: number;
 }
 
-// ─── SwapConfirm ──────────────────────────────────────────────────────────────
-
-function SwapConfirm({
-  likeCount,
-  commentCount,
-  onConfirm,
-  onCancel,
-}: {
-  likeCount: number;
-  commentCount: number;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'flex-end', zIndex: 300, padding: 16 }]}>
-      <View style={{ width: '100%', backgroundColor: '#fff', borderRadius: 20, padding: 20, gap: 14 }}>
-        <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.base, color: neutral[800] }}>
-          Replace this postcard?
-        </Text>
-        <Text style={{ fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[500] }}>
-          This permanently deletes the existing postcard and all its activity:
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 16, backgroundColor: `${semantic.error}10`, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: `${semantic.error}25` }}>
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            <Ionicons name="heart" size={16} color={semantic.error} />
-            <Text style={{ fontFamily: fontFamily.bold, fontSize: 13, color: semantic.error }}>{likeCount}</Text>
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: 10, color: neutral[500] }}>likes</Text>
-          </View>
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            <Ionicons name="chatbubble" size={15} color={semantic.error} />
-            <Text style={{ fontFamily: fontFamily.bold, fontSize: 13, color: semantic.error }}>{commentCount}</Text>
-            <Text style={{ fontFamily: fontFamily.regular, fontSize: 10, color: neutral[500] }}>comments</Text>
-          </View>
-          <Text style={{ flex: 1, fontFamily: fontFamily.regular, fontSize: 11, color: `${semantic.error}BB`, alignSelf: 'center' }}>
-            This action cannot be undone.
-          </Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity
-            onPress={onCancel}
-            activeOpacity={0.8}
-            style={{ flex: 1, height: 46, borderRadius: 14, borderWidth: 1.5, borderColor: neutral[200], alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] }}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onConfirm}
-            activeOpacity={0.85}
-            style={{ flex: 1, height: 46, borderRadius: 14, backgroundColor: semantic.error, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Text style={{ fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' }}>Replace</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ─── SwapPicker ───────────────────────────────────────────────────────────────
-
-function SwapPicker({
-  eventId,
-  onPick,
-  onCancel,
-}: {
-  eventId: string;
-  onPick: (postcard: any) => void;
-  onCancel: () => void;
-}) {
-  const { data, isLoading } = useGetEventPostcardsQuery(
-    { eventId, limit: 50 },
-    { skip: !eventId },
-  );
-  const list: any[] = (
-    (data as any)?.data?.data ?? (data as any)?.data ?? []
-  ).filter((p: any) => (p?.media ?? []).some((m: any) => !!m.mediaUrl));
-
-  return (
-    <SafeAreaView style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff', zIndex: 200 }]} edges={['top', 'bottom']}>
-      <View style={sp.header}>
-        <TouchableOpacity onPress={onCancel} hitSlop={10}>
-          <Ionicons name="close" size={22} color={neutral[700]} />
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={sp.headerTitle}>Replace a Postcard</Text>
-          <Text style={sp.headerSub}>You've hit the 20 postcard limit</Text>
-        </View>
-        <View style={{ width: 30 }} />
-      </View>
-
-      <View style={sp.warningRow}>
-        <Ionicons name="warning-outline" size={15} color="#92400E" />
-        <Text style={sp.warningText}>
-          Tap a postcard to replace it. Its likes and comments will be removed.
-        </Text>
-      </View>
-
-      {isLoading ? (
-        <View style={sp.center}>
-          <ActivityIndicator color={brand.primary} />
-        </View>
-      ) : list.length === 0 ? (
-        <View style={sp.center}>
-          <Ionicons name="images-outline" size={40} color={neutral[200]} />
-          <Text style={sp.emptyText}>No postcards to replace</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={list}
-          keyExtractor={(item, i) => item?.id ?? String(i)}
-          numColumns={2}
-          contentContainerStyle={{ padding: 14 }}
-          columnWrapperStyle={{ gap: 8, marginBottom: 8 }}
-          renderItem={({ item }) => {
-            const src = item?.media?.[0]?.mediaUrl ?? '';
-            const isVid = item?.media?.[0]?.mediaType === 'VIDEO';
-            if (!src) return null;
-            return (
-              <TouchableOpacity
-                style={[sp.tile, { width: TILE_W, height: TILE_W * (4 / 3) }]}
-                onPress={() => onPick(item)}
-                activeOpacity={0.82}
-              >
-                <Image source={{ uri: src }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                {isVid && (
-                  <View style={sp.playBadge}>
-                    <Ionicons name="play" size={13} color="#fff" />
-                  </View>
-                )}
-                <View style={sp.tileGrad} />
-                <View style={sp.tileBottom}>
-                  <Ionicons name="heart" size={10} color="#fff" />
-                  <Text style={sp.tileStat}>{item.likeCount ?? 0}</Text>
-                  <Ionicons name="chatbubble" size={9} color="#fff" style={{ marginLeft: 6 }} />
-                  <Text style={sp.tileStat}>{item.commentCount ?? 0}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
-    </SafeAreaView>
-  );
-}
-
-const sp = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200],
-  },
-  headerTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  headerSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400] },
-  warningRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: '#FEF3C7',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#FDE68A',
-  },
-  warningText: { flex: 1, fontFamily: fontFamily.regular, fontSize: 12, color: '#92400E' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
-  tile: { borderRadius: 12, overflow: 'hidden', backgroundColor: neutral[100] },
-  playBadge: {
-    position: 'absolute', top: 8, right: 8,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center',
-  },
-  tileGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 44, backgroundColor: 'rgba(0,0,0,0.35)' },
-  tileBottom: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', padding: 8,
-  },
-  tileStat: { fontFamily: fontFamily.semibold, fontSize: 10, color: '#fff', marginLeft: 3 },
-});
-
 // ─── PostcardCreator (main) ───────────────────────────────────────────────────
 
 export function PostcardCreator({
-  vibeTagName = 'Event VibeTag',
+  vibeTagName = "Event VibeTag",
   vibeTagOverlay,
   vibeTagId,
-  eventName = 'Event',
+  eventName = "Event",
   eventId,
   onClose,
   onSubmit,
@@ -268,24 +93,28 @@ export function PostcardCreator({
 }: PostcardCreatorProps) {
   const isSwapMode = !!swapPostcardId;
 
-  type Stage = 'choose' | 'review';
-  const [stage, setStage] = useState<Stage>('choose');
+  type Stage = "choose" | "review";
+  const [stage, setStage] = useState<Stage>("choose");
   const [items, setItems] = useState<PickedItem[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
-  const [caption, setCaption] = useState('');
+  const [caption, setCaption] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState<'stamping' | 'uploading' | 'saving'>('stamping');
-  // Bug 3 fix: camera rendered inline (no nested Modal), controlled by this flag
+  const [uploadStage, setUploadStage] = useState<
+    "stamping" | "uploading" | "saving"
+  >("stamping");
   const [showCamera, setShowCamera] = useState(false);
-  // Bug 3 fix: temporarily hide the creator modal while the system image picker is presented
   const [creatorVisible, setCreatorVisible] = useState(true);
   const [showSwapPicker, setShowSwapPicker] = useState(false);
   const [showSwapConfirm, setShowSwapConfirm] = useState(false);
   const [pendingSwap, setPendingSwap] = useState<any>(null);
 
   // Auth modal — shown when token has expired mid-submit
-  const { visible: authModalVisible, showAuthModal, hideAuthModal } = useAuthModal();
+  const {
+    visible: authModalVisible,
+    showAuthModal,
+    hideAuthModal,
+  } = useAuthModal();
   // Keep a ref to the pending swap target so we can retry after re-auth
   const pendingSubmitSwapRef = useRef<string | undefined>(undefined);
 
@@ -295,7 +124,7 @@ export function PostcardCreator({
   const showReview = (newItems: PickedItem[], startIdx: number) => {
     setItems(newItems);
     setActiveIdx(startIdx);
-    setStage('review');
+    setStage("review");
     slideAnim.setValue(H);
     Animated.spring(slideAnim, {
       toValue: 0,
@@ -308,31 +137,28 @@ export function PostcardCreator({
   const [createPostcards] = useCreatePostcardsMutation();
   const [swapPostcard] = useSwapPostcardMutation();
 
-  // ── Pickers ───────────────────────────────────────────────────────────────
+  // ── Pickers
 
   const openGallery = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Toast.show({ type: 'error', text1: 'Media library permission denied' });
+      Toast.show({ type: "error", text1: "Media library permission denied" });
       return;
     }
     const remaining = MAX_ITEMS - items.length;
     if (remaining <= 0) {
-      Toast.show({ type: 'info', text1: `Max ${MAX_ITEMS} items reached` });
+      Toast.show({ type: "info", text1: `Max ${MAX_ITEMS} items reached` });
       return;
     }
 
-    // Bug 3 fix: hide the creator Modal before launching the system image picker
-    // so that iOS does not freeze due to presenting a picker from inside an active Modal.
     setCreatorVisible(false);
 
-    // Give the modal time to dismiss before launching the picker
     await new Promise<void>((resolve) => setTimeout(resolve, 350));
 
     let result: ImagePicker.ImagePickerResult;
     try {
       result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images', 'videos'] as any,
+        mediaTypes: ["images", "videos"] as any,
         allowsMultipleSelection: true,
         selectionLimit: remaining,
         quality: 0.85,
@@ -347,7 +173,7 @@ export function PostcardCreator({
     if (result.canceled) return;
     const newItems: PickedItem[] = result.assets.map((a) => ({
       uri: a.uri,
-      type: a.type === 'video' ? 'video' : 'image',
+      type: a.type === "video" ? "video" : "image",
       mimeType: a.mimeType,
       fileName: a.fileName ?? undefined,
     }));
@@ -361,7 +187,9 @@ export function PostcardCreator({
     setCreatorVisible(true);
     if (!captured.length) return;
     const newItems: PickedItem[] = captured.map((c) => ({
-      uri: c.uri, type: c.type, mimeType: c.mimeType,
+      uri: c.uri,
+      type: c.type,
+      mimeType: c.mimeType,
     }));
     const prevLen = items.length;
     const next = [...items, ...newItems].slice(0, MAX_ITEMS);
@@ -371,7 +199,7 @@ export function PostcardCreator({
   const removeItem = (idx: number) => {
     const next = items.filter((_, i) => i !== idx);
     if (next.length === 0) {
-      setStage('choose');
+      setStage("choose");
       setItems([]);
     } else {
       setItems(next);
@@ -379,19 +207,16 @@ export function PostcardCreator({
     }
   };
 
-  // ── Upload ────────────────────────────────────────────────────────────────
+  // ── Upload
 
-  /**
-   * Bug 2 fix (2c / 2e): Write a data: URI to a temp file and return a
-   * file:// URI that React Native's XHR FormData can handle reliably on
-   * both iOS and Android.
-   */
-  const dataUriToTempFile = async (dataUri: string, fileName: string): Promise<string> => {
-    // dataUri is "data:<mime>;base64,<b64data>"
-    const commaIdx = dataUri.indexOf(',');
+  const dataUriToTempFile = async (
+    dataUri: string,
+    fileName: string
+  ): Promise<string> => {
+    const commaIdx = dataUri.indexOf(",");
     const base64 = dataUri.slice(commaIdx + 1);
     const tempFile = new EFSFile(Paths.cache, fileName);
-    tempFile.write(base64, { encoding: 'base64' });
+    tempFile.write(base64, { encoding: "base64" });
     return tempFile.uri;
   };
 
@@ -399,86 +224,78 @@ export function PostcardCreator({
     if (!items.length || !eventId) return;
     setIsSubmitting(true);
     setUploadProgress(0);
-    setUploadStage('stamping');
+    setUploadStage("stamping");
 
     // overlayUrl from vibeTagOverlay prop — used for both stamping and video reference
     const overlayUrl = vibeTagOverlay?.imageUrl ?? null;
 
     try {
-      // ── Step 1: Stamp VibeTag onto every item before upload ─────────────
-      // Images  → Skia composites photo + overlay → PNG data URI
-      // Videos  → returned unchanged; overlayUrl stored for playback-time rendering
       setUploadProgress(5);
       const stamped = await Promise.all(
-        items.map((item) =>
-          stampOverlay(item.uri, item.type, overlayUrl),
-        ),
+        items.map((item) => stampOverlay(item.uri, item.type, overlayUrl))
       );
-    
       setUploadProgress(15);
-
-      // ── Step 2: Build FormData with stamped URIs ─────────────────────────
-      // Bug 2 fix (2c / 2e): For composited PNG data: URIs, write to a temp
-      // file first so XHR FormData gets a file:// URI instead of a raw data:
-      // URI, which is unreliable on Android and stalls the upload.
-      const token = await tokenStore.get('accessToken');
+      const token = await tokenStore.get("accessToken");
       const formData = new FormData();
 
       for (let i = 0; i < stamped.length; i++) {
         const result = stamped[i];
         const original = items[i];
 
-        if (original.type === 'video') {
-          const videoName = original.fileName ?? `postcard-video-${Date.now()}-${i}.mp4`;
-          (formData as any).append('files', {
+        if (original.type === "video") {
+          const videoName =
+            original.fileName ?? `postcard-video-${Date.now()}-${i}.mp4`;
+          (formData as any).append("files", {
             uri: result.uri,
             name: videoName,
-            type: 'video/mp4',
+            type: "video/mp4",
           } as any);
 
           if (result.thumbnailUri) {
             // Thumbnail is also a data: URI from Skia — write it to a temp file too
             const thumbFileName = `postcard-thumb-${Date.now()}-${i}.jpg`;
             let thumbUri = result.thumbnailUri;
-            if (thumbUri.startsWith('data:')) {
+            if (thumbUri.startsWith("data:")) {
               thumbUri = await dataUriToTempFile(thumbUri, thumbFileName);
             }
-            (formData as any).append('files', {
+            (formData as any).append("files", {
               uri: thumbUri,
               name: thumbFileName,
-              type: 'image/jpeg',
+              type: "image/jpeg",
             } as any);
           }
         } else {
           // Photo: composited image — may be a data: URI from Skia
           const mime = result.mimeType;
-          const ext = mime === 'image/png' ? 'png' : 'jpg';
+          const ext = mime === "image/png" ? "png" : "jpg";
           const name = original.fileName
             ? original.fileName.replace(/\.(jpg|jpeg)$/i, `.${ext}`)
             : `postcard-photo-${Date.now()}-${i}.${ext}`;
 
           let uploadUri = result.uri;
-          if (uploadUri.startsWith('data:')) {
+          if (uploadUri.startsWith("data:")) {
             // Write data: URI to a temp file for reliable FormData on all platforms
             uploadUri = await dataUriToTempFile(uploadUri, name);
-          } else if (Platform.OS === 'ios' && uploadUri.startsWith('file://')) {
-            uploadUri = uploadUri.replace('file://', '');
+          } else if (Platform.OS === "ios" && uploadUri.startsWith("file://")) {
+            uploadUri = uploadUri.replace("file://", "");
           }
 
-          (formData as any).append('files', { uri: uploadUri, name, type: mime } as any);
+          (formData as any).append("files", {
+            uri: uploadUri,
+            name,
+            type: mime,
+          } as any);
         }
       }
 
       // ── Step 3: XHR upload with progress ────────────────────────────────
-      setUploadStage('uploading');
-      // Bug 2 fix (2a): set a synthetic midpoint so the bar visibly advances
-      // even when onprogress events are sparse for large in-memory payloads.
+      setUploadStage("uploading");
       setUploadProgress(20);
 
       const uploadResult = await new Promise<any>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${API_URL}/v1/storage/upload-multiple`);
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.open("POST", `${API_URL}/v1/storage/upload-multiple`);
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable)
             // Reserve 20–85% of progress bar for the upload
@@ -486,21 +303,29 @@ export function PostcardCreator({
         };
         xhr.onload = () => {
           if (xhr.status === 401) {
-            reject(Object.assign(new Error('Unauthorized'), { status: 401 }));
+            reject(Object.assign(new Error("Unauthorized"), { status: 401 }));
             return;
           }
           if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); }
-            catch { reject(new Error('Invalid response')); }
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error("Invalid response"));
+            }
           } else {
-            try { reject(new Error(JSON.parse(xhr.responseText)?.message || 'Upload failed')); }
-            catch { reject(new Error('Upload failed')); }
+            try {
+              reject(
+                new Error(
+                  JSON.parse(xhr.responseText)?.message || "Upload failed"
+                )
+              );
+            } catch {
+              reject(new Error("Upload failed"));
+            }
           }
         };
-        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.onerror = () => reject(new Error("Network error"));
         xhr.send(formData);
-        // Bug 2 fix (2a): ensure progress advances to at least 50% once the
-        // request has been sent, covering cases where onprogress never fires.
         setUploadProgress((prev) => Math.max(prev, 50));
       });
 
@@ -509,14 +334,16 @@ export function PostcardCreator({
       let uploadIdx = 0;
       const uploaded = stamped.map((result, i) => {
         const original = items[i];
-        
-        if (original.type === 'video') {
+
+        if (original.type === "video") {
           const videoFile = uploadedFiles[uploadIdx++];
-          const thumbnailFile = result.thumbnailUri ? uploadedFiles[uploadIdx++] : null;
-         
+          const thumbnailFile = result.thumbnailUri
+            ? uploadedFiles[uploadIdx++]
+            : null;
+
           return {
             fileKey: videoFile?.fileKey,
-            mediaType: 'VIDEO',
+            mediaType: "VIDEO",
             mediaUrl: videoFile?.url,
             thumbnailKey: thumbnailFile?.fileKey ?? null,
             // For video items, persist the overlay URL so the viewer renders it live
@@ -524,10 +351,10 @@ export function PostcardCreator({
           };
         } else {
           const photoFile = uploadedFiles[uploadIdx++];
-          
+
           return {
             fileKey: photoFile?.fileKey,
-            mediaType: 'PHOTO',
+            mediaType: "PHOTO",
             mediaUrl: photoFile?.url,
             // Photos don't need vibeTagOverlayUrl - it's already baked in
             vibeTagOverlayUrl: null,
@@ -536,27 +363,38 @@ export function PostcardCreator({
       });
 
       if (!uploaded.length) {
-        Toast.show({ type: 'error', text1: 'Upload failed' });
+        Toast.show({ type: "error", text1: "Upload failed" });
         return;
       }
 
       // ── Step 5: Save postcard ────────────────────────────────────────────
-      setUploadStage('saving');
+      setUploadStage("saving");
       setUploadProgress(90);
       if (targetSwapId) {
-        await swapPostcard({ postcardId: targetSwapId, eventId, vibeTagId, media: uploaded, caption }).unwrap();
+        await swapPostcard({
+          postcardId: targetSwapId,
+          eventId,
+          vibeTagId,
+          media: uploaded,
+          caption,
+        }).unwrap();
       } else {
-        await createPostcards({ eventId, vibeTagId, media: uploaded, caption }).unwrap();
+        await createPostcards({
+          eventId,
+          vibeTagId,
+          media: uploaded,
+          caption,
+        }).unwrap();
       }
 
       setUploadProgress(100);
       Toast.show({
-        type: 'success',
-        text1: targetSwapId ? 'Postcard replaced!' : `${items.length} item${items.length > 1 ? 's' : ''} posted!`,
+        type: "success",
+        text1: targetSwapId
+          ? "Postcard replaced!"
+          : `${items.length} item${items.length > 1 ? "s" : ""} posted!`,
       });
       onSubmit?.();
-      // Bug 2 fix (2b): keep isSubmitting=true until after onClose() so the
-      // post button cannot flash back visible between completion and dismissal.
       onClose();
     } catch (err: any) {
       const status = err?.status ?? err?.data?.statusCode;
@@ -570,15 +408,19 @@ export function PostcardCreator({
 
       // ── Domain errors ──────────────────────────────────────────────────
       if (targetSwapId && status === 403) {
-        Toast.show({ type: 'error', text1: 'You can only replace your own postcards.' });
+        Toast.show({
+          type: "error",
+          text1: "You can only replace your own postcards.",
+        });
       } else if (targetSwapId && status === 404) {
-        Toast.show({ type: 'error', text1: 'That postcard no longer exists.' });
+        Toast.show({ type: "error", text1: "That postcard no longer exists." });
       } else {
-        Toast.show({ type: 'error', text1: err?.data?.message ?? err?.message ?? 'Post failed.' });
+        Toast.show({
+          type: "error",
+          text1: err?.data?.message ?? err?.message ?? "Post failed.",
+        });
       }
 
-      // Bug 2 fix (2b): only reset submitting state on error (not on success,
-      // where we want the button to stay hidden until after onClose()).
       setIsSubmitting(false);
       setUploadProgress(0);
       setShowSwapConfirm(false);
@@ -587,623 +429,922 @@ export function PostcardCreator({
 
   const handlePost = () => {
     if (!items.length) return;
-    if (isSwapMode) { setShowSwapConfirm(true); return; }
-    if (userPostcardCount >= MAX_ITEMS) { setShowSwapPicker(true); return; }
+    if (isSwapMode) {
+      setShowSwapConfirm(true);
+      return;
+    }
+    if (userPostcardCount >= MAX_ITEMS) {
+      setShowSwapPicker(true);
+      return;
+    }
     doSubmit();
   };
 
   const activeItem = items[activeIdx] ?? null;
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────────────────
-
   return (
     <>
-    <Modal
-      visible={creatorVisible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={{ flex: 1 }}>
-      <SafeAreaView style={s.root} edges={['top', 'bottom']}>
-
-        {/* ── CHOOSE STAGE ─────────────────────────────────────────────── */}
-        {stage === 'choose' && (
-          <View style={{ flex: 1 }}>
-            {/* Header */}
-            <View style={s.header}>
-              <TouchableOpacity onPress={onClose} hitSlop={10} style={s.headerBtn}>
-                <Ionicons name="close" size={22} color={neutral[700]} />
-              </TouchableOpacity>
-              <Text style={s.headerTitle}>
-                {isSwapMode ? 'Replace Postcard' : 'New Postcard'}
-              </Text>
-              <View style={{ width: 36 }} />
-            </View>
-
-            {/* VibeTag preview — takes most of the screen */}
-            <View style={s.vibePreview}>
-              {vibeTagOverlay?.imageUrl ? (
-                <>
-                  <Image
-                    source={{ uri: vibeTagOverlay.imageUrl }}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                  />
-                  {/* Dark gradient at bottom */}
-                  <View style={s.vibePreviewGrad} pointerEvents="none" />
-                  {/* Tag info */}
-                  <View style={s.vibePreviewInfo} pointerEvents="none">
-                    <View style={s.vibeChip}>
-                      <Ionicons name="sparkles" size={12} color="#fff" />
-                      <Text style={s.vibeChipText} numberOfLines={1}>
-                        {vibeTagOverlay.name}
-                      </Text>
-                    </View>
-                    <Text style={s.vibePreviewHint}>
-                      This overlay will appear on your postcards
-                    </Text>
-                  </View>
-                </>
-              ) : (
-                <View style={s.vibePreviewEmpty}>
-                  <View style={s.vibePreviewEmptyIcon}>
-                    <Ionicons name="sparkles" size={32} color={brand.primary} />
-                  </View>
-                  <Text style={s.vibePreviewEmptyTitle}>{vibeTagName}</Text>
-                  <Text style={s.vibePreviewEmptySub}>
-                    {eventName}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Action buttons */}
-            <View style={s.chooseActions}>
-              <TouchableOpacity
-                style={s.cameraBtn}
-                onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
-                activeOpacity={0.85}
-              >
-                <View style={s.cameraBtnIcon}>
-                  <Ionicons name="camera" size={26} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.cameraBtnTitle}>Camera</Text>
-                  <Text style={s.cameraBtnSub}>
-                    Photo & video with live VibeTag overlay
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={s.galleryBtn}
-                onPress={openGallery}
-                activeOpacity={0.85}
-              >
-                <View style={s.galleryBtnIcon}>
-                  <Ionicons name="images-outline" size={24} color={brand.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.galleryBtnTitle}>Upload from Gallery</Text>
-                  <Text style={s.galleryBtnSub}>
-                    Photos & videos · max {MAX_ITEMS} · videos ≤ 125s
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={neutral[400]} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* ── REVIEW STAGE ─────────────────────────────────────────────── */}
-        {stage === 'review' && (
-          <Animated.View style={{ flex: 1, transform: [{ translateY: slideAnim }] }}>
-            <KeyboardAvoidingView
-              style={{ flex: 1 }}
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-              {/* Header */}
-              <View style={s.header}>
-                <TouchableOpacity
-                  onPress={() => { setStage('choose'); setItems([]); }}
-                  hitSlop={10}
-                  style={s.headerBtn}
-                >
-                  <Ionicons name="chevron-back" size={22} color={neutral[700]} />
-                </TouchableOpacity>
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={s.headerTitle}>
-                    {isSwapMode ? 'Replace Postcard' : 'Review'}
-                  </Text>
-                  <Text style={s.headerSub}>
-                    {items.length}/{MAX_ITEMS} item{items.length > 1 ? 's' : ''}
-                  </Text>
-                </View>
-                {/* Add more — camera */}
-                {items.length < MAX_ITEMS ? (
+      <Modal
+        visible={creatorVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <View style={{ flex: 1 }}>
+          <SafeAreaView style={s.root} edges={["top", "bottom"]}>
+            {/* ── CHOOSE STAGE ─────────────────────────────────────────────── */}
+            {stage === "choose" && (
+              <View style={{ flex: 1 }}>
+                {/* Header */}
+                <View style={s.header}>
                   <TouchableOpacity
-                    onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
+                    onPress={onClose}
                     hitSlop={10}
                     style={s.headerBtn}
                   >
-                    <Ionicons name="add" size={24} color={brand.primary} />
+                    <Ionicons name="close" size={22} color={neutral[700]} />
                   </TouchableOpacity>
-                ) : (
-                  <View style={{ width: 36 }} />
-                )}
-              </View>
-
-              {/* VibeTag banner */}
-              {vibeTagOverlay && (
-                <View style={s.vibeBanner}>
-                  <Ionicons name="sparkles" size={12} color={brand.primary} />
-                  <Text style={s.vibeBannerText} numberOfLines={1}>
-                    {vibeTagOverlay.name}
+                  <Text style={s.headerTitle}>
+                    {isSwapMode ? "Replace Postcard" : "New Postcard"}
                   </Text>
-                  <Text style={s.vibeBannerSub}>live overlay applied</Text>
+                  <View style={{ width: 36 }} />
                 </View>
-              )}
 
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                {/* Active media preview — full width, 4:3 ratio, proper overlay */}
-                {activeItem && (
-                  <View style={s.mediaPreview}>
-                    {/* User's photo / video */}
-                    {activeItem.type === 'video' ? (
-                      <Video
-                        source={{ uri: activeItem.uri }}
-                        style={StyleSheet.absoluteFillObject}
-                        resizeMode={ResizeMode.COVER}
-                        shouldPlay={false}
-                        useNativeControls
-                        isLooping
-                      />
-                    ) : (
+                {/* VibeTag preview — takes most of the screen */}
+                <View style={s.vibePreview}>
+                  {vibeTagOverlay?.imageUrl ? (
+                    <>
                       <Image
-                        source={{ uri: activeItem.uri }}
+                        source={{ uri: vibeTagOverlay.imageUrl }}
                         style={StyleSheet.absoluteFillObject}
                         contentFit="cover"
-                        cachePolicy="memory-disk"
                       />
-                    )}
-
-                    {/* VibeTag overlay — sits on top at 60% opacity so the photo shows through */}
-                    {vibeTagOverlay?.imageUrl && (
-                      <>
-                        <Image
-                          source={{ uri: vibeTagOverlay.imageUrl }}
-                          style={[StyleSheet.absoluteFillObject, { opacity: 0.65 }]}
-                          contentFit="contain"
-                          cachePolicy="memory-disk"
-                          pointerEvents="none"
-                        />
-                        {/* Overlay label badge */}
-                        <View style={s.overlayBadge} pointerEvents="none">
-                          <Ionicons name="sparkles" size={11} color="#fff" />
-                          <Text style={s.overlayBadgeText} numberOfLines={1}>
+                      {/* Dark gradient at bottom */}
+                      <View style={s.vibePreviewGrad} pointerEvents="none" />
+                      {/* Tag info */}
+                      <View style={s.vibePreviewInfo} pointerEvents="none">
+                        <View style={s.vibeChip}>
+                          <Ionicons name="sparkles" size={12} color="#fff" />
+                          <Text style={s.vibeChipText} numberOfLines={1}>
                             {vibeTagOverlay.name}
                           </Text>
                         </View>
-                      </>
-                    )}
-
-                    {/* Remove current item */}
-                    <TouchableOpacity
-                      style={s.removeBtn}
-                      onPress={() => removeItem(activeIdx)}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="trash-outline" size={17} color="#fff" />
-                    </TouchableOpacity>
-
-                    {/* Item counter badge */}
-                    {items.length > 1 && (
-                      <View style={s.counterBadge} pointerEvents="none">
-                        <Ionicons name="layers" size={12} color="#fff" />
-                        <Text style={s.counterBadgeText}>
-                          {activeIdx + 1}/{items.length}
+                        <Text style={s.vibePreviewHint}>
+                          This overlay will appear on your postcards
                         </Text>
                       </View>
+                    </>
+                  ) : (
+                    <View style={s.vibePreviewEmpty}>
+                      <View style={s.vibePreviewEmptyIcon}>
+                        <Ionicons
+                          name="sparkles"
+                          size={32}
+                          color={brand.primary}
+                        />
+                      </View>
+                      <Text style={s.vibePreviewEmptyTitle}>{vibeTagName}</Text>
+                      <Text style={s.vibePreviewEmptySub}>{eventName}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Action buttons */}
+                <View style={s.chooseActions}>
+                  <TouchableOpacity
+                    style={s.cameraBtn}
+                    onPress={() => {
+                      setCreatorVisible(false);
+                      setShowCamera(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.cameraBtnIcon}>
+                      <Ionicons name="camera" size={26} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.cameraBtnTitle}>Camera</Text>
+                      <Text style={s.cameraBtnSub}>
+                        Photo & video with live VibeTag overlay
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="rgba(255,255,255,0.5)"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={s.galleryBtn}
+                    onPress={openGallery}
+                    activeOpacity={0.85}
+                  >
+                    <View style={s.galleryBtnIcon}>
+                      <Ionicons
+                        name="images-outline"
+                        size={24}
+                        color={brand.primary}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.galleryBtnTitle}>Upload from Gallery</Text>
+                      <Text style={s.galleryBtnSub}>
+                        Photos & videos · max {MAX_ITEMS} · videos ≤ 125s
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={neutral[400]}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ── REVIEW STAGE ─────────────────────────────────────────────── */}
+            {stage === "review" && (
+              <Animated.View
+                style={{ flex: 1, transform: [{ translateY: slideAnim }] }}
+              >
+                <KeyboardAvoidingView
+                  style={{ flex: 1 }}
+                  behavior={Platform.OS === "ios" ? "padding" : undefined}
+                >
+                  {/* Header */}
+                  <View style={s.header}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setStage("choose");
+                        setItems([]);
+                      }}
+                      hitSlop={10}
+                      style={s.headerBtn}
+                    >
+                      <Ionicons
+                        name="chevron-back"
+                        size={22}
+                        color={neutral[700]}
+                      />
+                    </TouchableOpacity>
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={s.headerTitle}>
+                        {isSwapMode ? "Replace Postcard" : "Review"}
+                      </Text>
+                      <Text style={s.headerSub}>
+                        {items.length}/{MAX_ITEMS} item
+                        {items.length > 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                    {/* Add more — camera */}
+                    {items.length < MAX_ITEMS ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          setCreatorVisible(false);
+                          setShowCamera(true);
+                        }}
+                        hitSlop={10}
+                        style={s.headerBtn}
+                      >
+                        <Ionicons name="add" size={24} color={brand.primary} />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={{ width: 36 }} />
                     )}
                   </View>
-                )}
 
-                    {/* Thumbnail strip — only when >1 item */}
-                {items.length > 1 && (
+                  {/* VibeTag banner */}
+                  {vibeTagOverlay && (
+                    <View style={s.vibeBanner}>
+                      <Ionicons
+                        name="sparkles"
+                        size={12}
+                        color={brand.primary}
+                      />
+                      <Text style={s.vibeBannerText} numberOfLines={1}>
+                        {vibeTagOverlay.name}
+                      </Text>
+                      <Text style={s.vibeBannerSub}>live overlay applied</Text>
+                    </View>
+                  )}
+
                   <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={s.thumbStrip}
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                    keyboardShouldPersistTaps="handled"
                   >
-                    {items.map((item, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        onPress={() => setActiveIdx(idx)}
-                        style={[s.thumb, idx === activeIdx && s.thumbSelected]}
-                        activeOpacity={0.85}
-                      >
-                        {item.type === 'video' ? (
-                          <View style={s.thumbVideo}>
-                            <Ionicons name="play-circle" size={20} color="#fff" />
-                          </View>
+                    {/* Active media preview — full width, 4:3 ratio, proper overlay */}
+                    {activeItem && (
+                      <View style={s.mediaPreview}>
+                        {/* User's photo / video */}
+                        {activeItem.type === "video" ? (
+                          <Video
+                            source={{ uri: activeItem.uri }}
+                            style={StyleSheet.absoluteFillObject}
+                            resizeMode={ResizeMode.COVER}
+                            shouldPlay={false}
+                            useNativeControls
+                            isLooping
+                          />
                         ) : (
                           <Image
-                            source={{ uri: item.uri }}
+                            source={{ uri: activeItem.uri }}
                             style={StyleSheet.absoluteFillObject}
                             contentFit="cover"
                             cachePolicy="memory-disk"
                           />
                         )}
-                        {/* Subtle vibeTag tint on thumbnail */}
+
+                        {/* VibeTag overlay — sits on top at 60% opacity so the photo shows through */}
                         {vibeTagOverlay?.imageUrl && (
-                          <Image
-                            source={{ uri: vibeTagOverlay.imageUrl }}
-                            style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            pointerEvents="none"
-                          />
+                          <>
+                            <Image
+                              source={{ uri: vibeTagOverlay.imageUrl }}
+                              style={[
+                                StyleSheet.absoluteFillObject,
+                                { opacity: 0.65 },
+                              ]}
+                              contentFit="contain"
+                              cachePolicy="memory-disk"
+                              pointerEvents="none"
+                            />
+                            {/* Overlay label badge */}
+                            <View style={s.overlayBadge} pointerEvents="none">
+                              <Ionicons
+                                name="sparkles"
+                                size={11}
+                                color="#fff"
+                              />
+                              <Text
+                                style={s.overlayBadgeText}
+                                numberOfLines={1}
+                              >
+                                {vibeTagOverlay.name}
+                              </Text>
+                            </View>
+                          </>
                         )}
-                        {/* Remove badge */}
+
+                        {/* Remove current item */}
                         <TouchableOpacity
-                          style={s.thumbRemove}
-                          onPress={() => removeItem(idx)}
-                          hitSlop={4}
-                        >
-                          <Ionicons name="close-circle" size={17} color="#fff" />
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    ))}
-                    {/* Add more */}
-                    {items.length < MAX_ITEMS && (
-                      <View style={s.thumbAddWrap}>
-                        <TouchableOpacity
-                          style={s.thumbAdd}
-                          onPress={() => { setCreatorVisible(false); setShowCamera(true); }}
+                          style={s.removeBtn}
+                          onPress={() => removeItem(activeIdx)}
                           activeOpacity={0.8}
                         >
-                          <Ionicons name="camera-outline" size={17} color={neutral[500]} />
+                          <Ionicons
+                            name="trash-outline"
+                            size={17}
+                            color="#fff"
+                          />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={s.thumbAdd}
-                          onPress={openGallery}
-                          activeOpacity={0.8}
-                        >
-                          <Ionicons name="images-outline" size={17} color={neutral[500]} />
-                        </TouchableOpacity>
+
+                        {/* Item counter badge */}
+                        {items.length > 1 && (
+                          <View style={s.counterBadge} pointerEvents="none">
+                            <Ionicons name="layers" size={12} color="#fff" />
+                            <Text style={s.counterBadgeText}>
+                              {activeIdx + 1}/{items.length}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     )}
-                  </ScrollView>
-                )}
 
-                {/* Caption */}
-                <View style={s.captionSection}>
-                  <TextInput
-                    value={caption}
-                    onChangeText={setCaption}
-                    placeholder="Add a caption (optional)…"
-                    placeholderTextColor={neutral[400]}
-                    style={s.captionInput}
-                    multiline
-                    maxLength={300}
-                  />
-                  <Text style={s.captionCount}>{caption.length}/300</Text>
-                </View>
+                    {/* Thumbnail strip — only when >1 item */}
+                    {items.length > 1 && (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={s.thumbStrip}
+                      >
+                        {items.map((item, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            onPress={() => setActiveIdx(idx)}
+                            style={[
+                              s.thumb,
+                              idx === activeIdx && s.thumbSelected,
+                            ]}
+                            activeOpacity={0.85}
+                          >
+                            {item.type === "video" ? (
+                              <View style={s.thumbVideo}>
+                                <Ionicons
+                                  name="play-circle"
+                                  size={20}
+                                  color="#fff"
+                                />
+                              </View>
+                            ) : (
+                              <Image
+                                source={{ uri: item.uri }}
+                                style={StyleSheet.absoluteFillObject}
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
+                              />
+                            )}
+                            {/* Subtle vibeTag tint on thumbnail */}
+                            {vibeTagOverlay?.imageUrl && (
+                              <Image
+                                source={{ uri: vibeTagOverlay.imageUrl }}
+                                style={[
+                                  StyleSheet.absoluteFillObject,
+                                  { opacity: 0.45 },
+                                ]}
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
+                                pointerEvents="none"
+                              />
+                            )}
+                            {/* Remove badge */}
+                            <TouchableOpacity
+                              style={s.thumbRemove}
+                              onPress={() => removeItem(idx)}
+                              hitSlop={4}
+                            >
+                              <Ionicons
+                                name="close-circle"
+                                size={17}
+                                color="#fff"
+                              />
+                            </TouchableOpacity>
+                          </TouchableOpacity>
+                        ))}
+                        {/* Add more */}
+                        {items.length < MAX_ITEMS && (
+                          <View style={s.thumbAddWrap}>
+                            <TouchableOpacity
+                              style={s.thumbAdd}
+                              onPress={() => {
+                                setCreatorVisible(false);
+                                setShowCamera(true);
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons
+                                name="camera-outline"
+                                size={17}
+                                color={neutral[500]}
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={s.thumbAdd}
+                              onPress={openGallery}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons
+                                name="images-outline"
+                                size={17}
+                                color={neutral[500]}
+                              />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </ScrollView>
+                    )}
 
-                {/* Post button */}
-                <View style={s.postSection}>
-                  {isSubmitting ? (
-                    <View style={s.progressCard}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <Text style={s.progressLabel}>
-                          {uploadStage === 'stamping'
-                            ? `Stamping VibeTag… (${items.filter(i => i.type === 'image').length} image${items.filter(i => i.type === 'image').length !== 1 ? 's' : ''})`
-                            : uploadStage === 'uploading'
-                            ? 'Uploading media…'
-                            : 'Saving postcard…'}
-                        </Text>
-                        <Text style={s.progressPct}>{uploadProgress}%</Text>
-                      </View>
-                      <View style={s.progressTrack}>
-                        <Animated.View
-                          style={[s.progressFill, { width: `${uploadProgress}%` as any }]}
-                        />
-                      </View>
-                      <Text style={s.progressSub}>
-                        {uploadStage === 'stamping'
-                          ? 'Applying VibeTag overlay…'
-                          : uploadStage === 'uploading'
-                          ? 'Please keep the app open…'
-                          : 'Almost done…'}
-                      </Text>
+                    {/* Caption */}
+                    <View style={s.captionSection}>
+                      <TextInput
+                        value={caption}
+                        onChangeText={setCaption}
+                        placeholder="Add a caption (optional)…"
+                        placeholderTextColor={neutral[400]}
+                        style={s.captionInput}
+                        multiline
+                        maxLength={300}
+                      />
+                      <Text style={s.captionCount}>{caption.length}/300</Text>
                     </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={s.postBtn}
-                      onPress={handlePost}
-                      activeOpacity={0.87}
-                    >
-                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                      <Text style={s.postBtnText}>
-                        {isSwapMode
-                          ? 'Replace Postcard'
-                          : `Share ${items.length} Item${items.length > 1 ? 's' : ''}`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
 
-                  <TouchableOpacity
-                    style={s.startOverBtn}
-                    onPress={() => { setStage('choose'); setItems([]); setCaption(''); }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="refresh-outline" size={14} color={neutral[400]} />
-                    <Text style={s.startOverText}>Start over</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </KeyboardAvoidingView>
+                    {/* Post button */}
+                    <View style={s.postSection}>
+                      {isSubmitting ? (
+                        <View style={s.progressCard}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text style={s.progressLabel}>
+                              {uploadStage === "stamping"
+                                ? `Stamping VibeTag… (${
+                                    items.filter((i) => i.type === "image")
+                                      .length
+                                  } image${
+                                    items.filter((i) => i.type === "image")
+                                      .length !== 1
+                                      ? "s"
+                                      : ""
+                                  })`
+                                : uploadStage === "uploading"
+                                ? "Uploading media…"
+                                : "Saving postcard…"}
+                            </Text>
+                            <Text style={s.progressPct}>{uploadProgress}%</Text>
+                          </View>
+                          <View style={s.progressTrack}>
+                            <Animated.View
+                              style={[
+                                s.progressFill,
+                                { width: `${uploadProgress}%` as any },
+                              ]}
+                            />
+                          </View>
+                          <Text style={s.progressSub}>
+                            {uploadStage === "stamping"
+                              ? "Applying VibeTag overlay…"
+                              : uploadStage === "uploading"
+                              ? "Please keep the app open…"
+                              : "Almost done…"}
+                          </Text>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={s.postBtn}
+                          onPress={handlePost}
+                          activeOpacity={0.87}
+                        >
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color="#fff"
+                          />
+                          <Text style={s.postBtnText}>
+                            {isSwapMode
+                              ? "Replace Postcard"
+                              : `Share ${items.length} Item${
+                                  items.length > 1 ? "s" : ""
+                                }`}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
 
-            {/* Swap confirm sheet */}
-            {showSwapConfirm && (
-              <SwapConfirm
-                likeCount={pendingSwap?.likeCount ?? swapLikeCount}
-                commentCount={pendingSwap?.commentCount ?? swapCommentCount}
-                onCancel={() => { setShowSwapConfirm(false); setPendingSwap(null); }}
-                onConfirm={() => doSubmit(pendingSwap?.id ?? swapPostcardId)}
-              />
+                      <TouchableOpacity
+                        style={s.startOverBtn}
+                        onPress={() => {
+                          setStage("choose");
+                          setItems([]);
+                          setCaption("");
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons
+                          name="refresh-outline"
+                          size={14}
+                          color={neutral[400]}
+                        />
+                        <Text style={s.startOverText}>Start over</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </KeyboardAvoidingView>
+
+                {/* Swap confirm sheet */}
+                {showSwapConfirm && (
+                  <SwapConfirm
+                    likeCount={pendingSwap?.likeCount ?? swapLikeCount}
+                    commentCount={pendingSwap?.commentCount ?? swapCommentCount}
+                    onCancel={() => {
+                      setShowSwapConfirm(false);
+                      setPendingSwap(null);
+                    }}
+                    onConfirm={() =>
+                      doSubmit(pendingSwap?.id ?? swapPostcardId)
+                    }
+                  />
+                )}
+              </Animated.View>
             )}
-          </Animated.View>
-        )}
-      </SafeAreaView>
+          </SafeAreaView>
 
-      {/* Swap picker overlay */}
-      {showSwapPicker && eventId && (
-        <SwapPicker
-          eventId={eventId}
-          onPick={(p) => {
-            setPendingSwap(p);
-            setShowSwapPicker(false);
-            setShowSwapConfirm(true);
-          }}
-          onCancel={() => setShowSwapPicker(false)}
-        />
-      )}
+          {/* Swap picker overlay */}
+          {showSwapPicker && eventId && (
+            <SwapPicker
+              eventId={eventId}
+              onPick={(p) => {
+                setPendingSwap(p);
+                setShowSwapPicker(false);
+                setShowSwapConfirm(true);
+              }}
+              onCancel={() => setShowSwapPicker(false)}
+            />
+          )}
 
-      {/* Auth modal — shown when the token expired during upload/save */}
-      <AuthModal
-        visible={authModalVisible}
-        onDismiss={() => {
-          hideAuthModal();
-          pendingSubmitSwapRef.current = undefined;
-        }}
-        onSuccess={() => {
-          hideAuthModal();
-          // Retry the submit with the fresh token — capture pending swap before clearing
-          const swapTarget = pendingSubmitSwapRef.current;
-          pendingSubmitSwapRef.current = undefined;
-          doSubmit(swapTarget);
-        }}
-        message="Your session expired. Sign in to post your postcard."
-      />
-      </View>
-    </Modal>
+          {/* Auth modal — shown when the token expired during upload/save */}
+          <AuthModal
+            visible={authModalVisible}
+            onDismiss={() => {
+              hideAuthModal();
+              pendingSubmitSwapRef.current = undefined;
+            }}
+            onSuccess={() => {
+              hideAuthModal();
+              // Retry the submit with the fresh token — capture pending swap before clearing
+              const swapTarget = pendingSubmitSwapRef.current;
+              pendingSubmitSwapRef.current = undefined;
+              doSubmit(swapTarget);
+            }}
+            message="Your session expired. Sign in to post your postcard."
+          />
+        </View>
+      </Modal>
 
-      {/* Bug 3 fix: PostcardCamera rendered OUTSIDE the creator Modal so there
-          are never two Modals nested simultaneously. The creator Modal is hidden
-          (creatorVisible=false) before this mounts. */}
+     
       {showCamera && (
         <PostcardCamera
           vibeTagOverlay={vibeTagOverlay}
           vibeTagName={vibeTagName}
           onCapture={onCameraCapture}
-          onClose={() => { setShowCamera(false); setCreatorVisible(true); }}
+          onClose={() => {
+            setShowCamera(false);
+            setCreatorVisible(true);
+          }}
         />
       )}
     </>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#fff' },
+  root: { flex: 1, backgroundColor: "#fff" },
 
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral[100],
   },
-  headerBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  headerSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400], marginTop: 1 },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+  },
+  headerSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: neutral[400],
+    marginTop: 1,
+  },
 
   // Choose — VibeTag preview
   vibePreview: {
     flex: 1,
     backgroundColor: neutral[100],
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   vibePreviewGrad: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: 120,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
   vibePreviewInfo: {
-    position: 'absolute', bottom: 16, left: 16, right: 16, gap: 6,
+    position: "absolute",
+    bottom: 16,
+    left: 16,
+    right: 16,
+    gap: 6,
   },
   vibeChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-  },
-  vibeChipText: { fontFamily: fontFamily.semibold, fontSize: 12, color: '#fff' },
-  vibePreviewHint: { fontFamily: fontFamily.regular, fontSize: 12, color: 'rgba(255,255,255,0.75)' },
-  vibePreviewEmpty: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24,
-  },
-  vibePreviewEmptyIcon: {
-    width: 72, height: 72, borderRadius: 22,
-    backgroundColor: `${brand.primary}12`,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  vibePreviewEmptyTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.lg, color: neutral[700] },
-  vibePreviewEmptySub: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400], textAlign: 'center' },
-
-  // Choose — action buttons
-  chooseActions: {
-    padding: 16, gap: 10,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: neutral[100],
-  },
-  cameraBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: brand.primary,
-    borderRadius: 16, padding: 16,
-  },
-  cameraBtnIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cameraBtnTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: '#fff' },
-  cameraBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  galleryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: `${brand.primary}08`,
-    borderRadius: 16, padding: 16,
-    borderWidth: 1.5, borderColor: `${brand.primary}18`,
-  },
-  galleryBtnIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: `${brand.primary}12`,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  galleryBtnTitle: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },
-  galleryBtnSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400], marginTop: 2 },
-
-  // VibeTag banner in review
-  vibeBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: `${brand.primary}06`,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: `${brand.primary}18`,
-  },
-  vibeBannerText: { fontFamily: fontFamily.semibold, fontSize: 12, color: brand.primary, flex: 1 },
-  vibeBannerSub: { fontFamily: fontFamily.regular, fontSize: 11, color: neutral[400] },
-
-  // Bug 1 fix: preview container uses 9:16 portrait ratio to match the
-  // 1080×1920 composited output dimensions, so the overlay is not zoomed.
-  mediaPreview: {
-    width: '100%',
-    aspectRatio: 9 / 16,
-    backgroundColor: '#000',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  overlayBadge: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  vibeChipText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: "#fff",
+  },
+  vibePreviewHint: {
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.75)",
+  },
+  vibePreviewEmpty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 24,
+  },
+  vibePreviewEmptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: `${brand.primary}12`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  vibePreviewEmptyTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.lg,
+    color: neutral[700],
+  },
+  vibePreviewEmptySub: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[400],
+    textAlign: "center",
+  },
+
+  // Choose — action buttons
+  chooseActions: {
+    padding: 16,
+    gap: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: neutral[100],
+  },
+  cameraBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: brand.primary,
+    borderRadius: 16,
+    padding: 16,
+  },
+  cameraBtnIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraBtnTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+  },
+  cameraBtnSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
+  },
+  galleryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: `${brand.primary}08`,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: `${brand.primary}18`,
+  },
+  galleryBtnIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: `${brand.primary}12`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  galleryBtnTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+  },
+  galleryBtnSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: neutral[400],
+    marginTop: 2,
+  },
+
+  // VibeTag banner in review
+  vibeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: `${brand.primary}06`,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: `${brand.primary}18`,
+  },
+  vibeBannerText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    color: brand.primary,
+    flex: 1,
+  },
+  vibeBannerSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: neutral[400],
+  },
+
+  // Bug 1 fix: preview container uses 9:16 portrait ratio to match the
+  // 1080×1920 composited output dimensions, so the overlay is not zoomed.
+  mediaPreview: {
+    width: "100%",
+    aspectRatio: 9 / 16,
+    backgroundColor: "#000",
+    position: "relative",
+    overflow: "hidden",
+  },
+  overlayBadge: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
   },
   overlayBadgeText: {
     fontFamily: fontFamily.semibold,
     fontSize: 11,
-    color: '#fff',
+    color: "#fff",
     maxWidth: 180,
   },
   removeBtn: {
-    position: 'absolute', top: 12, right: 12,
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center', justifyContent: 'center',
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   counterBadge: {
-    position: 'absolute', top: 12, left: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
+    position: "absolute",
+    top: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  counterBadgeText: { fontFamily: fontFamily.semibold, fontSize: 11, color: '#fff' },
+  counterBadgeText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 11,
+    color: "#fff",
+  },
 
   // Thumbnail strip
   thumbStrip: {
-    paddingHorizontal: 14, paddingVertical: 10, gap: 8, flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: "row",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral[100],
   },
   thumb: {
-    width: 52, height: 52, borderRadius: 10,
-    overflow: 'hidden', backgroundColor: neutral[100],
-    borderWidth: 2.5, borderColor: 'transparent',
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: neutral[100],
+    borderWidth: 2.5,
+    borderColor: "transparent",
   },
   thumbSelected: { borderColor: brand.primary },
-  thumbVideo: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' },
-  thumbRemove: { position: 'absolute', top: 1, right: 1 },
+  thumbVideo: {
+    flex: 1,
+    backgroundColor: "#111",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbRemove: { position: "absolute", top: 1, right: 1 },
   thumbAddWrap: {
-    width: 52, height: 52, borderRadius: 10,
-    borderWidth: 1.5, borderStyle: 'dashed', borderColor: neutral[300],
-    overflow: 'hidden',
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: neutral[300],
+    overflow: "hidden",
   },
   thumbAdd: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[200],
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral[200],
   },
 
   // Caption
   captionSection: {
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: neutral[100],
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral[100],
   },
   captionInput: {
-    fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[800],
-    minHeight: 62, textAlignVertical: 'top',
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[800],
+    minHeight: 62,
+    textAlignVertical: "top",
     paddingVertical: 0,
   },
   captionCount: {
-    fontFamily: fontFamily.regular, fontSize: fontSize.xs,
-    color: neutral[300], textAlign: 'right', marginTop: 4,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: neutral[300],
+    textAlign: "right",
+    marginTop: 4,
   },
 
   // Post section
   postSection: { padding: 14, gap: 10 },
   progressCard: {
-    backgroundColor: neutral[50], borderRadius: 16,
-    padding: 16, borderWidth: 1, borderColor: neutral[200],
+    backgroundColor: neutral[50],
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: neutral[200],
   },
-  progressLabel: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[700] },
-  progressPct: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: brand.primary },
+  progressLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: neutral[700],
+  },
+  progressPct: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.sm,
+    color: brand.primary,
+  },
   progressTrack: {
-    height: 6, borderRadius: 3,
-    backgroundColor: neutral[200], overflow: 'hidden',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: neutral[200],
+    overflow: "hidden",
   },
-  progressFill: { height: '100%', backgroundColor: brand.primary, borderRadius: 3 },
-  progressSub: { fontFamily: fontFamily.regular, fontSize: fontSize.xs, color: neutral[400], marginTop: 6 },
+  progressFill: {
+    height: "100%",
+    backgroundColor: brand.primary,
+    borderRadius: 3,
+  },
+  progressSub: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    color: neutral[400],
+    marginTop: 6,
+  },
   postBtn: {
-    height: 54, borderRadius: 16, backgroundColor: brand.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: brand.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
-  postBtnText: { fontFamily: fontFamily.bold, fontSize: fontSize.sm, color: '#fff', letterSpacing: 0.2 },
+  postBtnText: {
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.sm,
+    color: "#fff",
+    letterSpacing: 0.2,
+  },
   startOverBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 4,
   },
-  startOverText: { fontFamily: fontFamily.regular, fontSize: fontSize.sm, color: neutral[400] },
+  startOverText: {
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.sm,
+    color: neutral[400],
+  },
 });

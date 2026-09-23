@@ -2,9 +2,9 @@
 
 ## Overview
 
-The Postcard Reel is a full-screen, auto-advancing slideshow (Stories-style) that compiles all event postcards into a continuous viewing experience. It is accessed from the "Event Postcards" section header in `PostcardsTab` via a "Watch Reel" button. Photo slides display for 3 seconds; video slides play for up to 10 seconds. Users navigate with left/right tap zones and pause with a long-press. The reel loops indefinitely until closed.
+The Postcard Reel is a full-screen, auto-advancing slideshow (Stories-style) that compiles event postcards for a specific phase into a continuous viewing experience. There are three separate reels — Pre-Event, Main Event, and Post-Event — each accessed from within its corresponding VibeTag card in `PostcardsTab` via a "Watch Reel" button. Photo slides display for 3 seconds; video slides play for up to 10 seconds. Users navigate with left/right tap zones and pause with a long-press. The reel loops indefinitely until closed.
 
-The component is implemented as a single self-contained file: `components/event/PostcardsTab/PostcardReel.tsx`. It mounts inside a `Modal` rendered by `PostcardsTab/index.tsx`. The existing `PostcardViewer` is not modified.
+The component is implemented as a single self-contained file: `components/event/PostcardsTab/PostcardReel.tsx`, accepting a `phase` prop to scope which postcards it plays. It mounts inside a `Modal` rendered by `PostcardsTab/index.tsx`. The existing `PostcardViewer` is not modified.
 
 ---
 
@@ -35,8 +35,8 @@ PostcardsTab (index.tsx)
 
 | Module | Responsibility |
 |---|---|
-| `PostcardsTab/index.tsx` | Adds Watch_Reel_Button to section header; conditionally renders `<PostcardReel>`; passes `eventId`, `vibeTagMap`, `onClose` |
-| `PostcardReel.tsx` | Owns data fetching, Reel_Controller state, timer logic, animation, gesture handling, and full rendering |
+| `PostcardsTab/index.tsx` | Adds Watch_Reel_Button inside the active timing VibeTag card; tracks `activeReelPhase` state; conditionally renders `<PostcardReel>`; passes `eventId`, `phase`, `vibeTagMap`, `onClose` |
+| `PostcardReel.tsx` | Owns data fetching + phase filtering, Reel_Controller state, timer logic, animation, gesture handling, and full rendering |
 | `PostcardReel.tsx / ReelVideoPlayer` | Internal sub-component for `expo-av` video playback with imperative `ref` pause/resume |
 | `PostcardReel.tsx / ProgressBar` | Internal sub-component rendering animated segments |
 
@@ -47,8 +47,11 @@ PostcardsTab (index.tsx)
 ### `PostcardReel` (public export)
 
 ```tsx
+export type ReelPhase = 'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT';
+
 export interface PostcardReelProps {
   eventId: string;
+  phase: ReelPhase;                          // which phase's postcards to play
   vibeTagMap: Record<string, VibeTag>;
   onClose: () => void;
 }
@@ -56,25 +59,42 @@ export interface PostcardReelProps {
 export function PostcardReel(props: PostcardReelProps): JSX.Element
 ```
 
-Rendered from `PostcardsTab/index.tsx`:
+Rendered from `PostcardsTab/index.tsx` when the user taps "Watch Reel" inside the active timing VibeTag card:
 
 ```tsx
-// In section header:
-<TouchableOpacity onPress={() => setShowReel(true)}>
-  <Text>Watch Reel</Text>
-</TouchableOpacity>
+// Inside the VibeTag card (rendered for the activeTiming tab):
+{phaseHasValidPostcards && (
+  <TouchableOpacity onPress={() => setShowReel(true)}>
+    <Ionicons name="play-circle" size={16} color={brand.primary} />
+    <Text>Watch Reel</Text>
+  </TouchableOpacity>
+)}
 
 // Conditionally in the component body:
 {showReel && (
   <PostcardReel
     eventId={eventId}
+    phase={activeTiming}           // 'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT'
     vibeTagMap={vibeTagMap}
     onClose={() => setShowReel(false)}
   />
 )}
 ```
 
-The Watch_Reel_Button is hidden when `validPostcards.length === 0`. The `validPostcards` count is derived from the same `useGetEventPostcardsQuery` result already present in `PostcardsTab` for the per-user cap check — no new query needed in the parent.
+The Watch_Reel_Button visibility is derived from a `phasePostcardCounts` map computed from the existing `useGetEventPostcardsQuery` result, keyed by `activityTiming`. No new network queries are needed in the parent.
+
+### Phase Filtering Inside `PostcardReel`
+
+On mount, `PostcardReel` fetches all postcards (`limit: 100`, no phase filter) and then filters client-side:
+
+```ts
+const slides = rawPostcards.filter((p) => {
+  const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
+  return tag?.activityTiming === phase && (p.media ?? []).some(m => !!m.mediaUrl);
+});
+```
+
+This keeps the single RTK Query cache entry warm (the same query key used by `PhaseGrid`) and avoids an extra network round-trip.
 
 ### `ReelVideoPlayer` (internal)
 
@@ -126,22 +146,27 @@ Derived values (not stored in state):
 - `effectiveDuration(slide)` → `slide` has `VIDEO` first-media? `Math.min(videoDurationMs, 10000)` : `3000`
 - `isVideoSlide(slide)` → `slide.media[0]?.mediaType === 'VIDEO'`
 
-### Slide Enrichment
+### Slide Enrichment and Phase Filtering
 
-Before playback, postcards are enriched the same way `PostcardsTab.openViewer` does it:
+Before playback, postcards are filtered by phase and enriched the same way `PostcardsTab.openViewer` does it:
 
 ```ts
-const enriched = rawSlides.map((p) => {
-  const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
-  const overlayUrl = tag?.imageUrl ?? null;
-  return {
-    ...p,
-    media: (p.media ?? []).map((m) => ({
-      ...m,
-      vibeTagOverlayUrl: m.vibeTagOverlayUrl ?? overlayUrl,
-    })),
-  };
-});
+const slides = rawPostcards
+  .filter((p) => {
+    const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
+    return tag?.activityTiming === phase && (p.media ?? []).some(m => !!m.mediaUrl);
+  })
+  .map((p) => {
+    const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
+    const overlayUrl = tag?.imageUrl ?? null;
+    return {
+      ...p,
+      media: (p.media ?? []).map((m) => ({
+        ...m,
+        vibeTagOverlayUrl: m.vibeTagOverlayUrl ?? overlayUrl,
+      })),
+    };
+  });
 ```
 
 ---
@@ -282,11 +307,11 @@ const goBack = () => {
 
 ```
 PostcardsTab
-  │  eventId, vibeTagMap
+  │  eventId, vibeTagMap, activeTiming
   ▼
-PostcardReel
+PostcardReel (phase = activeTiming)
   │  useGetEventPostcardsQuery({ eventId, limit: 100 })
-  │    → rawData → filter(hasValidMedia) → enrich(vibeTagMap) → slides[]
+  │    → rawData → filter(phase match + hasValidMedia) → enrich(vibeTagMap) → slides[]
   │
   ├─ Reel_Controller
   │    activeIndex ──────────────────────────────► ReelSlide (which postcard to show)
@@ -339,11 +364,19 @@ PostcardReel
 
 ---
 
-### Property 3: Watch Reel Button hidden when no valid postcards
+### Property 3: Watch Reel Button hidden when no valid postcards for that phase
 
-*For any* list of `PostcardData` objects where every item has either an empty `media` array or all `mediaUrl` values are null/empty, the Watch_Reel_Button SHALL NOT be rendered in the section header.
+*For any* list of `PostcardData` objects and a given `phase`, where no postcard has a matching VibeTag `activityTiming` and at least one valid `mediaUrl`, the Watch_Reel_Button for that phase SHALL NOT be rendered.
 
 **Validates: Requirements 1.2**
+
+---
+
+### Property 3b: Phase filter scopes slides correctly
+
+*For any* array of `PostcardData` objects and a given `phase`, every slide in the filtered result SHALL have a VibeTag `activityTiming` equal to `phase`.
+
+**Validates: Requirements 2.1**
 
 ---
 
@@ -566,4 +599,5 @@ The pure functions (`filterValidSlides`, `enrichSlides`, `computeProgress`, `eff
 ### Integration Tests
 
 - Smoke test: `PostcardReel` renders within a test harness with mocked RTK Query provider and advances through 2 slides without crashing.
-- Verify `useGetEventPostcardsQuery` is called with `{ eventId, limit: 100 }` and no `phase` argument.
+- Verify `useGetEventPostcardsQuery` is called with `{ eventId, limit: 100 }` and slides are then filtered client-side by the `phase` prop.
+- Smoke test: switching `activeTiming` in PostcardsTab and opening the reel plays only slides matching that phase.

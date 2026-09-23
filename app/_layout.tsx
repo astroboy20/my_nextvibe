@@ -78,7 +78,7 @@ function App() {
   );
   usePushRegistration(isAuthenticated, isBootstrapped);
 
-  // useFcmSync(isAuthenticated);
+  useFcmSync(isAuthenticated);
 
   useEffect(() => {
     checkForUpdate();
