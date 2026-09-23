@@ -1,6 +1,8 @@
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useToggleFollowMutation } from "@/store/api/socialApi";
+import { useGetMeQuery } from "@/store/api/usersApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -11,12 +13,10 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import type { EventDetail } from "./types";
-import { useGetMeQuery } from "@/store/api/usersApi";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import EventMap from "./components/EventMap";
-import OrgAvatar from "./components/Avatar";
-import InfoRow from "./components/InfoRow";
+import type { EventDetail } from "../types";
+import OrgAvatar from "./Avatar";
+import EventMap from "./EventMap";
+import InfoRow from "./InfoRow";
 
 interface Props {
   event: EventDetail;

@@ -1,9 +1,9 @@
-import AboutTab from "@/components/event/AboutTab";
+import AboutTab from "@/components/event/AboutTab/AboutTab";
+import RsvpTab from "@/components/event/Rsvp/RsvpTab";
 import ChatTab from "@/components/event/ChatTab";
 import GameTab from "@/components/event/GameTab/GameTab";
 import PostcardsTab from "@/components/event/PostcardsTab";
 import QrTab from "@/components/event/QrTab";
-import RsvpTab from "@/components/event/RsvpTab";
 import type { EventDetail } from "@/components/event/types";
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
@@ -21,11 +21,8 @@ import {
 } from "@/store/api/eventsApi";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
-import { TextInput } from "react-native";
-import { Modal } from "react-native";
+import React, { useState } from "react";
 import {
-  Animated,
   Dimensions,
   Image,
   ScrollView,
@@ -33,7 +30,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import HeroMedia from "./components/HeroMedia";

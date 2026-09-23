@@ -1,9 +1,4 @@
-/**
- * stampOverlay.ts
- *
- * Client-side VibeTag stamping before upload.
- * Uses @shopify/react-native-skia for compositing.
- */
+
 
 import { ImageFormat, Skia, type SkImage } from '@shopify/react-native-skia';
 import * as VideoThumbnails from 'expo-video-thumbnails';
@@ -19,7 +14,7 @@ export interface StampResult {
   vibeTagOverlayUrl?: string | null;
 }
 
-// ─── Image loader ─────────────────────────────────────────────────────────────
+//Image loader 
 
 async function uriToSkiaImage(uri: string): Promise<SkImage | null> {
   try {
@@ -47,12 +42,8 @@ async function uriToSkiaImage(uri: string): Promise<SkImage | null> {
   }
 }
 
-// ─── Core compositing ─────────────────────────────────────────────────────────
+//  Core compositing 
 
-/**
- * Draws photoImg then overlayImg into a 1080×1920 Skia surface (cover-fit both).
- * Returns a base64 data URI or null on failure.
- */
 function composite(photoImg: SkImage, overlayImg: SkImage): string | null {
   const surface = Skia.Surface.Make(OUTPUT_WIDTH, OUTPUT_HEIGHT);
   if (!surface) {
@@ -100,7 +91,7 @@ function composite(photoImg: SkImage, overlayImg: SkImage): string | null {
   return `data:image/png;base64,${encoded}`;
 }
 
-// ─── Video thumbnail ──────────────────────────────────────────────────────────
+//  Video thumbnail 
 
 async function generateVideoThumbnail(
   videoUri: string,
@@ -125,7 +116,7 @@ async function generateVideoThumbnail(
   }
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+//  Public API 
 
 export async function stampOverlay(
   mediaUri: string,
@@ -137,7 +128,7 @@ export async function stampOverlay(
     return { uri: mediaUri, mimeType: mediaType === 'video' ? 'video/mp4' : 'image/jpeg' };
   }
 
-  // ── Video ────────────────────────────────────────────────────────────────
+  //  Video 
   if (mediaType === 'video') {
     const thumbnailUri = await generateVideoThumbnail(mediaUri, overlayUrl);
     return {
@@ -148,24 +139,21 @@ export async function stampOverlay(
     };
   }
 
-  // ── Photo ────────────────────────────────────────────────────────────────
+  //  Photo 
   const [photoImg, overlayImg] = await Promise.all([
     uriToSkiaImage(mediaUri),
     uriToSkiaImage(overlayUrl),
   ]);
 
   if (!photoImg) {
-    // console.warn('[stampOverlay] photo load failed, uploading original');
     return { uri: mediaUri, mimeType: 'image/jpeg' };
   }
   if (!overlayImg) {
-    // console.warn('[stampOverlay] overlay load failed, uploading photo only');
     return { uri: mediaUri, mimeType: 'image/jpeg' };
   }
 
   const composited = composite(photoImg, overlayImg);
   if (!composited) {
-    // console.warn('[stampOverlay] composite failed, uploading original');
     return { uri: mediaUri, mimeType: 'image/jpeg' };
   }
 
