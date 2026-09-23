@@ -1,241 +1,32 @@
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
-import { useAuth } from "@/hooks/useAuth";
 import { useToggleFollowMutation } from "@/store/api/socialApi";
-import { Ionicons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import Toast from "react-native-toast-message";
 import type { EventDetail } from "./types";
-import { useGetMeQuery, useGetUserBasicQuery } from "@/store/api/usersApi";
+import { useGetMeQuery } from "@/store/api/usersApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import EventMap from "./components/EventMap";
+import OrgAvatar from "./components/Avatar";
+import InfoRow from "./components/InfoRow";
 
 interface Props {
   event: EventDetail;
 }
-
-// ── Geocode an address string → lat/lng ───────────────────────────────────────
-// Uses the Google Geocoding REST API (same key as Places)
-
-async function geocodeAddress(
-  address: string
-): Promise<{ lat: number; lng: number } | null> {
-  const key = process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY ?? "";
-  if (!key) return null;
-  try {
-    const res = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-        address
-      )}&key=${key}`
-    );
-    const json = await res.json();
-    const loc = json?.results?.[0]?.geometry?.location;
-    if (!loc) return null;
-    return { lat: loc.lat, lng: loc.lng };
-  } catch {
-    return null;
-  }
-}
-
-// ── Embedded map ──────────────────────────────────────────────────────────────
-
-function EventMap({ address }: { address: string }) {
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-  const mapRef = useRef<MapView>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    geocodeAddress(address).then((result) => {
-      if (!cancelled) {
-        setCoords(result);
-        setLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [address]);
-
-  const openInMaps = () => {
-    const encoded = encodeURIComponent(address);
-    const url = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
-    WebBrowser.openBrowserAsync(url).catch(() => Linking.openURL(url));
-  };
-
-  if (loading) {
-    return (
-      <View style={map.loader}>
-        <ActivityIndicator color={brand.primary} />
-      </View>
-    );
-  }
-
-  if (!coords) {
-    // No API key or geocoding failed — show a tappable fallback
-    return (
-      <TouchableOpacity
-        style={map.fallback}
-        onPress={openInMaps}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="map-outline" size={28} color={neutral[400]} />
-        <Text style={map.fallbackAddr} numberOfLines={2}>
-          {address}
-        </Text>
-        <View style={map.fallbackPill}>
-          <Ionicons name="open-outline" size={12} color={brand.primary} />
-          <Text style={map.fallbackPillText}>Open in Maps</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  const region = {
-    latitude: coords.lat,
-    longitude: coords.lng,
-    latitudeDelta: 0.008,
-    longitudeDelta: 0.008,
-  };
-
-  return (
-    <TouchableOpacity
-      style={map.container}
-      activeOpacity={1}
-      onPress={openInMaps}
-    >
-      <MapView
-        ref={mapRef}
-        style={map.map}
-        provider={PROVIDER_GOOGLE}
-        region={region}
-        scrollEnabled={false}
-        zoomEnabled={false}
-        pitchEnabled={false}
-        rotateEnabled={false}
-        pointerEvents="none"
-      >
-        <Marker
-          coordinate={{ latitude: coords.lat, longitude: coords.lng }}
-          title={address}
-        />
-      </MapView>
-
-      {/* "Open in Maps" pill overlay */}
-      <View style={map.overlay}>
-        <View style={map.overlayPill}>
-          <Ionicons name="open-outline" size={12} color="#fff" />
-          <Text style={map.overlayText}>Open in Maps</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Organizer avatar ──────────────────────────────────────────────────────────
-
-function OrgAvatar({
-  uri,
-  name,
-  size = 44,
-}: {
-  uri?: string | null;
-  name: string;
-  size?: number;
-}) {
-  if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: `${brand.primary}20`,
-        }}
-        resizeMode="cover"
-      />
-    );
-  }
-  return (
-    <View
-      style={[
-        s.orgAvatarFallback,
-        { width: size, height: size, borderRadius: size / 2 },
-      ]}
-    >
-      <Text style={[s.orgAvatarText, { fontSize: size * 0.38 }]}>
-        {name.charAt(0).toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
-// ── Info row ──────────────────────────────────────────────────────────────────
-
-function InfoRow({
-  icon,
-  label,
-  value,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
-  value: string;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={s.infoRow}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      disabled={!onPress}
-    >
-      <View style={s.infoIcon}>
-        <Ionicons name={icon} size={18} color={brand.primary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.infoLabel}>{label}</Text>
-        <Text style={[s.infoValue, onPress && { color: brand.primary }]}>
-          {value}
-        </Text>
-      </View>
-      {onPress && (
-        <Ionicons name="open-outline" size={14} color={brand.primary} />
-      )}
-    </TouchableOpacity>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
-
 export default function AboutTab({ event }: Props) {
-  // useAuth gives us the logged-in user from Redux state — same source of truth
-  // used everywhere in the app (set on login/bootstrap, never stale)
-  const { user } = useAuth();
   const token = AsyncStorage.getItem("accessToken");
-
   const showLocation = event.mode === "ONSITE" || event.mode === "HYBRID";
   const showVirtual = event.mode === "VIRTUAL" || event.mode === "HYBRID";
 
-  // Compare logged-in user ID against the event organizer ID.
-  // If they match, this is the user's own event — hide the follow button.
   const { data: me, isLoading: isLoadingUser } = useGetMeQuery(undefined, {
-    // Only fetch the current user when they're logged in — avoids a noisy 401
-    // on public event pages viewed by unauthenticated users.
     skip: !token,
   });
 
@@ -247,19 +38,6 @@ export default function AboutTab({ event }: Props) {
   const [isFollowing, setIsFollowing] = useState(
     event.organizer?.isFollowing ?? false
   );
-
-  // Keep local state in sync if the event prop updates (e.g. after cache invalidation)
-  const prevOrganizerIdRef = React.useRef(event.organizer?.id);
-  // React.useEffect(() => {
-  //   // Only resync when the organizer changes or the isFollowing field changes
-  //   if (
-  //     event.organizer?.id !== prevOrganizerIdRef.current ||
-  //     event.organizer?.isFollowing !== undefined
-  //   ) {
-  //     prevOrganizerIdRef.current = event.organizer?.id;
-  //     setIsFollowing(event.organizer?.isFollowing ?? false);
-  //   }
-  // }, [event.organizer?.id, event.organizer?.isFollowing]);
 
   const [toggleFollow, { isLoading: isTogglingFollow }] =
     useToggleFollowMutation();
@@ -284,7 +62,7 @@ export default function AboutTab({ event }: Props) {
         visibilityTime: 2500,
       });
     } catch (err: any) {
-      setIsFollowing(prev); // revert
+      setIsFollowing(prev);
       Toast.show({
         type: "error",
         text1: "Something went wrong",
@@ -407,37 +185,8 @@ export default function AboutTab({ event }: Props) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32, gap: 4 },
-
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  infoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: `${brand.primary}10`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  infoLabel: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 11,
-    color: neutral[500],
-  },
-  infoValue: {
-    fontFamily: fontFamily.semibold,
-    fontSize: fontSize.sm,
-    color: neutral[800],
-    marginTop: 1,
-  },
 
   descCard: { padding: 14 },
   descTitle: {
@@ -467,12 +216,7 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   orgRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  orgAvatarFallback: {
-    backgroundColor: brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  orgAvatarText: { fontFamily: fontFamily.bold, color: "#fff" },
+
   orgName: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
@@ -503,82 +247,4 @@ const s = StyleSheet.create({
     color: brand.primary,
   },
   followBtnTextActive: { color: "#fff" },
-});
-
-const map = StyleSheet.create({
-  container: {
-    marginTop: 12,
-    height: 200,
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: neutral[100],
-  },
-  map: { width: "100%", height: "100%" },
-
-  loader: {
-    marginTop: 12,
-    height: 200,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: neutral[100],
-    backgroundColor: neutral[50],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  fallback: {
-    marginTop: 12,
-    height: 200,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: neutral[100],
-    backgroundColor: neutral[50],
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 24,
-  },
-  fallbackAddr: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.xs,
-    color: neutral[500],
-    textAlign: "center",
-  },
-  fallbackPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: brand.primary,
-    marginTop: 4,
-  },
-  fallbackPillText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 11,
-    color: brand.primary,
-  },
-
-  overlay: {
-    position: "absolute",
-    bottom: 10,
-    right: 10,
-  },
-  overlayPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  overlayText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 11,
-    color: "#fff",
-  },
 });
