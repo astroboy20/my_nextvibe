@@ -4,11 +4,11 @@ import Colors from "@/constants/Colors";
 import { useAppReady } from "@/hooks/useAppReady";
 import { useAuthRouting } from "@/hooks/useAuthRouting";
 import checkForUpdate from "@/hooks/useCheckUpdates";
-import { useFcmSync } from "@/hooks/useFcmSync";
+// import { useFcmSync } from "@/hooks/useFcmSync";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
-import { Stack } from "expo-router";
+import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
@@ -16,7 +16,6 @@ import "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { Provider, useSelector } from "react-redux";
 
-export { ErrorBoundary } from "expo-router";
 export const unstable_settings = { initialRouteName: "(auth)" };
 
 SplashScreen.preventAutoHideAsync();
@@ -78,7 +77,7 @@ function App() {
   );
   usePushRegistration(isAuthenticated, isBootstrapped);
 
-  useFcmSync(isAuthenticated);
+  // useFcmSync(isAuthenticated);
 
   useEffect(() => {
     checkForUpdate();
@@ -123,7 +122,7 @@ function RootLayoutInner() {
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },

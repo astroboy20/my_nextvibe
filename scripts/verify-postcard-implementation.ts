@@ -8,7 +8,7 @@
 import { PostcardCamera } from '../components/event/PostcardsTab/PostcardCamera';
 import { PostcardCreator } from '../components/event/PostcardsTab/PostcardCreator';
 import { PostcardViewer } from '../components/event/PostcardsTab/PostcardViewer';
-import { stampOverlay } from '../components/event/PostcardsTab/stampOverlay';
+import { stampOverlay } from '../components/event/PostcardsTab/PostcardCreator/components/stampOverlay';
 
 
 // Check exports

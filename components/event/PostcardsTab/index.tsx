@@ -8,27 +8,27 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { PostcardCreator } from "./PostcardCreator";
+import { PhaseGrid } from "./PostcardCreator/components/PostcardCard";
 import { PostcardLeaderboard } from "./PostcardLeaderboard";
+import type { ReelPhase } from "./PostcardReel";
+import { PostcardReel } from "./PostcardReel";
 import { PostcardViewer } from "./PostcardViewer";
 import type {
-  ActivityTiming,
-  PostcardData,
-  PostcardPhase,
-  VibeTag,
+    ActivityTiming,
+    PostcardData,
+    PostcardPhase,
+    VibeTag,
 } from "./types";
-import { TIMING_META, TIMING_PILL } from "./types";
-import { PhaseGrid } from "./PostcardCard";
+import { TIMING_META } from "./types";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD = 14;
@@ -64,6 +64,7 @@ export default function PostcardsTab({
   const [activeTiming, setActiveTiming] = useState<ActivityTiming>("PRE_EVENT");
   const [postcardPhase, setPostcardPhase] = useState<PostcardPhase>("all");
   const [showCreator, setShowCreator] = useState(false);
+  const [showReel, setShowReel] = useState(false);
 
   // Pending action to retry after auth
   const [pendingCreate, setPendingCreate] = useState(false);
@@ -101,6 +102,28 @@ export default function PostcardsTab({
   const vibeTagOverlay = activeTag?.imageUrl
     ? { imageUrl: activeTag.imageUrl, name: activeTag.name }
     : null;
+
+  // Count valid postcards (with mediaUrl) per activityTiming phase.
+  // Used to decide whether to show the Watch Reel button for each phase.
+  // Requirements: 1.1, 1.2
+  const allPostcards: PostcardData[] = (
+    (myPostcardsData as any)?.data?.data ??
+    (myPostcardsData as any)?.data ??
+    []
+  );
+  const phasePostcardCounts = (["PRE_EVENT", "DURING_EVENT", "POST_EVENT"] as ActivityTiming[]).reduce<Record<ActivityTiming, number>>(
+    (acc, timing) => {
+      acc[timing] = allPostcards.filter((p: PostcardData) => {
+        const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
+        return (
+          tag?.activityTiming === timing &&
+          (p.media ?? []).some((m) => m.mediaUrl != null && m.mediaUrl !== "")
+        );
+      }).length;
+      return acc;
+    },
+    { PRE_EVENT: 0, DURING_EVENT: 0, POST_EVENT: 0 },
+  );
 
   const eventHasStarted = eventStartsAt
     ? new Date() >= new Date(eventStartsAt)
@@ -199,7 +222,7 @@ export default function PostcardsTab({
                 {activeTag?.imageUrl ? (
                   <Image
                     source={{ uri: activeTag.imageUrl }}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     contentFit="cover"
                   />
                 ) : (
@@ -220,6 +243,17 @@ export default function PostcardsTab({
                 This VibeTag will be applied to your postcards
               </Text>
             </View>
+          )}
+
+          {phasePostcardCounts[activeTiming] > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowReel(true)}
+              style={s.watchReelBtn}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="play-circle" size={16} color={brand.primary} />
+              <Text style={s.watchReelBtnText}>Watch Reel</Text>
+            </TouchableOpacity>
           )}
 
           {activeTiming === "DURING_EVENT" && !eventHasStarted && (
@@ -323,6 +357,16 @@ export default function PostcardsTab({
               setViewerPostcards(remaining);
             }
           }}
+        />
+      )}
+
+      {/* Full-screen reel — one per phase, opened via Watch Reel button */}
+      {showReel && (
+        <PostcardReel
+          eventId={eventId}
+          phase={activeTiming as ReelPhase}
+          vibeTagMap={vibeTagMap}
+          onClose={() => setShowReel(false)}
         />
       )}
 
@@ -495,6 +539,24 @@ const s = StyleSheet.create({
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
     color: "#fff",
+  },
+
+  watchReelBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${brand.primary}40`,
+    backgroundColor: "#fff",
+  },
+  watchReelBtnText: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+    color: brand.primary,
   },
 
   sectionHeader: {

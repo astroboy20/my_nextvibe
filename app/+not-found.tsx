@@ -1,6 +1,7 @@
 import Colors from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, Stack } from "expo-router";
+import { Link } from "expo-router";
+import { Stack } from "expo-router/stack";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function NotFoundScreen() {

@@ -10,7 +10,7 @@ import {
   useTrackPostcardViewMutation,
 } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -35,6 +35,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import type { PostcardData, PostcardMediaItem } from "./types";
 import { useAuth } from "@/hooks/useAuth";
+import { useEvent } from "expo";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -58,49 +59,60 @@ function VideoPlayer({
   active: boolean;
   overlayUrl?: string | null;
 }) {
-  const videoRef = useRef<Video>(null);
   const [muted, setMuted] = useState(true);
-  const [buffering, setBuffering] = useState(true);
+
+  const player = useVideoPlayer(src, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
+
+  // Reactive status → buffering indicator
+  const { status } = useEvent(player, "statusChange", {
+    status: player.status,
+  });
+  const buffering = status === "loading";
 
   useEffect(() => {
     if (active) {
-      videoRef.current?.playAsync().catch(() => {});
+      player.play();
     } else {
-      videoRef.current?.pauseAsync().catch(() => {});
-      videoRef.current?.setPositionAsync(0).catch(() => {});
+      player.pause();
+      player.currentTime = 0;
     }
-  }, [active]);
+  }, [active, player]);
+
+  const toggleMute = () => {
+    setMuted((m) => {
+      const next = !m;
+      player.muted = next;
+      return next;
+    });
+  };
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       {buffering && (
         <View style={vp.buffer}>
           <ActivityIndicator color="#fff" size="large" />
         </View>
       )}
-      <Video
-        ref={videoRef}
-        source={{ uri: src }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode={ResizeMode.CONTAIN}
-        isLooping
-        isMuted={muted}
-        shouldPlay={active}
-        onReadyForDisplay={() => setBuffering(false)}
-        onLoadStart={() => setBuffering(true)}
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="contain"
+        nativeControls={false}
       />
-      {/* Live overlay during playback — only if vibeTagOverlayUrl is non-null */}
       {overlayUrl && (
         <Image
           source={{ uri: overlayUrl }}
-          style={[StyleSheet.absoluteFillObject, { opacity: 0.65 }]}
+          style={[StyleSheet.absoluteFill, { opacity: 0.65 }]}
           contentFit="cover"
           pointerEvents="none"
         />
       )}
       <TouchableOpacity
         style={vp.muteBtn}
-        onPress={() => setMuted((m) => !m)}
+        onPress={toggleMute}
         activeOpacity={0.8}
       >
         <Ionicons
@@ -115,7 +127,7 @@ function VideoPlayer({
 
 const vp = StyleSheet.create({
   buffer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -574,7 +586,7 @@ function PostcardCard({
           onMomentumScrollEnd={(e) => {
             setMediaIdx(Math.round(e.nativeEvent.contentOffset.x / W));
           }}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         >
           {media.map((m, i) => (
             <View key={m.id ?? i} style={{ width: W, height: H }}>
@@ -590,7 +602,7 @@ function PostcardCard({
                 m.thumbnailUrl ? (
                   <Image
                     source={{ uri: m.thumbnailUrl }}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     contentFit="contain"
                     transition={200}
                   />
@@ -606,7 +618,7 @@ function PostcardCard({
                 // PHOTO: Always render directly (overlay already baked in)
                 <Image
                   source={{ uri: m.mediaUrl! }}
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   contentFit="contain"
                   transition={200}
                 />
@@ -870,7 +882,7 @@ const ov = StyleSheet.create({
     textShadowRadius: 4,
   },
   heartBurst: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 20,

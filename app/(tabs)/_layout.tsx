@@ -1,6 +1,6 @@
 import BottomTabBar from '@/components/navigation/BottomTabBar';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { Tabs } from 'expo-router';
+import { Tabs } from 'expo-router/tabs';
 
 export default function TabsLayout() {
   // Set up foreground notification listener and tap-through deep linking.

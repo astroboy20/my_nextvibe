@@ -32,7 +32,7 @@ const SwapConfirm = ({
   return (
     <View
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         {
           backgroundColor: "rgba(0,0,0,0.55)",
           alignItems: "center",
@@ -208,7 +208,7 @@ const SwapPicker = ({
   return (
     <SafeAreaView
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         { backgroundColor: "#fff", zIndex: 200 },
       ]}
       edges={["top", "bottom"]}
@@ -259,7 +259,7 @@ const SwapPicker = ({
               >
                 <Image
                   source={{ uri: src }}
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   contentFit="cover"
                 />
                 {isVid && (

@@ -3,7 +3,7 @@ import { fontFamily, fontSize } from "@/constants/Typography";
 import { useGetEventPostcardsQuery } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React, { useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -18,8 +18,8 @@ import type {
   PostcardData,
   PostcardPhase,
   VibeTag,
-} from "./types";
-import { TIMING_META, TIMING_PILL } from "./types";
+} from "../../types";
+import { TIMING_PILL } from "../../types";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD = 14;
@@ -130,7 +130,7 @@ const PhaseGrid = ({
   onSelect: (postcards: PostcardData[], index: number) => void;
 }) => {
   const { data, isLoading } = useGetEventPostcardsQuery(
-    { eventId, phase: phase === "all" ? undefined : phase },
+    { eventId, timing: phase === "all" ? undefined : phase },
     { skip: !eventId }
   );
 
@@ -271,3 +271,4 @@ const tile = StyleSheet.create({
 });
 
 export { PhaseGrid };
+

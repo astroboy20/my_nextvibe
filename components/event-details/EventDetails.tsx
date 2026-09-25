@@ -353,7 +353,7 @@ const EventDetailScreen = () => {
           {event.flierUrl ? (
             <Image
               source={{ uri: event.flierUrl }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
           ) : null}
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
 
   // Full hero (simple tabs)
   hero: { width: "100%", aspectRatio: 3 / 4, backgroundColor: "#000" },
-  heroMediaContainer: { ...StyleSheet.absoluteFillObject },
+  heroMediaContainer: { ...StyleSheet.absoluteFill },
   heroImg: { width: "100%", height: "100%" },
   heroFallback: {
     width: "100%",
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     backgroundColor: neutral[100],
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.38)",
   },
   heroTopRow: {
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   compactHeroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   compactHeroContent: { paddingHorizontal: 14, paddingBottom: 10, gap: 4 },

@@ -533,7 +533,7 @@ export const eventsApi = createApi({
         { type: "Gallery", id: `vibetags-${eventId}` },
         { type: "PublishPreview", id: eventId },
       ],
-    }),    getVibeTags: builder.query<any, { eventId: string; activityTiming?: string }>({
+    }), getVibeTags: builder.query<any, { eventId: string; activityTiming?: string }>({
       query: ({ eventId }) => `/v1/vibe-tags?eventId=${eventId}`,
       // Deduplicate at cache level — keep only the most recently created per activityTiming
       transformResponse: (response: any) => {
@@ -550,10 +550,10 @@ export const eventsApi = createApi({
       providesTags: (_, __, { eventId }) => [{ type: "Gallery", id: `vibetags-${eventId}` }],
     }),
 
-    getEventPostcards: builder.query<any, { eventId: string; phase?: string; page?: number; limit?: number }>({
-      query: ({ eventId, phase, page = 1, limit = 20 }) => {
+    getEventPostcards: builder.query<any, { eventId: string; timing?: string; page?: number; limit?: number }>({
+      query: ({ eventId, timing, page = 1, limit = 20 }) => {
         const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-        if (phase && phase !== "all") params.set("phase", phase);
+        if (timing && timing !== "all") params.set("timing", timing);
         return `/v1/events/${eventId}/postcards?${params.toString()}`;
       },
       providesTags: (_, __, { eventId }) => [{ type: "Gallery", id: eventId }],

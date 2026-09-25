@@ -160,9 +160,10 @@ function PostcardGrid({
 
   const renderCard = (item: PostcardItem, flatIdx: number) => {
     const h = heights[flatIdx % heights.length];
-    const isVideo = item.mediaType === 'VIDEO';
-    const displayUrl = isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
-    
+    const isVideo = item.mediaType === "VIDEO";
+    const displayUrl =
+      isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
+
     return (
       <TouchableOpacity
         key={item.id}
@@ -175,7 +176,7 @@ function PostcardGrid({
             <>
               <Image
                 source={{ uri: displayUrl }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
               />
               {/* Video play indicator */}
               {isVideo && (
@@ -320,9 +321,7 @@ export default function ProfileScreen() {
   const activity = activityData?.data?.data ?? activityData?.data;
   const events = eventsData?.data?.data ?? [];
   const rawPostcards: any[] =
-    activityData?.data?.data?.postcards ??
-    activityData?.data?.postcards ??
-    [];
+    activityData?.data?.data?.postcards ?? activityData?.data?.postcards ?? [];
 
   // Flattened shape for grid thumbnail display (PostcardItem — flat mediaUrl/mediaType)
   const postcards: PostcardItem[] = rawPostcards.map((p: any) => {
@@ -360,9 +359,7 @@ export default function ProfileScreen() {
   }));
 
   const tickets =
-    activityData?.data?.data?.tickets ??
-    activityData?.data?.tickets ??
-    [];
+    activityData?.data?.data?.tickets ?? activityData?.data?.tickets ?? [];
 
   // Header skeleton: only on true first load (no cached data yet)
   const activityStarted = !!userId; // becomes true once fired
@@ -392,8 +389,8 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar style="dark" backgroundColor="#fff" />
-      <AppHeader  />
+      <StatusBar style="light" />
+      <AppHeader />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -843,4 +840,3 @@ const tk = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontFamily: fontFamily.semibold, fontSize: 11 },
 });
-

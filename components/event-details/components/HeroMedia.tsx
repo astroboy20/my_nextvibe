@@ -1,10 +1,9 @@
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ResizeMode, Video } from "expo-av";
-import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet } from "react-native";
-import { Animated, Dimensions, Image, View } from "react-native";
+import { VideoView, useVideoPlayer } from "expo-video";
+import React, { useEffect, useRef } from "react";
+import { Animated, Dimensions, Image, StyleSheet, View } from "react-native";
 
 const { width } = Dimensions.get("window");
 const HERO_H = width * (4 / 3);
@@ -24,9 +23,15 @@ const HeroMedia = ({
 
   const flierOpacity = useRef(new Animated.Value(1)).current;
   const videoOpacity = useRef(new Animated.Value(0)).current;
-  const videoRef = useRef<Video>(null);
   const showingVideoRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Created unconditionally (hooks can't be conditional). Passing `null`
+  // when there's no video URL gives an idle player that renders nothing.
+  const player = useVideoPlayer(promoVideoUrl ?? null, (p) => {
+    p.loop = true;
+    p.muted = true;
+  });
 
   const clearTimer = () => {
     if (timerRef.current !== null) {
@@ -54,11 +59,23 @@ const HeroMedia = ({
       }),
     ]).start(({ finished }) => {
       if (!finished) return;
-      if (toVideo) videoRef.current?.playAsync().catch(() => {});
-      else videoRef.current?.pauseAsync().catch(() => {});
+      try {
+        if (toVideo) player.play();
+        else player.pause();
+      } catch {
+        // Player may have been released if the component unmounted during animation
+        return;
+      }
       timerRef.current = setTimeout(() => doSwitchRef.current?.(), 5000);
     });
   };
+
+  // Video-only fallback: always playing, muted, looping.
+  useEffect(() => {
+    if (hasVideo && !hasFlier) {
+      try { player.play(); } catch { /* already released */ }
+    }
+  }, [hasVideo, hasFlier, player]);
 
   useEffect(() => {
     if (!shouldAlternate) return;
@@ -70,7 +87,7 @@ const HeroMedia = ({
       clearTimer();
       flierOpacity.stopAnimation();
       videoOpacity.stopAnimation();
-      videoRef.current?.pauseAsync().catch(() => {});
+      try { player.pause(); } catch { /* already released */ }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAlternate]);
@@ -93,45 +110,38 @@ const HeroMedia = ({
   }
   if (!hasFlier && hasVideo) {
     return (
-      <Video
-        source={{ uri: promoVideoUrl! }}
+      <VideoView
+        player={player}
         style={styles.heroImg}
-        resizeMode={ResizeMode.COVER}
-        isLooping
-        isMuted
-        shouldPlay
+        contentFit="cover"
+        nativeControls={false}
       />
     );
   }
   return (
     <View style={styles.heroMediaContainer}>
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { opacity: flierOpacity }]}
+        style={[StyleSheet.absoluteFill, { opacity: flierOpacity }]}
       >
         <Image
           source={{ uri: flierUrl! }}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           resizeMode="cover"
         />
       </Animated.View>
       <Animated.View
-        style={[StyleSheet.absoluteFillObject, { opacity: videoOpacity }]}
+        style={[StyleSheet.absoluteFill, { opacity: videoOpacity }]}
       >
-        <Video
-          ref={videoRef}
-          source={{ uri: promoVideoUrl! }}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode={ResizeMode.COVER}
-          isLooping
-          isMuted
-          shouldPlay={false}
+        <VideoView
+          player={player}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          nativeControls={false}
         />
       </Animated.View>
     </View>
   );
 };
-
-
 export default HeroMedia;
 
 const styles = StyleSheet.create({
@@ -139,7 +149,7 @@ const styles = StyleSheet.create({
 
   // Full hero (simple tabs)
   hero: { width: "100%", aspectRatio: 3 / 4, backgroundColor: "#000" },
-  heroMediaContainer: { ...StyleSheet.absoluteFillObject },
+  heroMediaContainer: { ...StyleSheet.absoluteFill },
   heroImg: { width: "100%", height: "100%" },
   heroFallback: {
     width: "100%",
@@ -149,7 +159,7 @@ const styles = StyleSheet.create({
     backgroundColor: neutral[100],
   },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.38)",
   },
   heroTopRow: {
@@ -193,7 +203,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   compactHeroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   compactHeroContent: { paddingHorizontal: 14, paddingBottom: 10, gap: 4 },
