@@ -1,4 +1,5 @@
 import SplashScreenView from "@/components/SplashScreenView";
+import { StripeDeepLinkHandler } from "@/components/stripe/StripeDeepLinkHandler";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useAppReady } from "@/hooks/useAppReady";
@@ -8,9 +9,10 @@ import checkForUpdate from "@/hooks/useCheckUpdates";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
+import { resetPaymentSheetCustomer, StripeProvider } from "@stripe/stripe-react-native";
 import { Stack } from "expo-router/stack";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import "react-native-reanimated";
 import Toast from "react-native-toast-message";
@@ -70,11 +72,31 @@ function ThemedStack() {
   );
 }
 
+/**
+ * Calls resetPaymentSheetCustomer() when the user logs out (isAuthenticated
+ * transitions from true → false). This effect is registered before
+ * useAuthRouting so it fires prior to the navigation reset to /(auth)/login.
+ */
+function useLogoutStripeCleanup(isAuthenticated: boolean) {
+  const prevAuthenticated = useRef(isAuthenticated);
+  useEffect(() => {
+    if (prevAuthenticated.current && !isAuthenticated) {
+      resetPaymentSheetCustomer();
+    }
+    prevAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated]);
+}
+
 function App() {
-  const { oauthPending } = useAuthRouting();
   const { isAuthenticated, isBootstrapped } = useSelector(
     (s: RootState) => s.auth
   );
+
+  // Must be called before useAuthRouting so the Stripe cleanup effect
+  // executes before the navigation reset on logout.
+  useLogoutStripeCleanup(isAuthenticated);
+
+  const { oauthPending } = useAuthRouting();
   usePushRegistration(isAuthenticated, isBootstrapped);
 
   // useFcmSync(isAuthenticated);
@@ -101,7 +123,10 @@ function App() {
 export default function RootLayout() {
   return (
     <Provider store={store}>
-      <RootLayoutInner />
+      <StripeProvider publishableKey="" urlScheme="mynextvibe" merchantIdentifier="merchant.com.nextvibe2026.nextvibe">
+        <StripeDeepLinkHandler />
+        <RootLayoutInner />
+      </StripeProvider>
     </Provider>
   );
 }

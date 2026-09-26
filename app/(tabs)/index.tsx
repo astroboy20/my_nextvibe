@@ -154,6 +154,8 @@ export default function HomeScreen() {
     return merged;
   }, [data, page]);
 
+  
+
   const handleRefresh = useCallback(() => {
     loadingMore.current = false;
     prevEventsRef.current = [];
@@ -214,6 +216,8 @@ export default function HomeScreen() {
   const isFirstLoad = isLoading && allEvents.length === 0;
   const isRefreshing = isFetching && page === 1;
 
+
+ 
   // Refetch the first page whenever this tab comes back into focus
   useRefetchOnFocus(handleRefresh);
 

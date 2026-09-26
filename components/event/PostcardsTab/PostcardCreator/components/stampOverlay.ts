@@ -1,6 +1,7 @@
 
 
 import { ImageFormat, Skia, type SkImage } from '@shopify/react-native-skia';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 
 // 9:16 portrait — standard social media
@@ -14,10 +15,28 @@ export interface StampResult {
   vibeTagOverlayUrl?: string | null;
 }
 
-//Image loader 
+// ── Image loader ──────────────────────────────────────────────────────────────
+// fetch() in React Native does NOT support file:// URIs.
+// For local files we use expo-file-system's readAsStringAsync (base64);
+// for remote http(s):// URLs we use fetch as normal.
 
-async function uriToSkiaImage(uri: string): Promise<SkImage | null> {
+async function uriToBase64(uri: string): Promise<string | null> {
   try {
+    if (uri.startsWith('file://') || uri.startsWith('/')) {
+      // Local file — read as base64 via expo-file-system
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return base64;
+    }
+
+    if (uri.startsWith('data:')) {
+      // Already a data URI — extract the base64 part
+      const commaIdx = uri.indexOf(',');
+      return commaIdx !== -1 ? uri.slice(commaIdx + 1) : null;
+    }
+
+    // Remote URL — fetch normally
     const response = await fetch(uri);
     if (!response.ok) {
       console.error('[stampOverlay] fetch failed:', response.status, uri.substring(0, 80));
@@ -29,6 +48,34 @@ async function uriToSkiaImage(uri: string): Promise<SkImage | null> {
       console.error('[stampOverlay] empty response for', uri.substring(0, 80));
       return null;
     }
+    // Convert ArrayBuffer → base64
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  } catch (err) {
+    console.error('[stampOverlay] uriToBase64 error:', err);
+    return null;
+  }
+}
+
+async function uriToSkiaImage(uri: string): Promise<SkImage | null> {
+  try {
+    const base64 = await uriToBase64(uri);
+    if (!base64) {
+      console.error('[stampOverlay] could not read bytes for', uri.substring(0, 80));
+      return null;
+    }
+
+    // Decode base64 → Uint8Array
+    const binaryStr = atob(base64);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+    if (bytes.length === 0) {
+      console.error('[stampOverlay] empty bytes for', uri.substring(0, 80));
+      return null;
+    }
+
     const data = Skia.Data.fromBytes(bytes);
     const image = Skia.Image.MakeImageFromEncoded(data);
     if (!image) {

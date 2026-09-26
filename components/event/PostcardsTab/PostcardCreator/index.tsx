@@ -242,15 +242,22 @@ export function PostcardCreator({
       </Modal>
 
       {showCamera && (
-        <PostcardCamera
-          vibeTagOverlay={vibeTagOverlay}
-          vibeTagName={vibeTagName}
-          onCapture={handleCameraCapture}
-          onClose={() => {
-            setShowCamera(false);
-            setCreatorVisible(true);
-          }}
-        />
+        <Modal
+          visible={showCamera}
+          animationType="slide"
+          statusBarTranslucent
+          hardwareAccelerated
+        >
+          <PostcardCamera
+            vibeTagOverlay={vibeTagOverlay}
+            vibeTagName={vibeTagName}
+            onCapture={handleCameraCapture}
+            onClose={() => {
+              setShowCamera(false);
+              setCreatorVisible(true);
+            }}
+          />
+        </Modal>
       )}
     </>
   );

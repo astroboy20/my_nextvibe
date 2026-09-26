@@ -12,7 +12,6 @@
  */
 
 import type { PushNotificationData } from '@/services/pushNotifications';
-import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 
@@ -32,8 +31,12 @@ export function usePushNotifications() {
 
   useEffect(() => {
     // Push listeners are only available in dev builds and production builds.
-    // In Expo Go (SDK 53+) they throw — skip entirely.
+    // In Expo Go (SDK 53+) the top-level expo-notifications import throws —
+    // lazy-require here so the module never loads in Expo Go.
     if (isExpoGo()) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
 
     // ── Foreground notification received ─────────────────────────────────────
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {

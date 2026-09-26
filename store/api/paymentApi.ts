@@ -1,4 +1,9 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
+import type {
+    InitiateStripePaymentSheetInput,
+    StripePaymentSheetResponse,
+    VerifyPurchaseResponse,
+} from "../../lib/stripe";
 import { baseQueryWithReauth } from "./baseQuery";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -93,6 +98,40 @@ export const paymentApi = createApi({
     getPurchaseById: builder.query<any, string>({
       query: (id) => `/v1/payments/purchases/${id}`,
     }),
+
+    /**
+     * POST /v1/payments/stripe/payment-sheet
+     * Creates a Stripe PaymentIntent and returns the secrets + publishable key
+     * needed to initialise the Payment Sheet.
+     *
+     * ⚠️  Do NOT include a price field in the request body — the server
+     *     derives the amount from the event/tier configuration.
+     * ⚠️  Do NOT retry this call automatically — each invocation creates a
+     *     new purchase record.
+     */
+    initiateStripePaymentSheet: builder.mutation<
+      { success: boolean; data: StripePaymentSheetResponse },
+      InitiateStripePaymentSheetInput
+    >({
+      query: (body) => ({
+        url: "/v1/payments/stripe/payment-sheet",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    /**
+     * GET /v1/payments/verify/:purchaseId
+     * Polls for ticket-issuance status after a Stripe payment attempt.
+     * Used imperatively via `useLazyVerifyStripePurchaseQuery` — not as a
+     * reactive subscription — because polling is managed by useCardCheckout.
+     */
+    verifyStripePurchase: builder.query<
+      { success: boolean; data: VerifyPurchaseResponse },
+      string
+    >({
+      query: (purchaseId) => `/v1/payments/verify/${purchaseId}`,
+    }),
   }),
 });
 
@@ -101,4 +140,6 @@ export const {
   useGetPurchaseSummaryQuery,
   useGetUserPurchasesQuery,
   useGetPurchaseByIdQuery,
+  useInitiateStripePaymentSheetMutation,
+  useLazyVerifyStripePurchaseQuery,
 } = paymentApi;

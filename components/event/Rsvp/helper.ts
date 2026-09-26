@@ -23,6 +23,6 @@ export function isAtCapacity(tickets: { quantitySold?: number, quantity?: number
 
 export function formatPrice(price: number, currency: string = "NGN"): string {
   if (price === 0) return "Free";
-  const sym: Record<string, string> = { NGN: "₦", USD: "$", GBP: "£", EUR: "€" };
+  const sym: Record<string, string> = { NGN: "₦", USD: "$", GBP: "£", EUR: "€", CAD: "CA$" };
   return `${sym[currency] ?? currency}${Number(price).toLocaleString()}`;
 }

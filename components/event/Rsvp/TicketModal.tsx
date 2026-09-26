@@ -1,9 +1,9 @@
 import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
+import { useCardCheckout } from "@/hooks/useCardCheckout";
+import { isStripeCurrency } from "@/lib/stripe";
 import {
-  useGetEventAttendeesQuery,
-  useGetEventTicketsQuery,
-  useRsvpEventMutation,
+  useGetEventTicketsQuery
 } from "@/store/api/eventsApi";
 import { useInitiatePurchaseMutation } from "@/store/api/paymentApi";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,11 +38,13 @@ const TicketModal = ({
   onDismiss,
   onConfirmed,
 }: TicketProps) => {
+  const router = useRouter();
   const { data: ticketsRes, isLoading } = useGetEventTicketsQuery(eventId, {
     skip: !visible,
   });
   const [initiatePurchase, { isLoading: isPurchasing }] =
     useInitiatePurchaseMutation();
+  const { pay, busy } = useCardCheckout();
 
   const tickets = useMemo(() => {
     const raw = Array.isArray(ticketsRes?.data)
@@ -98,6 +100,36 @@ const TicketModal = ({
       return;
     }
 
+    // ── Stripe path (USD / GBP / EUR / CAD) ──────────────────────────────────
+    if (isStripeCurrency(selected.currency)) {
+      const outcome = await pay({
+        eventId,
+        tierId: selected.id,
+        quantity: qty,
+      });
+
+      if (outcome.outcome === "success") {
+        handleDismiss();
+        router.push(`/purchase-confirmation?purchaseId=${outcome.purchaseId}` as any);
+      } else if (outcome.outcome === "cancelled") {
+        // Silent — user dismissed the sheet intentionally
+      } else if (outcome.outcome === "error") {
+        Toast.show({
+          type: "error",
+          text1: "Payment failed",
+          text2: outcome.message,
+        });
+      } else if (outcome.outcome === "processing") {
+        Toast.show({
+          type: "info",
+          text1: "Payment processing",
+          text2: "Check your purchase history for confirmation.",
+        });
+      }
+      return;
+    }
+
+    // ── Bachs/Ercaspay path (NGN and all other currencies) ───────────────────
     try {
       const res = await initiatePurchase({
         eventId,
@@ -125,16 +157,18 @@ const TicketModal = ({
     if (noTickets) return "Confirm RSVP";
     if (!selected) return "Select a Ticket";
     if (selected.price === 0) return "Confirm RSVP (Free)";
+    if (isStripeCurrency(selected.currency)) return "Pay with Card";
     return `Pay ${formatPrice(total, selected.currency)}`;
   };
 
   const confirmIcon = () => {
     if (noTickets || !selected || selected.price === 0)
       return "checkmark-circle-outline";
+    if (isStripeCurrency(selected.currency)) return "card-outline";
     return "card-outline";
   };
 
-  const confirmDisabled = (!noTickets && !selected) || isPurchasing;
+  const confirmDisabled = (!noTickets && !selected) || isPurchasing || busy;
 
   return (
     <Modal
@@ -331,16 +365,29 @@ const TicketModal = ({
                   {formatPrice(total, selected.currency)}
                 </Text>
               </View>
-              <View style={tm.paymentNote}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={14}
-                  color="#92400e"
-                />
-                <Text style={tm.paymentNoteText}>
-                  You'll be redirected to Ercaspay to complete payment securely.
-                </Text>
-              </View>
+              {isStripeCurrency(selected.currency) ? (
+                <View style={tm.paymentNoteStripe}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={14}
+                    color="#1d4ed8"
+                  />
+                  <Text style={tm.paymentNoteStripeText}>
+                    Secured by Stripe. Your card details are encrypted.
+                  </Text>
+                </View>
+              ) : (
+                <View style={tm.paymentNote}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={14}
+                    color="#92400e"
+                  />
+                  <Text style={tm.paymentNoteText}>
+                    You'll be redirected to Ercaspay to complete payment securely.
+                  </Text>
+                </View>
+              )}
             </>
           )}
           <TouchableOpacity
@@ -349,7 +396,7 @@ const TicketModal = ({
             disabled={confirmDisabled}
             activeOpacity={0.8}
           >
-            {isPurchasing ? (
+            {isPurchasing || busy ? (
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
@@ -549,6 +596,23 @@ const tm = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: 11,
     color: "#92400e",
+    lineHeight: 16,
+  },
+  paymentNoteStripe: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#93c5fd40",
+    backgroundColor: "#eff6ff",
+  },
+  paymentNoteStripeText: {
+    flex: 1,
+    fontFamily: fontFamily.regular,
+    fontSize: 11,
+    color: "#1d4ed8",
     lineHeight: 16,
   },
   confirmBtn: {

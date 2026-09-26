@@ -84,7 +84,14 @@
       "expo-secure-store",
       "@react-native-community/datetimepicker",
       "expo-video",
-      "expo-audio"
+      "expo-audio",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.nextvibe2026.nextvibe",
+          "enableGooglePay": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

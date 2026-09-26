@@ -87,7 +87,7 @@ export default function EventCard({ item, onPress }: { item: EventCardData; onPr
         {item.flierUrl ? (
           <Image
             source={{ uri: item.flierUrl }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             resizeMode="stretch"
           />
         ) : (
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     backgroundColor: neutral[200],
   },
   imageFallback: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: neutral[200],
   },
   // Semi-transparent dark fade at the bottom of the image

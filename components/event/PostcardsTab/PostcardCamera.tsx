@@ -11,24 +11,24 @@ import { brand, neutral, semantic } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { Ionicons } from '@expo/vector-icons';
 import {
-    CameraMode,
-    CameraType,
-    CameraView,
-    useCameraPermissions,
-    useMicrophonePermissions,
+  CameraMode,
+  CameraType,
+  CameraView,
+  useCameraPermissions,
+  useMicrophonePermissions,
 } from 'expo-camera';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  BackHandler,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -117,6 +117,15 @@ export function PostcardCamera({
     };
   }, [isRecording]);
 
+  // Android hardware back button
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [onClose]);
+
   // ── Capture ──────────────────────────────────────────────────────────────
 
   const flashShutter = () => {
@@ -164,7 +173,6 @@ export function PostcardCamera({
     try {
       const video = await cameraRef.current.recordAsync({
         maxDuration: MAX_RECORD_SECS,
-        mute: false,
       });
       if (video?.uri) {
         const newCapture: CapturedMedia = {
@@ -199,17 +207,17 @@ export function PostcardCamera({
 
   if (!cameraPermission) {
     return (
-      <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={[StyleSheet.absoluteFill, s.root]}>
         <View style={s.permWrap}>
           <ActivityIndicator color={brand.primary} size="large" />
         </View>
-      </Modal>
+      </View>
     );
   }
 
   if (!cameraPermission.granted) {
     return (
-      <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={[StyleSheet.absoluteFill, s.root]}>
         <SafeAreaView style={s.permWrap}>
           <TouchableOpacity style={s.closeAbsolute} onPress={onClose} hitSlop={10}>
             <Ionicons name="close" size={24} color={neutral[700]} />
@@ -223,7 +231,7 @@ export function PostcardCamera({
             <Text style={s.permBtnText}>Grant Permission</Text>
           </TouchableOpacity>
         </SafeAreaView>
-      </Modal>
+      </View>
     );
   }
 
@@ -231,13 +239,12 @@ export function PostcardCamera({
   const hasCaptures = captures.length > 0;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={s.root}>
+    <View style={[StyleSheet.absoluteFill, s.root]}>
 
         {/* ── Camera viewfinder ──────────────────────────────────────── */}
         <CameraView
           ref={cameraRef}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           facing={facing}
           mode={mode}
           flash={flash}
@@ -252,7 +259,7 @@ export function PostcardCamera({
         {vibeTagOverlay?.imageUrl && (
           <Image
             source={{ uri: vibeTagOverlay.imageUrl }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             contentFit="cover"
             pointerEvents="none"
           />
@@ -364,7 +371,7 @@ export function PostcardCamera({
               <View style={s.thumbWrap}>
                 <Image
                   source={{ uri: captures[captures.length - 1].uri }}
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   contentFit="cover"
                 />
                 {captures.length > 1 && (
@@ -425,15 +432,14 @@ export function PostcardCamera({
           </TouchableOpacity>
         )}
 
-      </View>
-    </Modal>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
+  root: { flex: 1, backgroundColor: '#000', zIndex: 9999 },
 
   // Permission screen
   permWrap: {
@@ -506,7 +512,7 @@ const s = StyleSheet.create({
 
   // Not ready overlay
   notReady: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -516,7 +522,7 @@ const s = StyleSheet.create({
 
   // Shutter flash
   shutterFlash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#fff',
     zIndex: 50,
     pointerEvents: 'none',
