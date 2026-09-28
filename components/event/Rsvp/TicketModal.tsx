@@ -2,9 +2,7 @@ import { brand, neutral, semantic } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useCardCheckout } from "@/hooks/useCardCheckout";
 import { isStripeCurrency } from "@/lib/stripe";
-import {
-  useGetEventTicketsQuery
-} from "@/store/api/eventsApi";
+import { useGetEventTicketsQuery } from "@/store/api/eventsApi";
 import { useInitiatePurchaseMutation } from "@/store/api/paymentApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -107,10 +105,12 @@ const TicketModal = ({
         tierId: selected.id,
         quantity: qty,
       });
-
+      
       if (outcome.outcome === "success") {
         handleDismiss();
-        router.push(`/purchase-confirmation?purchaseId=${outcome.purchaseId}` as any);
+        router.push(
+          `/purchase-confirmation?purchaseId=${outcome.purchaseId}` as any
+        );
       } else if (outcome.outcome === "cancelled") {
         // Silent — user dismissed the sheet intentionally
       } else if (outcome.outcome === "error") {
@@ -212,7 +212,6 @@ const TicketModal = ({
               const isSelected = selectedId === ticket.id;
               const soldOut = ticket.available <= 0;
               const ticketQty = quantities[ticket.id] ?? 1;
-
               return (
                 <TouchableOpacity
                   key={ticket.id}
@@ -384,7 +383,8 @@ const TicketModal = ({
                     color="#92400e"
                   />
                   <Text style={tm.paymentNoteText}>
-                    You'll be redirected to Ercaspay to complete payment securely.
+                    You'll be redirected to Ercaspay to complete payment
+                    securely.
                   </Text>
                 </View>
               )}

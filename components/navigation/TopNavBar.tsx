@@ -1,37 +1,23 @@
-import { brand, neutral } from '@/constants/Colors';
-import { fontFamily, fontSize } from '@/constants/Typography';
-import { useNotificationBell } from '@/hooks/useNotificationBell';
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { brand, neutral } from "@/constants/Colors";
+import { fontFamily, fontSize } from "@/constants/Typography";
+import { useNotificationBell } from "@/hooks/useNotificationBell";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ─── Logo mark ────────────────────────────────────────────────────────────────
-function LogoMark({ size = 38 }: { size?: number }) {
+// Image is 693×206 px → aspect ratio ≈ 3.36 : 1
+// At height=36 the natural width is ~121 px
+function LogoMark() {
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: brand.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <Text
-        style={{
-          color: '#fff',
-          fontSize: size * 0.42,
-          fontFamily: fontFamily.extrabold,
-          letterSpacing: -2,
-          marginLeft: 2,
-          lineHeight: size * 0.52,
-        }}
-      >
-        {'»'}
-      </Text>
-    </View>
+    <Image
+      source={require("@/assets/images/logos/new/logo_black_text.png")}
+      style={{ width: 175, height: 52 }}
+      placeholder={"nextvibe logo"}
+      contentFit="contain"
+    />
   );
 }
 
@@ -58,7 +44,7 @@ function BellIcon({
       <Ionicons name="notifications-outline" size={size} color={neutral[700]} />
       {count > 0 && (
         <View style={bellS.badge}>
-          <Text style={bellS.text}>{count > 9 ? '9+' : count}</Text>
+          <Text style={bellS.text}>{count > 9 ? "9+" : count}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -66,15 +52,25 @@ function BellIcon({
 }
 
 const bellS = StyleSheet.create({
-  wrap: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  wrap: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badge: {
-    position: 'absolute', top: 4, right: 4,
-    minWidth: 16, height: 16, borderRadius: 8,
+    position: "absolute",
+    top: 4,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: brand.secondary,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 3,
   },
-  text: { fontFamily: fontFamily.bold, fontSize: 9, color: '#fff' },
+  text: { fontFamily: fontFamily.bold, fontSize: 9, color: "#fff" },
 });
 
 // ─── AppHeader ────────────────────────────────────────────────────────────────
@@ -106,8 +102,7 @@ export function AppHeader({ onBack, right }: AppHeaderProps) {
     return (
       <View style={ah.bar}>
         <View style={ah.brandLeft}>
-          <LogoMark size={34} />
-          <Text style={ah.wordmark}>nextvibe</Text>
+          <LogoMark />
         </View>
         {RightSlot}
       </View>
@@ -117,12 +112,16 @@ export function AppHeader({ onBack, right }: AppHeaderProps) {
   // Has back button — [back] [logo centred] [bell]
   return (
     <View style={ah.bar}>
-      <TouchableOpacity style={ah.side} onPress={onBack} activeOpacity={0.7} hitSlop={8}>
+      <TouchableOpacity
+        style={ah.side}
+        onPress={onBack}
+        activeOpacity={0.7}
+        hitSlop={8}
+      >
         <Ionicons name="chevron-back" size={22} color={neutral[800]} />
       </TouchableOpacity>
       <View style={ah.brand}>
-        <LogoMark size={34} />
-        <Text style={ah.wordmark}>nextvibe</Text>
+        <LogoMark />
       </View>
       {RightSlot}
     </View>
@@ -131,18 +130,23 @@ export function AppHeader({ onBack, right }: AppHeaderProps) {
 
 const ah = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 10,
     backgroundColor: neutral[0],
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  side:      { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  brand:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  side: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  brandLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   wordmark: {
     fontFamily: fontFamily.extrabold,
     fontSize: fontSize.xl,
@@ -161,8 +165,7 @@ export default function TopNavBar() {
   return (
     <View style={[navS.container, { paddingTop: insets.top + 8 }]}>
       <View style={navS.brand}>
-        <LogoMark size={38} />
-        <Text style={navS.brandName}>nextvibe</Text>
+        <LogoMark />
       </View>
       <BellIcon count={unreadCount} onPress={onBellPress} size={24} />
     </View>
@@ -171,16 +174,16 @@ export default function TopNavBar() {
 
 const navS = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral[200],
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { flexDirection: "row", alignItems: "center", gap: 10 },
   brandName: {
     fontFamily: fontFamily.extrabold,
     fontSize: fontSize.xl,

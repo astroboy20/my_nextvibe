@@ -26,6 +26,23 @@ export interface Message {
   createdAt: string;
 }
 
+export interface EventChatMessage {
+  id: string;
+  body?: string;
+  content?: string;
+  text?: string;
+  senderId?: string;
+  isOrganizer?: boolean;
+  createdAt?: string;
+  sender?: {
+    id?: string;
+    displayName?: string;
+    username?: string;
+    avatarUrl?: string | null;
+    role?: string;
+  };
+}
+
 export interface ConversationsResponse {
   success: boolean;
   data: Conversation[];
@@ -73,7 +90,10 @@ export const messagingApi = createApi({
     }),
 
     /** GET /v1/events/{eventId}/chat/{section} — load message history */
-    getEventChat: build.query<any, { eventId: string; section: "pre-event" | "during" | "post-event" }>({
+    getEventChat: build.query<
+      { success: boolean; data: { data: EventChatMessage[] } },
+      { eventId: string; section: "PRE_EVENT" | "DURING_EVENT" | "POST_EVENT" }
+    >({
       query: ({ eventId, section }) => ({
         url: `/v1/events/${eventId}/chat/${section}`,
         method: "GET",

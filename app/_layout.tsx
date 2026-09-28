@@ -123,7 +123,7 @@ function App() {
 export default function RootLayout() {
   return (
     <Provider store={store}>
-      <StripeProvider publishableKey="" urlScheme="mynextvibe" merchantIdentifier="merchant.com.nextvibe2026.nextvibe">
+      <StripeProvider publishableKey={process.env.EXPO_STRIPE_PUBLISHABLE_KEY ?? ""} urlScheme="mynextvibe" merchantIdentifier="merchant.com.nextvibe2026.nextvibe">
         <StripeDeepLinkHandler />
         <RootLayoutInner />
       </StripeProvider>

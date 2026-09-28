@@ -1,6 +1,6 @@
 import AboutTab from "@/components/event/AboutTab/AboutTab";
 import RsvpTab from "@/components/event/Rsvp/RsvpTab";
-import ChatTab from "@/components/event/ChatTab";
+import ChatTab from "@/components/event/ChatTab/ChatTab";
 import GameTab from "@/components/event/GameTab/GameTab";
 import PostcardsTab from "@/components/event/PostcardsTab";
 import QrTab from "@/components/event/QrTab";

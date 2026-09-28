@@ -1,21 +1,9 @@
-/**
- * ChatTab — React Native
- *
- * Real-time event chat.
- * - Uses the shared useSocket hook (no duplicate socket logic)
- * - ScrollView instead of FlatList — avoids nested VirtualizedList warning
- * - Messages ordered oldest→newest, auto-scrolls to bottom on new message
- * - Optimistic bubbles replaced by server echo
- * - Avatar from URL with letter fallback
- */
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
-import { API_URL, tokenStore } from "@/store/baseQuery";
+import { useGetEventChatQuery } from "@/store/api/messagingApi";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,15 +14,17 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import MessageBubble from "./MessageBubble";
 
 type Section = "pre-event" | "during" | "post-event";
 
-const SECTION_KEY: Record<Section, string> = {
+const SECTION_KEY: Record<
+  Section,
+  "PRE_EVENT" | "DURING_EVENT" | "POST_EVENT"
+> = {
   "pre-event": "PRE_EVENT",
   during: "DURING_EVENT",
   "post-event": "POST_EVENT",
@@ -46,7 +36,9 @@ const SECTIONS: { value: Section; label: string }[] = [
   { value: "post-event", label: "Post-Event" },
 ];
 
-interface ChatMessage {
+const OPTIMISTIC_TIMEOUT_MS = 8000;
+
+export interface ChatMessage {
   id: string;
   body?: string;
   content?: string;
@@ -54,6 +46,7 @@ interface ChatMessage {
   senderId?: string;
   isOrganizer?: boolean;
   createdAt?: string;
+  status?: "sending" | "sent" | "failed"; 
   sender?: {
     id?: string;
     displayName?: string | any;
@@ -63,153 +56,10 @@ interface ChatMessage {
   };
 }
 
-function msgText(m: ChatMessage): string {
+export function msgText(m: ChatMessage): string {
   return m.body ?? m.content ?? m.text ?? "";
 }
 
-function timeAgo(dateStr?: string): string {
-  if (!dateStr) return "";
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// ─── MessageBubble ────────────────────────────────────────────────────────────
-
-function MessageBubble({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) {
-  const router = useRouter();
-  const name =
-    msg.sender?.displayName?.trim() || msg.sender?.username?.trim() || "User";
-  const isOrg = msg.sender?.role === "ORGANIZER" || msg.isOrganizer;
-  const ts = timeAgo(msg.createdAt);
-  const text = msgText(msg);
-  const senderId = msg.sender?.id;
-  const avatar = msg.sender?.avatarUrl;
-
-  if (!text) return null;
-
-  return (
-    <View style={[b.row, isMe && b.rowReverse]}>
-      {/* Avatar — only for others */}
-      {!isMe && (
-        <TouchableOpacity
-          onPress={() => senderId && router.push(`/users/${senderId}` as any)}
-          activeOpacity={0.8}
-          style={b.avatarTouch}
-        >
-          {avatar ? (
-            <Image
-              source={{ uri: avatar }}
-              style={b.avatar}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <View style={b.avatarFb}>
-              <Text style={b.avatarL}>{name[0]?.toUpperCase()}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      )}
-
-      <View style={[b.col, isMe && b.colRight]}>
-        {!isMe && (
-          <View style={b.metaRow}>
-            <TouchableOpacity
-              onPress={() =>
-                senderId && router.push(`/users/${senderId}` as any)
-              }
-              activeOpacity={0.8}
-            >
-              <Text style={b.senderName}>{name}</Text>
-            </TouchableOpacity>
-            {isOrg && (
-              <View style={b.orgBadge}>
-                <Text style={b.orgText}>Organizer</Text>
-              </View>
-            )}
-            {ts ? <Text style={b.ts}>{ts}</Text> : null}
-          </View>
-        )}
-
-        <View style={[b.bubble, isMe ? b.bubbleMe : b.bubbleOther]}>
-          <Text style={[b.bubbleText, isMe && b.bubbleTextMe]}>{text}</Text>
-        </View>
-
-        {isMe && ts ? <Text style={[b.ts, b.tsRight]}>{ts}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
-const b = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-  rowReverse: { flexDirection: "row-reverse" },
-  avatarTouch: { marginTop: 2 },
-  avatar: { width: 32, height: 32, borderRadius: 16 },
-  avatarFb: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${brand.primary}20`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarL: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
-  col: { flex: 1, maxWidth: "78%", alignItems: "flex-start" },
-  colRight: { alignItems: "flex-end" },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 3,
-  },
-  senderName: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 12,
-    color: neutral[700],
-  },
-  orgBadge: {
-    backgroundColor: `${brand.primary}15`,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-  },
-  orgText: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 10,
-    color: brand.primary,
-  },
-  ts: { fontFamily: fontFamily.regular, fontSize: 10, color: neutral[300] },
-  tsRight: { alignSelf: "flex-end", marginTop: 3 },
-  bubble: {
-    borderRadius: 18,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    maxWidth: "100%",
-  },
-  bubbleOther: { backgroundColor: neutral[100], borderTopLeftRadius: 4 },
-  bubbleMe: { backgroundColor: "#5B1A57", borderTopRightRadius: 4 },
-  bubbleText: {
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    color: neutral[800],
-    lineHeight: 20,
-  },
-  bubbleTextMe: { color: "#fff" },
-});
-
-// ─── ChatTab ──────────────────────────────────────────────────────────────────
 
 interface Props {
   eventId: string;
@@ -220,26 +70,55 @@ export default function ChatTab({ eventId }: Props) {
 
   const [section, setSection] = useState<Section>("pre-event");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const scrollRef = useRef<ScrollView>(null);
   const pendingRef = useRef<Map<string, string>>(new Map());
 
-  // ── Keyboard height tracking — works on both iOS and Android ─────────────
+  const {
+    data: historyData,
+    isFetching: loading,
+    isError: historyError,
+    error: historyErrorObj,
+  } = useGetEventChatQuery(
+    { eventId, section: SECTION_KEY[section] },
+    { skip: !eventId }
+  );
+
+  useEffect(() => {
+    if (historyData?.data?.data) {
+      setMessages([...historyData.data.data].reverse());
+      pendingRef.current.clear();
+    }
+  }, [historyData]);
+
+  useEffect(() => {
+    if (historyError) {
+      const err = historyErrorObj as any;
+      const msg =
+        err?.data?.error?.message ??
+        err?.data?.message ??
+        "Failed to load chat history";
+      Toast.show({ type: "error", text1: msg });
+      setMessages([]);
+    }
+  }, [historyError, historyErrorObj]);
+
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-        // Scroll to bottom so the last message stays visible above the keyboard
-        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
-      },
+        setTimeout(
+          () => scrollRef.current?.scrollToEnd({ animated: true }),
+          50
+        );
+      }
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => setKeyboardHeight(0),
+      () => setKeyboardHeight(0)
     );
     return () => {
       showSub.remove();
@@ -247,12 +126,10 @@ export default function ChatTab({ eventId }: Props) {
     };
   }, []);
 
-  // ── Socket — use shared hook ───────────────────────────────────────────────
   const { socketRef, isConnected } = useSocket("messaging", {
     enabled: !!eventId,
   });
 
-  // Join the correct room whenever section changes or socket connects
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket || !isConnected) return;
@@ -262,7 +139,6 @@ export default function ChatTab({ eventId }: Props) {
     });
   }, [eventId, section, isConnected, socketRef]);
 
-  // Listen for incoming messages (stable — only re-registers if eventId changes)
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -289,48 +165,6 @@ export default function ChatTab({ eventId }: Props) {
     };
   }, [eventId, socketRef, user?.id]);
 
-  // ── History ────────────────────────────────────────────────────────────────
-  const fetchHistory = useCallback(
-    async (sec: Section) => {
-      if (!eventId) return;
-      setLoading(true);
-      setMessages([]);
-      pendingRef.current.clear();
-      try {
-        const token = await tokenStore.get("accessToken");
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch(
-          `${API_URL}/v1/events/${eventId}/chat/${SECTION_KEY[sec]}`,
-          { headers }
-        );
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => null);
-          const msg = errorData?.error?.message ?? errorData?.message;
-          if (msg) Toast.show({ type: "error", text1: msg });
-          setMessages([]);
-          return;
-        }
-        const json = await res.json();
-        // API returns newest-first — reverse so oldest is at top, newest at bottom
-        const history: ChatMessage[] = (json?.data?.data ?? []).reverse();
-        setMessages(history);
-      } catch (err: any) {
-        Toast.show({ type: "error", text1: err?.message ?? "Failed to load chat history" });
-        setMessages([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [eventId]
-  );
-
-  useEffect(() => {
-    fetchHistory(section);
-  }, [section, fetchHistory]);
-
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -339,7 +173,6 @@ export default function ChatTab({ eventId }: Props) {
     }
   }, [messages]);
 
-  // ── Send ───────────────────────────────────────────────────────────────────
   const handleSend = () => {
     const text = input.trim();
     if (!text || !isConnected || !isAuthenticated) return;
@@ -350,7 +183,6 @@ export default function ChatTab({ eventId }: Props) {
       body: text,
     });
 
-    // Optimistic bubble — appended at bottom
     const optId = `opt-${Date.now()}`;
     pendingRef.current.set(text, optId);
     const optimistic: ChatMessage = {
@@ -364,15 +196,63 @@ export default function ChatTab({ eventId }: Props) {
         avatarUrl: user?.avatarUrl ?? null,
       },
       createdAt: new Date().toISOString(),
+      status: "sending", // NEW
     };
     setMessages((prev) => [...prev, optimistic]);
     setInput("");
+
+    setTimeout(() => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optId && m.status === "sending"
+            ? { ...m, status: "failed" }
+            : m
+        )
+      );
+    }, OPTIMISTIC_TIMEOUT_MS);
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // NEW — retry a failed optimistic message
+  const handleRetry = useCallback(
+    (msg: ChatMessage) => {
+      const text = msgText(msg);
+      if (!text || !isConnected) return;
+
+      // Drop the failed bubble and its stale pending mapping
+      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+      pendingRef.current.delete(text);
+
+      socketRef.current?.emit("send:event-chat", {
+        eventId,
+        section: SECTION_KEY[section],
+        body: text,
+      });
+
+      const optId = `opt-${Date.now()}`;
+      pendingRef.current.set(text, optId);
+      const optimistic: ChatMessage = {
+        ...msg,
+        id: optId,
+        createdAt: new Date().toISOString(),
+        status: "sending",
+      };
+      setMessages((prev) => [...prev, optimistic]);
+
+      setTimeout(() => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === optId && m.status === "sending"
+              ? { ...m, status: "failed" }
+              : m
+          )
+        );
+      }, OPTIMISTIC_TIMEOUT_MS);
+    },
+    [eventId, section, isConnected, socketRef]
+  );
+
   return (
     <View style={[s.wrap, { paddingBottom: keyboardHeight }]}>
-      {/* Section tabs */}
       <View style={s.tabs}>
         {SECTIONS.map((sec) => {
           const active = section === sec.value;
@@ -434,6 +314,7 @@ export default function ChatTab({ eventId }: Props) {
               key={msg.id ?? i}
               msg={msg}
               isMe={msg.sender?.id === user?.id || msg.senderId === user?.id}
+              onRetry={handleRetry}
             />
           ))}
         </ScrollView>
@@ -475,7 +356,7 @@ export default function ChatTab({ eventId }: Props) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+//Styles
 
 const s = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#fff" },
