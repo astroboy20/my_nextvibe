@@ -9,13 +9,8 @@ import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
-import {
-  useGetEventsQuery,
-} from "@/store/api/eventApi";
-import {
-  toCardData,
-  type DiscoverEvent,
-} from "@/store/api/eventsApi"; // RTK shim — types + utilities
+import { useGetEventsQuery } from "@/store/api/eventApi";
+import { toCardData, type DiscoverEvent } from "@/store/api/eventsApi"; // RTK shim — types + utilities
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, {
@@ -154,8 +149,6 @@ export default function HomeScreen() {
     return merged;
   }, [data, page]);
 
-  
-
   const handleRefresh = useCallback(() => {
     loadingMore.current = false;
     prevEventsRef.current = [];
@@ -216,8 +209,6 @@ export default function HomeScreen() {
   const isFirstLoad = isLoading && allEvents.length === 0;
   const isRefreshing = isFetching && page === 1;
 
-
- 
   // Refetch the first page whenever this tab comes back into focus
   useRefetchOnFocus(handleRefresh);
 

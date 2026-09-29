@@ -21,7 +21,13 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+} from "react";
 import {
   Image,
   RefreshControl,
@@ -33,17 +39,54 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: "events", label: "Events", icon: "calendar-outline" as const },
   { id: "postcards", label: "Postcards", icon: "images-outline" as const },
   { id: "tickets", label: "Ticket", icon: "ticket-outline" as const },
-];
+] as const;
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+const POSTCARD_HEIGHTS = [180, 240, 160, 210, 190, 230];
+const EMPTY_EVENTS: OrganizerEvent[] = [];
+const EMPTY_TICKETS: UserTicket[] = [];
 
-function Avatar({
+const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
+
+const formatDate = (value: string | number | Date) =>
+  new Date(value).toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
+
+// Activity responses have existed in both flat and paginated envelope shapes.
+// Keep this local adapter so the rest of the screen can work with one shape.
+type RawMedia = {
+  id?: string | number;
+  mediaUrl?: string | null;
+  mediaType?: PostcardItem["mediaType"] | null;
+  thumbnailUrl?: string | null;
+  vibeTagOverlayUrl?: string | null;
+};
+
+type RawPostcard = {
+  id: string | number;
+  caption?: string | null;
+  likeCount?: number | null;
+  commentCount?: number | null;
+  viewCount?: number | null;
+  isLiked?: boolean | null;
+  eventId?: string | null;
+  vibeTagId?: string | null;
+  createdAt?: string | null;
+  author?: PostcardData["author"];
+  media?: RawMedia[] | null;
+};
+
+type TabId = (typeof TABS)[number]["id"];
+
+
+const Avatar = memo(function Avatar({
   uri,
   name,
   size = 80,
@@ -53,59 +96,76 @@ function Avatar({
   size?: number;
 }) {
   const initials = name?.charAt(0)?.toUpperCase() || "U";
+  const sizeStyle = useMemo(
+    () => ({
+      width: size,
+      height: size,
+      borderRadius: size / 2,
+    }),
+    [size]
+  );
+
   if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        style={{ width: size, height: size, borderRadius: size / 2 }}
-      />
-    );
+    return <Image source={{ uri }} style={sizeStyle} />;
   }
+
   return (
-    <View
-      style={[av.circle, { width: size, height: size, borderRadius: size / 2 }]}
-    >
+    <View style={[av.circle, sizeStyle]}>
       <Text style={[av.initials, { fontSize: size * 0.38 }]}>{initials}</Text>
     </View>
   );
-}
+});
 
-function StatItem({ value, label }: { value: number; label: string }) {
+const StatItem = memo(function StatItem({
+  value,
+  label,
+}: {
+  value: number;
+  label: string;
+}) {
   return (
     <View style={stat.item}>
       <Text style={stat.value}>{value}</Text>
       <Text style={stat.label}>{label}</Text>
     </View>
   );
-}
+});
 
-function StatusBadge({ status }: { status: string }) {
-  const color =
-    status === "PUBLISHED"
-      ? semantic.success
-      : status === "DRAFT"
-      ? semantic.warning
-      : neutral[400];
-  const bg =
-    status === "PUBLISHED"
-      ? `${semantic.success}18`
-      : status === "DRAFT"
-      ? `${semantic.warning}18`
-      : neutral[100];
+const StatusBadge = memo(function StatusBadge({ status }: { status: string }) {
+  const isPublished = status === "PUBLISHED";
+  const isDraft = status === "DRAFT";
+
+  const color = isPublished
+    ? semantic.success
+    : isDraft
+    ? semantic.warning
+    : neutral[400];
+
+  const backgroundColor = isPublished
+    ? `${semantic.success}18`
+    : isDraft
+    ? `${semantic.warning}18`
+    : neutral[100];
+
   return (
-    <View style={[badge.pill, { backgroundColor: bg }]}>
+    <View style={[badge.pill, { backgroundColor }]}>
       <Text style={[badge.text, { color }]}>{status}</Text>
     </View>
   );
-}
+});
 
-function EventRow({ item }: { item: OrganizerEvent }) {
-  const router = useRouter();
+const EventRow = memo(function EventRow({
+  item,
+  onPress,
+}: {
+  item: OrganizerEvent;
+  onPress: (eventId: OrganizerEvent["id"]) => void;
+}) {
   return (
     <TouchableOpacity
       style={ev.row}
       activeOpacity={0.8}
-      onPress={() => router.push(`/events/${item.id}` as any)}
+      onPress={() => onPress(item.id)}
     >
       <View style={ev.thumb}>
         {item.flierUrl ? (
@@ -116,23 +176,20 @@ function EventRow({ item }: { item: OrganizerEvent }) {
           </View>
         )}
       </View>
-      <View style={{ flex: 1 }}>
+
+      <View style={ev.content}>
         <View style={ev.titleRow}>
           <Text style={ev.name} numberOfLines={1}>
             {item.name}
           </Text>
           <StatusBadge status={item.status} />
         </View>
+
         <View style={ev.meta}>
           <Ionicons name="calendar-outline" size={11} color={neutral[500]} />
-          <Text style={ev.metaText}>
-            {new Date(item.startsAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </Text>
+          <Text style={ev.metaText}>{formatDate(item.startsAt)}</Text>
         </View>
+
         {item.locationName && (
           <View style={ev.meta}>
             <Ionicons name="location-outline" size={11} color={neutral[500]} />
@@ -140,98 +197,118 @@ function EventRow({ item }: { item: OrganizerEvent }) {
           </View>
         )}
       </View>
+
       <Ionicons name="chevron-forward" size={18} color={neutral[300]} />
     </TouchableOpacity>
   );
-}
+});
 
-function PostcardGrid({
+const PostcardCard = memo(function PostcardCard({
+  item,
+  index,
+  onPress,
+}: {
+  item: PostcardItem;
+  index: number;
+  onPress: (index: number) => void;
+}) {
+  const height = POSTCARD_HEIGHTS[index % POSTCARD_HEIGHTS.length];
+  const isVideo = item.mediaType === "VIDEO";
+  const displayUrl =
+    isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
+
+  return (
+    <TouchableOpacity
+      style={[pc.card, { height }]}
+      activeOpacity={0.85}
+      onPress={() => onPress(index)}
+    >
+      <View style={[pc.imgArea, { height }]}>
+        {displayUrl ? (
+          <>
+            <Image
+              source={{ uri: displayUrl }}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {isVideo && (
+              <View style={pc.playBadge}>
+                <Ionicons name="play" size={16} color="#fff" />
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={pc.imgFallback}>
+            <Ionicons name="image-outline" size={28} color={neutral[300]} />
+          </View>
+        )}
+
+        <View style={pc.overlay}>
+          <Ionicons name="heart" size={12} color="#fff" />
+          <Text style={pc.likeText}>{item.likeCount}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+const PostcardGrid = memo(function PostcardGrid({
   items,
-  rawPostcards,
   onPressCard,
 }: {
   items: PostcardItem[];
-  rawPostcards: PostcardData[];
   onPressCard: (index: number) => void;
 }) {
-  const left = items.filter((_, i) => i % 2 === 0);
-  const right = items.filter((_, i) => i % 2 !== 0);
-  const heights = [180, 240, 160, 210, 190, 230];
+  const columns = useMemo(() => {
+    const left: Array<{ item: PostcardItem; index: number }> = [];
+    const right: Array<{ item: PostcardItem; index: number }> = [];
 
-  const renderCard = (item: PostcardItem, flatIdx: number) => {
-    const h = heights[flatIdx % heights.length];
-    const isVideo = item.mediaType === "VIDEO";
-    const displayUrl =
-      isVideo && item.thumbnailUrl ? item.thumbnailUrl : item.mediaUrl;
+    items.forEach((item, index) => {
+      (index % 2 === 0 ? left : right).push({ item, index });
+    });
 
-    return (
-      <TouchableOpacity
+    return { left, right };
+  }, [items]);
+
+  const renderColumn = (column: Array<{ item: PostcardItem; index: number }>) =>
+    column.map(({ item, index }) => (
+      <PostcardCard
         key={item.id}
-        style={[pc.card, { height: h }]}
-        activeOpacity={0.85}
-        onPress={() => onPressCard(flatIdx)}
-      >
-        <View style={[pc.imgArea, { height: h }]}>
-          {displayUrl ? (
-            <>
-              <Image
-                source={{ uri: displayUrl }}
-                style={StyleSheet.absoluteFill}
-              />
-              {/* Video play indicator */}
-              {isVideo && (
-                <View style={pc.playBadge}>
-                  <Ionicons name="play" size={16} color="#fff" />
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={pc.imgFallback}>
-              <Ionicons name="image-outline" size={28} color={neutral[300]} />
-            </View>
-          )}
-          <View style={pc.overlay}>
-            <Ionicons name="heart" size={12} color="#fff" />
-            <Text style={pc.likeText}>{item.likeCount}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+        item={item}
+        index={index}
+        onPress={onPressCard}
+      />
+    ));
 
   return (
     <View style={pc.grid}>
-      <View style={pc.col}>
-        {left.map((item, i) => renderCard(item, i * 2))}
-      </View>
-      <View style={pc.col}>
-        {right.map((item, i) => renderCard(item, i * 2 + 1))}
-      </View>
+      <View style={pc.col}>{renderColumn(columns.left)}</View>
+      <View style={pc.col}>{renderColumn(columns.right)}</View>
     </View>
   );
-}
+});
 
-function TicketRow({ item }: { item: UserTicket }) {
+const TicketRow = memo(function TicketRow({ item }: { item: UserTicket }) {
   const isActive = item.status === "active";
+
   return (
     <View style={tk.row}>
       <View style={tk.icon}>
         <Ionicons name="ticket-outline" size={22} color={brand.primary} />
       </View>
-      <View style={{ flex: 1 }}>
+
+      <View style={tk.content}>
         <Text style={tk.name}>{item.eventName}</Text>
+
         <Text style={tk.meta}>
-          {item.ticketType} ·{" "}
-          {new Date(item.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+          {item.ticketType} · {formatDate(item.date)}
         </Text>
+
         {item.ticketNumber && (
           <Text style={tk.number}>#{item.ticketNumber}</Text>
         )}
       </View>
+
       <View
         style={[
           tk.badge,
@@ -251,13 +328,13 @@ function TicketRow({ item }: { item: UserTicket }) {
       </View>
     </View>
   );
-}
+});
 
-function EmptyState({
+const EmptyState = memo(function EmptyState({
   icon,
   message,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
+  icon: ComponentProps<typeof Ionicons>["name"];
   message: string;
 }) {
   return (
@@ -266,16 +343,16 @@ function EmptyState({
       <Text style={styles.empty}>{message}</Text>
     </View>
   );
-}
+});
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Screen 
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("events");
+  const [activeTab, setActiveTab] = useState<TabId>("events");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
-  // ── API ────────────────────────────────────────────────────────────────────
+  // ── API 
   const {
     data: meData,
     isLoading: meLoading,
@@ -300,97 +377,117 @@ export default function ProfileScreen() {
     { skip: !userId }
   );
 
-  // const {
-  //   data: postcardsData,
-  //   isLoading: postcardsLoading,
-  //   refetch: refetchPostcards,
-  // } = useGetUserPostcardsQuery(
-  //   { userId, page: 1, limit: 20 },
-  //   { skip: !userId }
-  // );
 
-  // const {
-  //   data: ticketsData,
-  //   isLoading: ticketsLoading,
-  //   refetch: refetchTickets,
-  // } = useGetMyTicketsQuery();
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  // The activity endpoint may return data at either `data.postcards` (flat) or
-  // `data.data.postcards` (paginated envelope) depending on the backend version.
   const activity = activityData?.data?.data ?? activityData?.data;
-  const events = eventsData?.data?.data ?? [];
-  const rawPostcards: any[] =
+
+  const events = eventsData?.data?.data ?? EMPTY_EVENTS;
+
+  const rawPostcards: RawPostcard[] =
     activityData?.data?.data?.postcards ?? activityData?.data?.postcards ?? [];
 
-  // Flattened shape for grid thumbnail display (PostcardItem — flat mediaUrl/mediaType)
-  const postcards: PostcardItem[] = rawPostcards.map((p: any) => {
-    const firstMedia = p?.media?.[0];
-    return {
-      id: p.id,
-      mediaUrl: firstMedia?.mediaUrl ?? null,
-      thumbnailUrl: firstMedia?.thumbnailUrl ?? null,
-      mediaType: firstMedia?.mediaType ?? null,
-      likeCount: p.likeCount ?? 0,
-      caption: p.caption ?? null,
-      createdAt: p.createdAt,
-    };
-  });
+  const tickets = activityData?.data?.data?.tickets ?? EMPTY_TICKETS;
 
-  // Full shape for the PostcardViewer (PostcardData — media array intact)
-  const viewerPostcards: PostcardData[] = rawPostcards.map((p: any) => ({
-    id: p.id,
-    caption: p.caption ?? null,
-    likeCount: p.likeCount ?? 0,
-    commentCount: p.commentCount ?? 0,
-    viewCount: p.viewCount ?? 0,
-    isLiked: p.isLiked ?? false,
-    eventId: p.eventId ?? undefined,
-    vibeTagId: p.vibeTagId ?? null,
-    createdAt: p.createdAt,
-    author: p.author ?? undefined,
-    media: (p.media ?? []).map((m: any) => ({
-      id: m.id,
-      mediaUrl: m.mediaUrl ?? null,
-      mediaType: m.mediaType ?? null,
-      thumbnailUrl: m.thumbnailUrl ?? null,
-      vibeTagOverlayUrl: m.vibeTagOverlayUrl ?? null,
-    })),
-  }));
+  const postcards = useMemo<any[]>(
+    () =>
+      rawPostcards.map((postcard) => {
+        const firstMedia = postcard.media?.[0];
 
-  const tickets =
-    activityData?.data?.data?.tickets ?? activityData?.data?.tickets ?? [];
+        return {
+          id: String(postcard.id),
+          mediaUrl: firstMedia?.mediaUrl ?? null,
+          thumbnailUrl: firstMedia?.thumbnailUrl ?? null,
+          mediaType: firstMedia?.mediaType ?? null,
+          likeCount: postcard.likeCount ?? 0,
+          caption: postcard.caption ?? null,
+          createdAt: postcard.createdAt,
+        };
+      }),
+    [rawPostcards]
+  );
 
-  // Header skeleton: only on true first load (no cached data yet)
-  const activityStarted = !!userId; // becomes true once fired
+  const viewerPostcards = useMemo<any[]>(
+    () =>
+      rawPostcards.map((postcard) => ({
+        id: String(postcard.id),
+        caption: postcard.caption ?? null,
+        likeCount: postcard.likeCount ?? 0,
+        commentCount: postcard.commentCount ?? 0,
+        viewCount: postcard.viewCount ?? 0,
+        isLiked: postcard.isLiked ?? false,
+        eventId: postcard.eventId ?? undefined,
+        vibeTagId: postcard.vibeTagId ?? null,
+        createdAt: postcard.createdAt,
+        author: postcard.author ?? undefined,
+        media: (postcard.media ?? []).map((media) => ({
+          id: media.id,
+          mediaUrl: media.mediaUrl ?? null,
+          mediaType: media.mediaType ?? null,
+          thumbnailUrl: media.thumbnailUrl ?? null,
+          vibeTagOverlayUrl: media.vibeTagOverlayUrl ?? null,
+        })),
+      })),
+    [rawPostcards]
+  );
+
+  // ── Loading / refresh state 
+  // Header skeleton only appears on a true first load.
+  const activityStarted = Boolean(userId);
   const headerLoading =
     meLoading || (activityStarted && activityLoading && !activityData);
 
-  // Per-tab skeleton: only when data has never been fetched for that tab
+  // Tab skeleton only appears when that tab has never received data.
   const isTabLoading =
     (activeTab === "events" && eventsLoading && !eventsData) ||
-    (activeTab === "postcards" && activityLoading && !activityData) ||
-    (activeTab === "tickets" && activityLoading && !activityData);
+    (activeTab !== "events" && activityLoading && !activityData);
 
-  // Pull-to-refresh indicator: only when re-fetching data that already exists
+  // Pull-to-refresh only reflects refetching when cached data already exists.
   const isRefreshing =
-    (meLoading && !!meData) ||
-    (activityLoading && !!activityData) ||
-    (activeTab === "events" && eventsLoading && !!eventsData);
+    (meLoading && Boolean(meData)) ||
+    (activityLoading && Boolean(activityData)) ||
+    (activeTab === "events" && eventsLoading && Boolean(eventsData));
 
-  const handleRefresh = () => {
-    refetchMe();
-    refetchActivity();
-    refetchEvents();
-  };
+  // ── Handlers 
+  const handleRefresh = useCallback(() => {
+    void refetchMe();
+    void refetchActivity();
+    void refetchEvents();
+  }, [refetchActivity, refetchEvents, refetchMe]);
 
-  // Re-fetch every time this tab comes into focus
+  const handleEventPress = useCallback(
+    (eventId: OrganizerEvent["id"]) => {
+      router.push(`/events/${eventId}` as any);
+    },
+    [router]
+  );
+
+  const handleTabChange = useCallback((tabId: TabId) => {
+    setActiveTab(tabId);
+  }, []);
+
+  const handleCardPress = useCallback((index: number) => {
+    setViewerIndex(index);
+  }, []);
+
+  const handleCloseViewer = useCallback(() => {
+    setViewerIndex(null);
+  }, []);
+
+  const handleDeletePostcard = useCallback(
+    (_deletedId: string) => {
+      if (viewerPostcards.length <= 1) {
+        setViewerIndex(null);
+      }
+    },
+    [viewerPostcards.length]
+  );
+
   useRefetchOnFocus(refetchMe);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <StatusBar style="light" />
       <AppHeader />
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -443,6 +540,7 @@ export default function ProfileScreen() {
               >
                 <Text style={styles.editBtnText}>Edit Profile</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.settingsBtn}
                 onPress={() => router.push("/settings")}
@@ -467,10 +565,12 @@ export default function ProfileScreen() {
           <View style={styles.dashIcon}>
             <Ionicons name="grid-outline" size={20} color={brand.primary} />
           </View>
-          <View style={{ flex: 1 }}>
+
+          <View style={styles.dashContent}>
             <Text style={styles.dashTitle}>Dashboard</Text>
             <Text style={styles.dashSub}>Manage your events</Text>
           </View>
+
           <Ionicons name="chevron-forward" size={18} color={neutral[400]} />
         </TouchableOpacity>
 
@@ -478,11 +578,12 @@ export default function ProfileScreen() {
         <View style={styles.tabBar}>
           {TABS.map((tab) => {
             const active = activeTab === tab.id;
+
             return (
               <TouchableOpacity
                 key={tab.id}
                 style={styles.tabItem}
-                onPress={() => setActiveTab(tab.id)}
+                onPress={() => handleTabChange(tab.id)}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -508,7 +609,13 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               [0, 1, 2, 3].map((i) => <EventRowSkeleton key={i} />)
             ) : events.length > 0 ? (
-              events?.map((e: any) => <EventRow key={e.id} item={e} />)
+              events.map((event:any) => (
+                <EventRow
+                  key={event.id}
+                  item={event}
+                  onPress={handleEventPress}
+                />
+              ))
             ) : (
               <EmptyState icon="calendar-outline" message="No events yet" />
             ))}
@@ -518,11 +625,7 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               <PostcardGridSkeleton />
             ) : postcards.length > 0 ? (
-              <PostcardGrid
-                items={postcards}
-                rawPostcards={viewerPostcards}
-                onPressCard={(index) => setViewerIndex(index)}
-              />
+              <PostcardGrid items={postcards} onPressCard={handleCardPress} />
             ) : (
               <EmptyState icon="images-outline" message="No postcards yet" />
             ))}
@@ -532,7 +635,9 @@ export default function ProfileScreen() {
             (isTabLoading ? (
               [0, 1, 2].map((i) => <TicketRowSkeleton key={i} />)
             ) : tickets.length > 0 ? (
-              tickets.map((t: any) => <TicketRow key={t.id} item={t} />)
+              tickets.map((ticket:any) => (
+                <TicketRow key={ticket.id} item={ticket} />
+              ))
             ) : (
               <EmptyState icon="ticket-outline" message="No tickets yet" />
             ))}
@@ -545,13 +650,8 @@ export default function ProfileScreen() {
           postcards={viewerPostcards}
           initialIndex={viewerIndex}
           eventId={viewerPostcards[viewerIndex]?.eventId ?? ""}
-          onClose={() => setViewerIndex(null)}
-          onDeletePostcard={(_deletedId: string) => {
-            // If the deleted card was the last one, close the viewer
-            if (viewerPostcards.length <= 1) {
-              setViewerIndex(null);
-            }
-          }}
+          onClose={handleCloseViewer}
+          onDeletePostcard={handleDeletePostcard}
         />
       )}
     </SafeAreaView>
@@ -581,6 +681,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: `${brand.primary}30`,
   },
+
   displayName: {
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
@@ -642,6 +743,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${brand.primary}08`,
     gap: 12,
   },
+  dashContent: { flex: 1 },
   dashIcon: {
     width: 40,
     height: 40,
@@ -749,6 +851,7 @@ const ev = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  content: { flex: 1 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
   name: {
     fontFamily: fontFamily.semibold,
@@ -820,6 +923,7 @@ const tk = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  content: { flex: 1 },
   name: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,

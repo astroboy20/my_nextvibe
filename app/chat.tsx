@@ -1,46 +1,28 @@
-/**
- * ChatScreen — React Native
- *
- * Opens a 1-to-1 DM conversation.
- *
- * Params (via expo-router):
- *   id        — either a conversationId  (coming from /messages list)
- *               or a userId              (coming from a user profile / PersonCard)
- *   username  — display name shown in the header
- *
- * If `id` looks like a userId (not found in existing conversations) the screen
- * calls startConversation first, then uses the returned conversationId.
- *
- * Real-time:
- *   join:dm   → join the socket room
- *   send:dm   → emit a new message
- *   new:dm    → receive messages from the other participant (or own echo)
- */
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import {
-    useGetConversationsQuery,
-    useGetMessagesQuery,
-    useMarkConversationReadMutation,
-    useStartConversationMutation,
-    type Message
+  useGetConversationsQuery,
+  useGetMessagesQuery,
+  useMarkConversationReadMutation,
+  useStartConversationMutation,
+  type Message,
 } from "@/store/api/messagingApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -174,7 +156,10 @@ export default function ChatScreen() {
       } catch (err: any) {
         Toast.show({
           type: "error",
-          text1: err?.data?.error?.message ?? err?.data?.message ?? "Failed to open conversation",
+          text1:
+            err?.data?.error?.message ??
+            err?.data?.message ??
+            "Failed to open conversation",
         });
         router.back();
       } finally {
@@ -226,7 +211,11 @@ export default function ChatScreen() {
     if (!socket) return;
 
     const joinRoom = () => {
-      console.log(`[chat] 🔗 join:dm  conv=${conversationId}  socketId=${socket.id ?? "pending"}`);
+      console.log(
+        `[chat] 🔗 join:dm  conv=${conversationId}  socketId=${
+          socket.id ?? "pending"
+        }`
+      );
       socket.emit("join:dm", { conversationId });
     };
 
@@ -294,7 +283,10 @@ export default function ChatScreen() {
 
   const displayName = username ?? "Chat";
 
-  if (resolving || (conversationId && loadingMessages && localMessages.length === 0)) {
+  if (
+    resolving ||
+    (conversationId && loadingMessages && localMessages.length === 0)
+  ) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
         <AppHeader onBack={() => router.back()} />
@@ -305,13 +297,7 @@ export default function ChatScreen() {
     );
   }
 
-  const renderItem = ({
-    item,
-    index,
-  }: {
-    item: Message;
-    index: number;
-  }) => {
+  const renderItem = ({ item, index }: { item: Message; index: number }) => {
     const isMine = item.senderId === myId;
     const prev = localMessages[index - 1];
     const next = localMessages[index + 1];
@@ -394,7 +380,9 @@ export default function ChatScreen() {
         <View style={styles.inputBar}>
           {!isConnected && (
             <Text style={styles.offlineNote}>
-              {status === "connecting" ? "Connecting…" : "Reconnecting — messages may be delayed"}
+              {status === "connecting"
+                ? "Connecting…"
+                : "Reconnecting — messages may be delayed"}
             </Text>
           )}
           <View style={styles.inputRow}>
@@ -402,7 +390,9 @@ export default function ChatScreen() {
               style={styles.input}
               value={input}
               onChangeText={setInput}
-              placeholder={isConnected ? "Type a message…" : "Waiting for connection…"}
+              placeholder={
+                isConnected ? "Type a message…" : "Waiting for connection…"
+              }
               placeholderTextColor={neutral[400]}
               multiline
               maxLength={1000}
@@ -433,8 +423,6 @@ export default function ChatScreen() {
     </SafeAreaView>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },

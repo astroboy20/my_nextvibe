@@ -24,8 +24,9 @@ import Toast from 'react-native-toast-message';
 export interface PostcardItem {
   id: string;
   caption?: string | null;
-  likeCount?: number;
   isLiked?: boolean;
+  likeCount?: number;
+  likeCounts?:number
   commentsCount?: number;
   createdAt: string;
   event?: { id: string; name: string } | null;
@@ -88,7 +89,7 @@ interface Props {
 
 export default function PostcardCard({ item, onPress }: Props) {
   const [liked,        setLiked]        = useState(item.isLiked ?? false);
-  const [likeCount,    setLikeCount]    = useState(item.likeCount ?? item.likesCount ?? 0);
+  const [likeCount,    setLikeCount]    = useState(item.likeCount ?? item.likeCount ?? 0);
   const [showComments, setShowComments] = useState(false);
 
   // Live comment count — stays accurate after user posts a comment
@@ -467,12 +468,12 @@ const styles = StyleSheet.create({
   media:        { width: '100%', height: '100%' },
   mediaFallback:{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: neutral[100] },
   videoThumb:   { width: '100%', height: '100%', backgroundColor: '#111' },
-  videoOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  playOverlay:  { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  videoOverlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.35)' },
+  playOverlay:  { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 8 },
   playBtn:      { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)' },
   videoLabel:   { fontFamily: fontFamily.semibold, fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.5 },
   multiIcon:    { position: 'absolute', top: 8, right: 8 },
-  heartBurst:   { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  heartBurst:   { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
 
   actions:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10, gap: 16 },
   actionBtn:    { flexDirection: 'row', alignItems: 'center', gap: 5 },
