@@ -1,22 +1,3 @@
-/**
- * StripeDeepLinkHandler
- *
- * A side-effect-only component that bridges the Expo deep-link system with
- * the Stripe React Native SDK. It must be mounted _inside_ <StripeProvider>
- * so that `handleURLCallback` has access to the Stripe SDK context.
- *
- * Responsibilities:
- * 1. On mount, forward the initial launch URL (if any) to the Stripe SDK so
- *    that 3DS redirects work when the app is launched cold from a deep link.
- * 2. Subscribe to subsequent URL events and forward each URL to the SDK.
- * 3. On unmount, remove the subscription to avoid memory leaks.
- *
- * The Stripe SDK internally filters URLs — only those that belong to a Stripe
- * 3DS flow are acted upon. All other `mynextvibe://` URLs are silently ignored.
- *
- * Requirements: 5.3
- */
-
 import { handleURLCallback } from "@stripe/stripe-react-native";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";

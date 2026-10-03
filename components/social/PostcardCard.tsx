@@ -18,6 +18,7 @@ import {
     View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { Avatar } from '../ui/Avatar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,29 +56,6 @@ function formatTime(dateStr: string): string {
   if (mins  < 60) return `${mins}m`;
   if (hours < 24) return `${hours}h`;
   return `${days}d`;
-}
-
-function AvatarCircle({ uri, name, size = 36 }: { uri?: string | null; name: string; size?: number }) {
-  const validUri = uri && uri.startsWith('http') ? uri : null;
-  const [imgFailed, setImgFailed] = useState(false);
-
-  return (
-    <View style={[av.wrap, { width: size, height: size, borderRadius: size / 2 }]}>
-      {validUri && !imgFailed ? (
-        <Image
-          source={{ uri: validUri }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          onError={() => setImgFailed(true)}
-        />
-      ) : (
-        <View style={[av.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
-          <Text style={[av.initials, { fontSize: size * 0.38 }]}>{(name || '?').charAt(0).toUpperCase()}</Text>
-        </View>
-      )}
-    </View>
-  );
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
@@ -174,7 +152,7 @@ export default function PostcardCard({ item, onPress }: Props) {
     <View style={styles.card}>
       {/* ── Author row ── */}
       <View style={styles.authorRow}>
-        <AvatarCircle uri={author?.avatarUrl} name={name} size={38} />
+        <Avatar uri={author?.avatarUrl} name={name} size={38} />
         <View style={{ flex: 1 }}>
           <Text style={styles.authorName}>{name}</Text>
           {username ? <Text style={styles.authorHandle}>@{username.replace(/^@/, '')}</Text> : null}
@@ -386,13 +364,12 @@ function CommentSheet({
             const name = c.author?.displayName ?? c.author?.username ?? 'User';
             return (
               <View style={[cs.row, c._optimistic && cs.rowOptimistic]}>
-                {c.author?.avatarUrl ? (
-                  <Image source={{ uri: c.author.avatarUrl }} style={cs.avatar} contentFit="cover" cachePolicy="memory-disk" />
-                ) : (
-                  <View style={cs.avatarFb}>
-                    <Text style={cs.avatarL}>{name[0]?.toUpperCase()}</Text>
-                  </View>
-                )}
+                <Avatar
+                  uri={c.author?.avatarUrl}
+                  name={name}
+                  size={34}
+                  variant="light"
+                />
                 <View style={{ flex: 1 }}>
                   <Text style={cs.name}>{name}</Text>
                   <Text style={cs.content}>{c.content ?? c.body}</Text>

@@ -1,11 +1,10 @@
-import { brand, neutral } from "@/constants/Colors";
+import { neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useGetEventPostcardsQuery } from "@/store/api/eventsApi";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   StyleSheet,
@@ -19,7 +18,7 @@ import type {
   PostcardPhase,
   VibeTag,
 } from "../../types";
-import { TIMING_PILL } from "../../types";
+import { TIMING_PILL, phaseToTiming } from "../../types";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD = 14;
@@ -32,8 +31,6 @@ const TIMING_TABS: ActivityTiming[] = [
   "DURING_EVENT",
   "POST_EVENT",
 ];
-
-// ─── PostcardTile ─────────────────────────────────────────────────────────────
 
 const PostcardTile = ({
   postcard,
@@ -116,8 +113,6 @@ const PostcardTile = ({
   );
 };
 
-// ─── PhaseGrid ────────────────────────────────────────────────────────────────
-
 const PhaseGrid = ({
   eventId,
   phase,
@@ -129,10 +124,26 @@ const PhaseGrid = ({
   vibeTagMap: Record<string, VibeTag>;
   onSelect: (postcards: PostcardData[], index: number) => void;
 }) => {
-  const { data, isLoading } = useGetEventPostcardsQuery(
-    { eventId, timing: phase === "all" ? undefined : phase },
+  const [filterLoading, setFilterLoading] = useState(true);
+  const prevPhaseRef = React.useRef(phase);
+
+  const { data, isLoading, isFetching } = useGetEventPostcardsQuery(
+    { eventId, timing: phaseToTiming(phase) },
     { skip: !eventId }
   );
+
+  // Set filterLoading whenever the phase changes
+  useEffect(() => {
+    if (prevPhaseRef.current !== phase) {
+      prevPhaseRef.current = phase;
+      setFilterLoading(true);
+    }
+  }, [phase]);
+
+  // Clear filterLoading once data arrives for the current phase
+  useEffect(() => {
+    if (!isFetching) setFilterLoading(false);
+  }, [isFetching]);
 
   const rawList: any[] = (data as any)?.data?.data ?? (data as any)?.data ?? [];
   const postcards: PostcardData[] = rawList
@@ -142,10 +153,18 @@ const PhaseGrid = ({
       vibeTagId: p.vibeTagId ?? p.vibeTag?.id ?? null,
     }));
 
-  if (isLoading) {
+  if (isLoading || filterLoading) {
+    // Skeleton grid — 6 tiles in a 2-column layout
     return (
-      <View style={{ alignItems: "center", paddingVertical: 32 }}>
-        <ActivityIndicator color={brand.primary} />
+      <View style={grid.skeletonWrap}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <View
+            key={i}
+            style={[grid.skeletonTile, { backgroundColor: neutral[100] }]}
+          >
+            <View style={grid.skeletonShimmer} />
+          </View>
+        ))}
       </View>
     );
   }
@@ -166,7 +185,6 @@ const PhaseGrid = ({
       keyExtractor={(item, i) => (item as any)?.id ?? String(i)}
       numColumns={2}
       scrollEnabled={false}
-      // No gap — flush grid
       columnWrapperStyle={{ gap: 0 }}
       ItemSeparatorComponent={() => <View style={{ height: 0 }} />}
       renderItem={({ item, index }) => (
@@ -194,11 +212,21 @@ const grid = StyleSheet.create({
     color: neutral[400],
     textAlign: "center",
   },
+  skeletonWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  skeletonTile: {
+    width: TILE_W,
+    height: TILE_H,
+    overflow: "hidden",
+  },
+  skeletonShimmer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: neutral[200],
+    opacity: 0.6,
+  },
 });
-
-// ─── Main PostcardsTab ────────────────────────────────────────────────────────
-
-// ─── Tile styles ──────────────────────────────────────────────────────────────
 
 const tile = StyleSheet.create({
   wrap: {
@@ -208,7 +236,7 @@ const tile = StyleSheet.create({
     // No borderRadius, no margin — flush grid
   },
   img: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   // Video play badge — bottom left
   videoBadge: {
@@ -271,4 +299,3 @@ const tile = StyleSheet.create({
 });
 
 export { PhaseGrid };
-

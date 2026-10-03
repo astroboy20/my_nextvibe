@@ -1,23 +1,65 @@
+import { neutral } from "@/constants/Colors";
+import { fontFamily } from "@/constants/Typography";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { PostcardData } from "../event/PostcardsTab/types";
+import { getThumbnailAsync } from "expo-video-thumbnails";
+import React, { useEffect, useState } from "react";
 import {
+  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { neutral } from "@/constants/Colors";
-import { fontFamily } from "@/constants/Typography";
+import { PostcardData } from "../event/PostcardsTab/types";
 
 const { width: W } = Dimensions.get("window");
-// 3-column grid, 1px gaps between tiles
+
+// 3-column grid with 1px gaps
 const NUM_COLS = 3;
+const GAP = 1;
+const TILE_W = (W - GAP * (NUM_COLS - 1)) / NUM_COLS;
+const TILE_H = TILE_W * 1.2; // uniform height for all tiles
 
-const TILE_W = (W - (NUM_COLS - 1)) / NUM_COLS;
+// ─── VideoThumb ───────────────────────────────────────────────────────────────
+// Extracts the first frame of a video if no thumbnailUrl is provided.
+// Renders nothing while loading — the tile background colour shows instead.
+function VideoThumb({
+  uri,
+  thumbnailUrl,
+}: {
+  uri: string;
+  thumbnailUrl?: string | null;
+}) {
+  const [thumb, setThumb] = useState<string | null>(thumbnailUrl ?? null);
+
+  useEffect(() => {
+    if (thumb) return; // already have one (either prop or previously extracted)
+    let cancelled = false;
+    getThumbnailAsync(uri, { time: 0, quality: 0.6 })
+      .then(({ uri: t }) => {
+        if (!cancelled) setThumb(t);
+      })
+      .catch(() => {}); // silently ignore — blank tile is fine
+    return () => {
+      cancelled = true;
+    };
+  }, [uri]);
+
+  if (!thumb) return null;
+
+  return (
+    <Image
+      source={{ uri: thumb }}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      transition={100}
+    />
+  );
+}
+
 // ─── Tile ─────────────────────────────────────────────────────────────────────
-
 export const Tile = ({
   postcard,
   index,
@@ -34,44 +76,42 @@ export const Tile = ({
   const isVideo = first.mediaType === "VIDEO";
   const hasMultiple = media.length > 1;
 
-  // Vary tile heights for visual interest (3-column masonry feel)
-  const heights = [
-    TILE_W * 1.4,
-    TILE_W * 1.1,
-    TILE_W * 1.6,
-    TILE_W * 1.25,
-    TILE_W * 1.0,
-    TILE_W * 1.5,
-  ];
-  const h = heights[index % heights.length];
-
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.88}
       style={{ width: TILE_W }}
     >
-      <View style={[t.tile, { height: h }]}>
-        <Image
-          source={{ uri: first.mediaUrl }}
-          style={StyleSheet.absoluteFillObject}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          priority={index < 9 ? "high" : "normal"}
-          recyclingKey={first.mediaUrl}
-          transition={100}
-        />
+      <View style={t.tile}>
+        {isVideo ? (
+          <VideoThumb uri={first.mediaUrl} thumbnailUrl={first.thumbnailUrl} />
+        ) : (
+          <Image
+            source={{ uri: first.mediaUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority={index < 9 ? "high" : "normal"}
+            recyclingKey={first.mediaUrl}
+            transition={100}
+          />
+        )}
+
+        {/* Video play badge */}
         {isVideo && (
           <View style={t.videoBadge} pointerEvents="none">
             <Ionicons name="play" size={11} color="#fff" />
           </View>
         )}
+
+        {/* Multi-media badge */}
         {hasMultiple && (
           <View style={t.layersBadge} pointerEvents="none">
             <Ionicons name="layers" size={11} color="#fff" />
           </View>
         )}
-        {/* Bottom scrim */}
+
+        {/* Bottom scrim with like count */}
         <View style={t.scrim} pointerEvents="none">
           <View style={t.scrimStats}>
             <Ionicons name="heart" size={9} color="#fff" />
@@ -84,7 +124,12 @@ export const Tile = ({
 };
 
 const t = StyleSheet.create({
-  tile: { overflow: "hidden", backgroundColor: neutral[100] },
+  tile: {
+    width: TILE_W,
+    height: TILE_H,
+    overflow: "hidden",
+    backgroundColor: neutral[100],
+  },
   videoBadge: {
     position: "absolute",
     top: 4,

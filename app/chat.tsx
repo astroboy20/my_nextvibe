@@ -1,28 +1,29 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
+import { Avatar } from "@/components/ui/Avatar";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import {
-  useGetConversationsQuery,
-  useGetMessagesQuery,
-  useMarkConversationReadMutation,
-  useStartConversationMutation,
-  type Message,
+    useGetConversationsQuery,
+    useGetMessagesQuery,
+    useMarkConversationReadMutation,
+    useStartConversationMutation,
+    type Message,
 } from "@/store/api/messagingApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -317,11 +318,7 @@ export default function ChatScreen() {
       {/* Header */}
       <AppHeader onBack={() => router.back()} />
       <View style={styles.chatBar}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarInitial}>
-            {displayName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <Avatar uri={null} name={displayName} size={40} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>{displayName}</Text>
           <Text
@@ -454,19 +451,6 @@ const styles = StyleSheet.create({
     borderBottomColor: neutral[200],
     gap: 10,
     backgroundColor: "#fff",
-  },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarInitial: {
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.base,
-    color: "#fff",
   },
   headerName: {
     fontFamily: fontFamily.bold,

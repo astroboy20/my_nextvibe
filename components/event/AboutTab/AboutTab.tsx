@@ -14,9 +14,9 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 import type { EventDetail } from "../types";
-import OrgAvatar from "./Avatar";
 import EventMap from "./EventMap";
 import InfoRow from "./InfoRow";
+import { Avatar } from "@/components/ui/Avatar";
 
 interface Props {
   event: EventDetail;
@@ -132,11 +132,9 @@ export default function AboutTab({ event }: Props) {
         <View style={s.orgCard}>
           <Text style={s.orgTitle}>Organized by</Text>
           <View style={s.orgRow}>
-            <OrgAvatar
+            <Avatar
               uri={event.organizer.avatarUrl}
-              name={
-                event.organizer.displayName ?? event.organizer.username ?? "O"
-              }
+              name={event.organizer.displayName ?? event.organizer.username}
               size={44}
             />
             <View style={{ flex: 1 }}>

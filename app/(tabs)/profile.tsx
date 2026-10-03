@@ -1,6 +1,7 @@
-import { PostcardViewer } from "@/components/event/PostcardsTab/PostcardViewer";
 import type { PostcardData } from "@/components/event/PostcardsTab/types";
 import { AppHeader } from "@/components/navigation/TopNavBar";
+import { PostcardViewer } from "@/components/postcardviewer/PostcardViewer";
+import { Avatar } from "@/components/ui/Avatar";
 import {
   EventRowSkeleton,
   PostcardGridSkeleton,
@@ -86,35 +87,7 @@ type RawPostcard = {
 type TabId = (typeof TABS)[number]["id"];
 
 
-const Avatar = memo(function Avatar({
-  uri,
-  name,
-  size = 80,
-}: {
-  uri?: string | null;
-  name: string;
-  size?: number;
-}) {
-  const initials = name?.charAt(0)?.toUpperCase() || "U";
-  const sizeStyle = useMemo(
-    () => ({
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-    }),
-    [size]
-  );
 
-  if (uri) {
-    return <Image source={{ uri }} style={sizeStyle} />;
-  }
-
-  return (
-    <View style={[av.circle, sizeStyle]}>
-      <Text style={[av.initials, { fontSize: size * 0.38 }]}>{initials}</Text>
-    </View>
-  );
-});
 
 const StatItem = memo(function StatItem({
   value,
@@ -804,15 +777,6 @@ const styles = StyleSheet.create({
     color: neutral[400],
     textAlign: "center",
   },
-});
-
-const av = StyleSheet.create({
-  circle: {
-    backgroundColor: brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  initials: { fontFamily: fontFamily.bold, color: "#fff" },
 });
 
 const stat = StyleSheet.create({

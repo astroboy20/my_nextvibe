@@ -49,6 +49,7 @@ export const authApi = createApi({
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
                     // Wipe ALL stale caches before setting user so screens never
                     // render the previous user's data even for a single frame
+                    dispatch(authApi.util.resetApiState());
                     resetAllApiCaches(dispatch);
                     if (user) dispatch(setUser(user));
                 } catch {}
@@ -66,6 +67,7 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
+                    dispatch(authApi.util.resetApiState());
                     resetAllApiCaches(dispatch);
 
                     const isNew = data?.data?.isNewUser ?? data?.isNewUser ?? data?.user?.isNewUser ?? false;
@@ -98,6 +100,7 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
+                    dispatch(authApi.util.resetApiState());
                     resetAllApiCaches(dispatch);
                     if (user) dispatch(setUser(user));
                 } catch {}
@@ -115,6 +118,7 @@ export const authApi = createApi({
                     const { user, accessToken, refreshToken } = parseAuthResponse(data);
                     if (accessToken)  await tokenStore.set("accessToken",  accessToken);
                     if (refreshToken) await tokenStore.set("refreshToken", refreshToken);
+                    dispatch(authApi.util.resetApiState());
                     resetAllApiCaches(dispatch);
                     if (user) dispatch(setNewUser(user));
                 } catch {}
@@ -237,6 +241,7 @@ export const authApi = createApi({
                 } finally {
                     await tokenStore.removeMany(["accessToken", "refreshToken", "expoPushToken"]);
                     dispatch(clearAuth());
+                    dispatch(authApi.util.resetApiState());
                     resetAllApiCaches(dispatch);
                 }
                 return { data: null };

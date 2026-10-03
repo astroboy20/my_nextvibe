@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { useEventListener } from 'expo';
+import { useEvent } from 'expo';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { getCachedVideoUri, warmVideoCache } from '@/components/postcardviewer/utils/videoCache';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useGetEventPostcardsQuery } from '@/store/api/eventsApi';
 import type { PostcardData, VibeTag } from './types';
 
@@ -45,26 +47,24 @@ export interface PostcardReelProps {
 /**
  * filterAndEnrichSlides
  *
- * Filters `raw` postcards to only those belonging to `phase` that have at
- * least one media item with a non-null, non-empty `mediaUrl`.  Then enriches
- * each media item's `vibeTagOverlayUrl` from `vibeTagMap` when the item does
- * not already carry one.
+ * Enriches each media item's `vibeTagOverlayUrl` from `vibeTagMap` when the
+ * item does not already carry one. Phase filtering is now done server-side
+ * via the `timing` query param — this function only handles overlay enrichment
+ * and strips postcards with no valid media URL.
  *
  * Requirements: 2.1, 2.2, 2.3
  */
 export function filterAndEnrichSlides(
   raw: PostcardData[],
   vibeTagMap: Record<string, VibeTag>,
-  phase: ReelPhase,
+  _phase: ReelPhase,
 ): PostcardData[] {
   return raw
     .filter((p) => {
-      const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
-      const timingMatches = tag?.activityTiming === phase;
       const hasValidMedia = (p.media ?? []).some(
         (m) => m.mediaUrl != null && m.mediaUrl !== '',
       );
-      return timingMatches && hasValidMedia;
+      return hasValidMedia;
     })
     .map((p) => {
       const tag = p.vibeTagId ? vibeTagMap[p.vibeTagId] : null;
@@ -275,26 +275,12 @@ export function computeSegments(
 // Requirements: 4.1, 4.2, 4.3, 10.2, 10.3
 
 interface ReelVideoPlayerProps {
-  /** Remote URI of the video to play. */
   src: string;
-  /**
-   * Whether the video should be playing.
-   * Driven by `activeIndex === currentIndex && !isPaused` in the Reel_Controller.
-   */
   shouldPlay: boolean;
-  /**
-   * Called once when the video has loaded enough to determine its duration.
-   * Receives the duration in milliseconds so the Reel_Controller can set
-   * effectiveDuration = min(ms, 10_000).
-   */
   onDurationKnown: (ms: number) => void;
-  /**
-   * Forwarded ref so the parent can call player.pause() / player.play() imperatively.
-   * Written by this component after the player is created.
-   */
   videoRef: React.RefObject<VideoPlayer | null>;
-  /** When non-null, renders a semi-transparent VibeTag overlay at opacity 0.65. */
   overlayUrl?: string | null;
+  isConnected: boolean;
 }
 
 function ReelVideoPlayer({
@@ -303,20 +289,18 @@ function ReelVideoPlayer({
   onDurationKnown,
   videoRef,
   overlayUrl,
+  isConnected,
 }: ReelVideoPlayerProps) {
   const [buffering, setBuffering] = useState(true);
+  const [muted, setMuted] = useState(false);
 
-  // Create the player instance for this video source.
-  // loop=false — the Reel_Controller advances the slide instead.
   const player = useVideoPlayer({ uri: src }, (p) => {
     p.loop = false;
     p.muted = false;
-    if (shouldPlay) {
-      p.play();
-    }
+    if (shouldPlay) p.play();
   });
 
-  // Write the player into the parent's ref so it can call
+  // Write the player into the parent's ref so the Reel_Controller can call
   // player.pause() / player.play() imperatively (Requirements 4.4, 4.5).
   useEffect(() => {
     (videoRef as React.MutableRefObject<VideoPlayer | null>).current = player;
@@ -325,7 +309,23 @@ function ReelVideoPlayer({
     };
   }, [player, videoRef]);
 
-  // Sync shouldPlay → player.play() / player.pause() when the prop changes.
+  // Upgrade to a cached local copy if one exists; warm cache if not.
+  // Matches the PostcardViewer VideoPlayer pattern exactly.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = await getCachedVideoUri(src);
+      if (cancelled) return;
+      if (cached) {
+        await player.replaceAsync(cached);
+      } else if (isConnected) {
+        warmVideoCache(src);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [src, isConnected, player]);
+
+  // Sync shouldPlay prop → player.play() / player.pause()
   useEffect(() => {
     if (shouldPlay) {
       player.play();
@@ -334,22 +334,29 @@ function ReelVideoPlayer({
     }
   }, [shouldPlay, player]);
 
-  // Duration is available once the source has fully loaded its metadata.
-  // payload.duration is in seconds — convert to ms for the Reel_Controller.
-  useEventListener(player, 'sourceLoad', ({ duration }) => {
-    if (duration != null && duration > 0) {
-      onDurationKnown(duration * 1_000);
-    }
-  });
+  // Duration from sourceLoad event — convert seconds → ms for Reel_Controller
+  const { source } = useEvent(player, 'sourceLoad', { source: null } as any);
+  useEffect(() => {
+    const dur = (source as any)?.duration;
+    if (dur != null && dur > 0) onDurationKnown(dur * 1_000);
+  }, [source]);
 
-  // Track buffering state via statusChange for the ActivityIndicator.
-  useEventListener(player, 'statusChange', ({ status }) => {
+  // Buffering indicator via statusChange
+  const { status } = useEvent(player, 'statusChange', { status: player.status });
+  useEffect(() => {
     setBuffering(status === 'loading');
-  });
+  }, [status]);
+
+  const toggleMute = () => {
+    setMuted((m) => {
+      const next = !m;
+      player.muted = next;
+      return next;
+    });
+  };
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      {/* Buffering indicator — shown while status is 'loading' */}
       {buffering && (
         <View style={rvpStyles.bufferOverlay}>
           <ActivityIndicator color="#ffffff" size="large" />
@@ -359,20 +366,32 @@ function ReelVideoPlayer({
       <VideoView
         player={player}
         style={StyleSheet.absoluteFill}
-        contentFit="contain"
+        contentFit="cover"
         nativeControls={false}
       />
 
-      {/* VibeTag overlay — matches PostcardViewer behaviour (Req 10.3) */}
       {overlayUrl != null && overlayUrl !== '' && (
         <Image
           source={{ uri: overlayUrl }}
           style={[StyleSheet.absoluteFill, { opacity: 0.65 }]}
           contentFit="cover"
-          // Pointer events none so the GestureLayer above receives all touches
+          cachePolicy="memory-disk"
           pointerEvents="none"
         />
       )}
+
+      {/* Mute toggle — bottom right, above bottom info overlay */}
+      <TouchableOpacity
+        style={rvpStyles.muteBtn}
+        onPress={toggleMute}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name={muted ? 'volume-mute' : 'volume-high'}
+          size={16}
+          color="#fff"
+        />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -382,9 +401,20 @@ const rvpStyles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    // Semi-transparent backdrop so the spinner is visible over any media
     backgroundColor: 'rgba(0, 0, 0, 0.40)',
     zIndex: 5,
+  },
+  muteBtn: {
+    position: 'absolute',
+    bottom: 100,
+    right: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 });
 
@@ -401,23 +431,14 @@ const rvpStyles = StyleSheet.create({
 // Requirements: 10.1, 10.2, 10.3
 
 interface ReelSlideProps {
-  /** The enriched PostcardData for this slide (media + vibeTagOverlayUrl populated). */
   slide: PostcardData;
-  /** True when this slide is the currently active one in the reel. */
   isActive: boolean;
-  /** True when the reel is in the long-press paused state. */
   isPaused: boolean;
-  /**
-   * Ref written by ReelVideoPlayer with the active VideoPlayer instance so the
-   * Reel_Controller can call player.pause() / player.play() imperatively
-   * (Requirements 4.4, 4.5).
-   */
   videoRef: React.RefObject<VideoPlayer | null>;
-  /**
-   * Called by ReelVideoPlayer once the video duration is known.
-   * Signature matches ReelVideoPlayerProps.onDurationKnown.
-   */
   onDurationKnown: (ms: number) => void;
+  /** Next slide (if any) — used to warm video cache ahead of time */
+  nextSlide?: PostcardData | null;
+  isConnected: boolean;
 }
 
 function ReelSlide({
@@ -426,27 +447,26 @@ function ReelSlide({
   isPaused,
   videoRef,
   onDurationKnown,
+  nextSlide,
+  isConnected,
 }: ReelSlideProps) {
-  // Grab the first media item — the reel always renders from media[0].
   const firstMedia = (slide.media ?? [])[0];
-
-  // Derive whether this is a video slide (Requirement 10.2 vs 10.1).
   const isVideo = firstMedia?.mediaType === 'VIDEO';
-
-  // The overlay URL was enriched by filterAndEnrichSlides (Requirement 10.3).
   const overlayUrl = firstMedia?.vibeTagOverlayUrl ?? null;
-
-  // shouldPlay: only play when this slide is active AND the reel is not paused.
   const shouldPlay = isActive && !isPaused;
 
-  if (!firstMedia?.mediaUrl) {
-    // Guard: no valid media — render nothing (Reel_Controller skips these via
-    // filterAndEnrichSlides, but be defensive here too).
-    return null;
-  }
+  // Warm the cache for the next slide's video while the current one plays
+  useEffect(() => {
+    if (!isActive || !isConnected) return;
+    const nextMedia = (nextSlide?.media ?? [])[0];
+    if (nextMedia?.mediaType === 'VIDEO' && nextMedia.mediaUrl) {
+      warmVideoCache(nextMedia.mediaUrl);
+    }
+  }, [isActive, nextSlide, isConnected]);
+
+  if (!firstMedia?.mediaUrl) return null;
 
   if (isVideo) {
-    // ── Video branch (Requirement 10.2) ──────────────────────────────────────
     return (
       <View style={StyleSheet.absoluteFill}>
         <ReelVideoPlayer
@@ -455,27 +475,28 @@ function ReelSlide({
           onDurationKnown={onDurationKnown}
           videoRef={videoRef}
           overlayUrl={overlayUrl}
+          isConnected={isConnected}
         />
       </View>
     );
   }
 
-  // ── Photo branch (Requirement 10.1) ────────────────────────────────────────
-  // expo-image Image with contentFit="cover" filling the full screen.
+  // ── Photo branch — cached with expo-image ──────────────────────────────────
   return (
     <View style={StyleSheet.absoluteFill}>
       <Image
         source={{ uri: firstMedia.mediaUrl }}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={200}
       />
-
-      {/* VibeTag overlay — semi-transparent, absolutely positioned (Req 10.3) */}
       {overlayUrl != null && overlayUrl !== '' && (
         <Image
           source={{ uri: overlayUrl }}
           style={[StyleSheet.absoluteFill, reelSlideStyles.overlay]}
           contentFit="cover"
+          cachePolicy="memory-disk"
           pointerEvents="none"
         />
       )}
@@ -728,17 +749,19 @@ export function PostcardReel({
   onClose,
 }: PostcardReelProps): React.JSX.Element {
   // ── Data ────────────────────────────────────────────────────────────────────
+  const { isConnected } = useNetworkStatus();
+
   const { data: rawData, isLoading } = useGetEventPostcardsQuery(
-    { eventId, limit: 100 },
+    { eventId, timing: phase, limit: 100 },
     { skip: !eventId },
   );
 
-  // Unwrap the paginated response envelope — matches the pattern used in PhaseGrid.
+  // Unwrap the paginated response envelope
   const rawList: PostcardData[] = (rawData as any)?.data?.data
     ?? (rawData as any)?.data
     ?? [];
 
-  // Filter to the active phase and enrich overlays (Requirements 2.1–2.3).
+  // Server already filtered by timing — just enrich overlays client-side
   const slides: PostcardData[] = filterAndEnrichSlides(rawList, vibeTagMap, phase);
 
   // ── Reel_Controller state ───────────────────────────────────────────────────
@@ -978,6 +1001,8 @@ export function PostcardReel({
                 isPaused={isPaused}
                 videoRef={videoRef}
                 onDurationKnown={handleVideoLoad}
+                nextSlide={slides[activeIndex + 1] ?? null}
+                isConnected={isConnected}
               />
 
               {/* Author / caption / counts overlay at the bottom (Req 10.4) */}

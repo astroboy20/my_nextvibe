@@ -39,18 +39,6 @@ export interface PostcardData {
 export type ActivityTiming = 'PRE_EVENT' | 'DURING_EVENT' | 'POST_EVENT';
 export type PostcardPhase = 'all' | 'pre-event' | 'main-event' | 'post-event';
 
-// Maps the UI tab value to the API `timing` query parameter.
-// Returns undefined for "all" — the param must be omitted entirely.
-const PHASE_TO_TIMING: Record<Exclude<PostcardPhase, 'all'>, ActivityTiming> = {
-  'pre-event':   'PRE_EVENT',
-  'main-event':  'DURING_EVENT',
-  'post-event':  'POST_EVENT',
-};
-
-export function phaseToTiming(phase: PostcardPhase): ActivityTiming | undefined {
-  return phase === 'all' ? undefined : PHASE_TO_TIMING[phase];
-}
-
 export const TIMING_META: Record<ActivityTiming, { label: string; phase: string }> = {
   PRE_EVENT:    { label: 'Pre-Event',  phase: 'pre-event'  },
   DURING_EVENT: { label: 'Main Event', phase: 'main-event' },

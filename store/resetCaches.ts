@@ -12,7 +12,6 @@
 
 import { adminApi } from "./api/admin";
 import { analyticsApi } from "./api/analyticsApi";
-import { authApi } from "./api/authApi";
 import { campaignApi } from "./api/campaignApi";
 import { discoverApi } from "./api/discoverApi";
 import { eventsApi } from "./api/eventApi";
@@ -32,8 +31,6 @@ import { userApi } from "./api/userApi";
 type DispatchFn = (action: any) => any;
 
 export function resetAllApiCaches(dispatch: DispatchFn): void {
-  // Reset authApi FIRST to clear user queries immediately
-  dispatch(authApi.util.resetApiState());
   dispatch(eventsApi.util.resetApiState());
   dispatch(gamesApi.util.resetApiState());
   dispatch(userApi.util.resetApiState());

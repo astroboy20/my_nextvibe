@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
@@ -71,18 +72,6 @@ function formatTime(dateStr: string): string {
   return `${days}d`;
 }
 
-function AvatarCircle({ name, size = 48 }: { name: string; size?: number }) {
-  return (
-    <View
-      style={[av.circle, { width: size, height: size, borderRadius: size / 2 }]}
-    >
-      <Text style={[av.initials, { fontSize: size * 0.38 }]}>
-        {name.charAt(0).toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
 //  Conversation row
 
 function ConvRow({ item }: { item: Conversation }) {
@@ -102,7 +91,11 @@ function ConvRow({ item }: { item: Conversation }) {
       }
     >
       <View style={row.avatarWrap}>
-        <AvatarCircle name={name} />
+        <Avatar
+          uri={item.participant.avatarUrl}
+          name={name}
+          size={48}
+        />
         {hasUnread && <View style={row.onlineDot} />}
       </View>
 
@@ -380,15 +373,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: "#fff",
   },
-});
-
-const av = StyleSheet.create({
-  circle: {
-    backgroundColor: brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  initials: { fontFamily: fontFamily.bold, color: "#fff" },
 });
 
 const row = StyleSheet.create({

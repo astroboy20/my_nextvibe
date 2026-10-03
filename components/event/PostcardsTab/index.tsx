@@ -8,25 +8,25 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useState } from "react";
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { PostcardViewer } from "../../postcardviewer/PostcardViewer";
 import { PostcardCreator } from "./PostcardCreator";
 import { PhaseGrid } from "./PostcardCreator/components/PostcardCard";
 import { PostcardLeaderboard } from "./PostcardLeaderboard";
 import type { ReelPhase } from "./PostcardReel";
 import { PostcardReel } from "./PostcardReel";
-import { PostcardViewer } from "./PostcardViewer";
 import type {
-    ActivityTiming,
-    PostcardData,
-    PostcardPhase,
-    VibeTag,
+  ActivityTiming,
+  PostcardData,
+  PostcardPhase,
+  VibeTag,
 } from "./types";
 import { TIMING_META } from "./types";
 

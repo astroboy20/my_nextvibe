@@ -5,12 +5,12 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Avatar } from '../ui/Avatar';
 
 export interface SocialUser {
   id: string;
@@ -19,17 +19,6 @@ export interface SocialUser {
   avatarUrl?: string | null;
   bio?: string | null;
   isFollowing?: boolean;
-}
-
-function AvatarCircle({ uri, name, size = 48 }: { uri?: string | null; name: string; size?: number }) {
-  if (uri) {
-    return <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
-  }
-  return (
-    <View style={[av.circle, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[av.initials, { fontSize: size * 0.38 }]}>{name.charAt(0).toUpperCase()}</Text>
-    </View>
-  );
 }
 
 interface Props {
@@ -64,7 +53,7 @@ export default function PersonCard({ user, defaultFollowing = false }: Props) {
         onPress={() => router.push(`/users/${user.id}` as any)}
         activeOpacity={0.85}
       >
-        <AvatarCircle uri={user.avatarUrl} name={name} size={48} />
+        <Avatar uri={user.avatarUrl} name={name} size={48} />
       </TouchableOpacity>
 
       <View style={{ flex: 1 }}>
@@ -108,11 +97,6 @@ export default function PersonCard({ user, defaultFollowing = false }: Props) {
     </View>
   );
 }
-
-const av = StyleSheet.create({
-  circle:   { backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' },
-  initials: { fontFamily: fontFamily.bold, color: '#fff' },
-});
 
 const styles = StyleSheet.create({
   card: {

@@ -38,27 +38,7 @@ const SECTIONS: { value: Section; label: string }[] = [
 
 const OPTIMISTIC_TIMEOUT_MS = 8000;
 
-export interface ChatMessage {
-  id: string;
-  body?: string;
-  content?: string;
-  text?: string;
-  senderId?: string;
-  isOrganizer?: boolean;
-  createdAt?: string;
-  status?: "sending" | "sent" | "failed"; 
-  sender?: {
-    id?: string;
-    displayName?: string | any;
-    username?: string;
-    avatarUrl?: string | null;
-    role?: string;
-  };
-}
-
-export function msgText(m: ChatMessage): string {
-  return m.body ?? m.content ?? m.text ?? "";
-}
+import { ChatMessage, msgText } from "./types";
 
 
 interface Props {

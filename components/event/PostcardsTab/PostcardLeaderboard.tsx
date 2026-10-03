@@ -1,14 +1,15 @@
+import { Avatar } from '@/components/ui/Avatar';
 import { brand, neutral } from '@/constants/Colors';
 import { fontFamily, fontSize } from '@/constants/Typography';
 import { useGetPostcardLeaderboardQuery } from '@/store/api/eventsApi';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 type Phase = 'pre-event' | 'main-event' | 'post-event';
@@ -94,9 +95,12 @@ export function PostcardLeaderboard({ eventId }: Props) {
                 </View>
 
                 {/* Avatar */}
-                <View style={s.avatarCircle}>
-                  <Text style={s.avatarLetter}>{initial}</Text>
-                </View>
+                <Avatar
+                  uri={leader.author?.avatarUrl}
+                  name={name}
+                  size={36}
+                  variant="light"
+                />
 
                 {/* Name + comments */}
                 <View style={s.nameWrap}>
@@ -185,13 +189,6 @@ const s = StyleSheet.create({
 
   rankWrap: { width: 24, alignItems: 'center' },
   rankNum: { fontFamily: fontFamily.bold, fontSize: 12, color: neutral[400] },
-
-  avatarCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: `${brand.primary}15`,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarLetter: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
 
   nameWrap: { flex: 1, minWidth: 0 },
   nameText: { fontFamily: fontFamily.semibold, fontSize: fontSize.sm, color: neutral[800] },

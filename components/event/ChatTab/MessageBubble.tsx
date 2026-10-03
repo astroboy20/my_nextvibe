@@ -1,7 +1,6 @@
 import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -10,7 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { ChatMessage, msgText } from "./ChatTab";
+import { ChatMessage, msgText } from "./types";
+import { Avatar } from "@/components/ui/Avatar";
 
 function timeAgo(dateStr?: string): string {
   if (!dateStr) return "";
@@ -55,18 +55,7 @@ const MessageBubble = ({
           activeOpacity={0.8}
           style={b.avatarTouch}
         >
-          {avatar ? (
-            <Image
-              source={{ uri: avatar }}
-              style={b.avatar}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-            />
-          ) : (
-            <View style={b.avatarFb}>
-              <Text style={b.avatarL}>{name[0]?.toUpperCase()}</Text>
-            </View>
-          )}
+          <Avatar uri={avatar} name={name} size={32} variant="light" />
         </TouchableOpacity>
       )}
 
@@ -137,16 +126,6 @@ const b = StyleSheet.create({
   },
   rowReverse: { flexDirection: "row-reverse" },
   avatarTouch: { marginTop: 2 },
-  avatar: { width: 32, height: 32, borderRadius: 16 },
-  avatarFb: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${brand.primary}20`,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarL: { fontFamily: fontFamily.bold, fontSize: 13, color: brand.primary },
   col: { flex: 1, maxWidth: "78%", alignItems: "flex-start" },
   colRight: { alignItems: "flex-end" },
   metaRow: {

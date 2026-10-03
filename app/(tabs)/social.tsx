@@ -1,13 +1,15 @@
-import { PostcardViewer } from "@/components/event/PostcardsTab/PostcardViewer";
-import PersonCard from "@/components/social/PersonCard";
-import PostcardCard from "@/components/social/PostcardCard";
+import { PostcardViewer } from "@/components/postcardviewer/PostcardViewer";
+import { mapToViewerPostcards } from "@/components/social/hooks/Maptoviewerpostcards";
+import { useSocialData } from "@/components/social/hooks/useSocialData";
 import {
   PeopleSubTabs,
   type PeopleTab,
 } from "@/components/social/Peoplesubtabs";
+import PersonCard from "@/components/social/PersonCard";
+import PostcardCard from "@/components/social/PostcardCard";
 import {
-  PostcardSkeleton,
   PersonSkeleton,
+  PostcardSkeleton,
 } from "@/components/social/Socialskeletons";
 import { TabBar, type TabBarItem } from "@/components/social/TabBar";
 import { brand, neutral } from "@/constants/Colors";
@@ -25,8 +27,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSocialData } from "@/components/social/hooks/useSocialData";
-import { mapToViewerPostcards } from "@/components/social/hooks/Maptoviewerpostcards";
 
 const MAIN_TABS: TabBarItem[] = [
   { id: "feed", label: "Feed", icon: "images-outline" },
