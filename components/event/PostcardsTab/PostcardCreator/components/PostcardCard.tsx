@@ -26,12 +26,6 @@ const H_PAD = 14;
 const TILE_W = SCREEN_W / 2;
 const TILE_H = TILE_W * (5 / 4); // taller: was 4/3, now shows more
 
-const TIMING_TABS: ActivityTiming[] = [
-  "PRE_EVENT",
-  "DURING_EVENT",
-  "POST_EVENT",
-];
-
 const PostcardTile = ({
   postcard,
   vibeTagMap,
