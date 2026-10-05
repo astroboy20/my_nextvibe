@@ -89,11 +89,17 @@ const AudienceLocationCard = () => {
                 style={[
                   s.barFill,
                   {
-                    width: `${Math.min(100, (c.count / maxCount) * 100)}%`,
+                    flex: Math.min(100, (c.count / maxCount) * 100),
                     backgroundColor:
                       c.city === "Unknown" ? neutral[300] : brand.primary,
                   },
                 ]}
+              />
+              {/* Spacer fills remaining track space */}
+              <View
+                style={{
+                  flex: 100 - Math.min(100, (c.count / maxCount) * 100),
+                }}
               />
             </View>
           </View>
@@ -131,12 +137,12 @@ const s = StyleSheet.create({
     borderColor: neutral[200],
     backgroundColor: "#fff",
     padding: 16,
-    gap: 12,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 12,
   },
   headerLeft: {
     flexDirection: "row",
@@ -174,15 +180,16 @@ const s = StyleSheet.create({
     color: neutral[500],
   },
   cityList: {
-    gap: 8,
+    marginBottom: 4,
   },
   cityItem: {
-    gap: 4,
+    marginBottom: 8,
   },
   cityLabelRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 4,
   },
   cityNameRow: {
     flexDirection: "row",
@@ -205,6 +212,7 @@ const s = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: neutral[100],
     overflow: "hidden",
+    flexDirection: "row", // children use flex to fill proportionally
   },
   barFill: {
     height: "100%",

@@ -57,6 +57,11 @@ const initialState: AuthState = {
 export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
   'auth/bootstrap',
   async () => {
+    // Abort the entire bootstrap if it takes more than 10 seconds.
+    // This covers flaky network after an OTA reload so the splash never hangs forever.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
     try {
       const token = await tokenStore.get('accessToken');
       if (!token) return null;
@@ -64,26 +69,25 @@ export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
       // Attempt 1: Try with existing access token
       let res = await fetch(`${API_URL}/v1/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
 
       // If 401, attempt token refresh
       if (res.status === 401) {
         const refreshToken = await tokenStore.get('refreshToken');
         if (!refreshToken) {
-          // No refresh token — clear storage and treat as logged out
           await tokenStore.removeMany(['accessToken', 'refreshToken']);
           return null;
         }
 
-        // Try to refresh the access token
         const refreshRes = await fetch(`${API_URL}/v1/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
+          signal: controller.signal,
         });
 
         if (!refreshRes.ok) {
-          // Refresh failed — tokens are invalid, clear storage
           await tokenStore.removeMany(['accessToken', 'refreshToken']);
           return null;
         }
@@ -93,24 +97,21 @@ export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
         const newRefreshToken = refreshData?.data?.refreshToken ?? refreshData?.refreshToken;
 
         if (!newAccessToken) {
-          // No new token in response — clear storage
           await tokenStore.removeMany(['accessToken', 'refreshToken']);
           return null;
         }
 
-        // Save new tokens
         await tokenStore.set('accessToken', newAccessToken);
         if (newRefreshToken) {
           await tokenStore.set('refreshToken', newRefreshToken);
         }
 
-        // Retry /v1/users/me with new access token
         res = await fetch(`${API_URL}/v1/users/me`, {
           headers: { Authorization: `Bearer ${newAccessToken}` },
+          signal: controller.signal,
         });
       }
 
-      // If still not OK after refresh attempt, clear storage
       if (!res.ok) {
         await tokenStore.removeMany(['accessToken', 'refreshToken']);
         return null;
@@ -119,10 +120,15 @@ export const bootstrapAuth = createAsyncThunk<AuthUser | null>(
       const json = await res.json();
       return (json?.data ?? null) as AuthUser | null;
     } catch (error) {
-      // Network error — keep tokens for retry on next launch
-      // Log for debugging but don't crash
-      console.warn('Bootstrap auth failed:', error);
+      if ((error as any)?.name === 'AbortError') {
+        // Timed out — treat as a network failure, keep tokens for next launch
+        console.warn('Bootstrap auth timed out after 10s');
+      } else {
+        console.warn('Bootstrap auth failed:', error);
+      }
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
   },
 );

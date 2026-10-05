@@ -1,31 +1,30 @@
 import { AppHeader } from "@/components/navigation/TopNavBar";
 import {
-  AudienceCardSkeleton,
-  DashboardEventsSkeleton,
+    AudienceCardSkeleton,
+    DashboardEventsSkeleton,
 } from "@/components/ui/Skeleton";
-import { brand, neutral, semantic } from "@/constants/Colors";
+import { brand, neutral } from "@/constants/Colors";
 import { fontFamily, fontSize } from "@/constants/Typography";
 import { useAuth } from "@/hooks/useAuth";
 import { useRefetchOnFocus } from "@/hooks/useRefetchOnFocus";
 import {
-  useGetOrganizerEventsQuery,
-  type OrganizerEvent,
+    useGetOrganizerEventsQuery
 } from "@/store/api/usersApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-  FlatList,
-  Image,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AudienceLocationCard from "./AudienceLocation";
 import EventListItem from "./EventListItem";
+import { useGetOverviewLocationAnalyticsQuery } from "@/store/api/analyticsApi";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -46,6 +45,10 @@ const  DashboardScreen = ()=> {
     { organizerId: userId, page: 1, limit: 50 },
     { skip: !userId }
   );
+
+  // Prefetch location analytics in parallel with events — both fire at mount
+  // so AudienceLocationCard has data ready when it renders (no second waterfall).
+  useGetOverviewLocationAnalyticsQuery(undefined, { skip: !userId });
 
   const events = eventsData?.data?.data ?? [];
   const isFirstLoad = isLoading && !eventsData;

@@ -5,7 +5,7 @@ import Colors from "@/constants/Colors";
 import { useAppReady } from "@/hooks/useAppReady";
 import { useAuthRouting } from "@/hooks/useAuthRouting";
 import checkForUpdate from "@/hooks/useCheckUpdates";
-// import { useFcmSync } from "@/hooks/useFcmSync";
+import { useFcmSync } from "@/hooks/useFcmSync";
 import { usePushRegistration } from "@/hooks/usePushRegistration";
 import type { RootState } from "@/store/store";
 import { store } from "@/store/store";
@@ -99,7 +99,7 @@ function App() {
   const { oauthPending } = useAuthRouting();
   usePushRegistration(isAuthenticated, isBootstrapped);
 
-  // useFcmSync(isAuthenticated);
+  useFcmSync(isAuthenticated);
 
   useEffect(() => {
     checkForUpdate();
