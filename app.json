@@ -47,7 +47,7 @@
         "expo-build-properties",
         {
           "android": {
-            "enableNewArch": false
+            "enableNewArch": true
           },
           "ios": {
             "useFrameworks": "static"
