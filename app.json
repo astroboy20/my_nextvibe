@@ -91,7 +91,8 @@
           "merchantIdentifier": "merchant.com.nextvibe2026.nextvibe",
           "enableGooglePay": false
         }
-      ]
+      ],
+      "./plugins/withFirebaseMessagingManifestFix"
     ],
     "experiments": {
       "typedRoutes": true
