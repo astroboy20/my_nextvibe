@@ -43,6 +43,9 @@
       "expo-router",
       "expo-dev-client",
       "expo-updates",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      "./plugins/withFirebaseManifestFix",
       [
         "expo-build-properties",
         {
@@ -91,8 +94,8 @@
           "merchantIdentifier": "merchant.com.nextvibe2026.nextvibe",
           "enableGooglePay": false
         }
-      ],
-      "./plugins/withFirebaseMessagingManifestFix"
+      ]
+     
     ],
     "experiments": {
       "typedRoutes": true
