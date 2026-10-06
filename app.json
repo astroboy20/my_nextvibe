@@ -12,6 +12,8 @@
     "scheme": "mynextvibe",
     "userInterfaceStyle": "automatic",
     "android": {
+      "package": "com.nextvibe2026.nextvibe",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,22 +21,16 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.nextvibe2026.nextvibe",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
         }
-      },
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nextvibe2026.nextvibe",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "googleMapsApiKey": "AIzaSyC73yaRGGiQ-W1qpni-3WlKJJ3A1vWtmUs"
       }
@@ -45,7 +41,6 @@
       "expo-updates",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
-      "./plugins/withFirebaseManifestFix",
       [
         "expo-build-properties",
         {
@@ -94,8 +89,8 @@
           "merchantIdentifier": "merchant.com.nextvibe2026.nextvibe",
           "enableGooglePay": false
         }
-      ]
-     
+      ],
+      "./plugins/withFirebaseManifestFix"
     ],
     "experiments": {
       "typedRoutes": true
