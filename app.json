@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "nextvibe",
+    "name": "Nextvibe",
     "slug": "nextvibe",
     "version": "1.0.0",
     "platforms": [
@@ -8,7 +8,7 @@
       "ios"
     ],
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icon.png",
     "scheme": "mynextvibe",
     "userInterfaceStyle": "automatic",
     "android": {
@@ -64,7 +64,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/icon.png",
           "color": "#ffffff",
           "defaultChannel": "default",
           "sounds": []
